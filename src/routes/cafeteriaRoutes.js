@@ -1,0 +1,46 @@
+import express from 'express';
+import { auth } from '../middleware/auth.js';
+import { getCafeterias, getCafeteriaMenu } from '../controllers/cafeteriaController.js';
+
+const router = express.Router();
+
+/**
+ * @swagger
+ * tags:
+ *   name: Cafeterias
+ *   description: Cafeteria & menu APIs
+ */
+
+/**
+ * @swagger
+ * /api/cafeterias:
+ *   get:
+ *     summary: Get list of cafeterias
+ *     tags: [Cafeterias]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: List returned }
+ */
+router.get('/', auth, getCafeterias);
+
+/**
+ * @swagger
+ * /api/cafeterias/{id}/menu:
+ *   get:
+ *     summary: Get menu for a cafeteria
+ *     tags: [Cafeterias]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: number }
+ *         example: 1
+ *     responses:
+ *       200: { description: Menu fetched }
+ */
+router.get('/:id/menu', auth, getCafeteriaMenu);
+
+export default router;
