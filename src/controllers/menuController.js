@@ -193,3 +193,31 @@ export const uploadBulkImages = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+/* ================== UPDATE MENU ITEM (Edit & Toggle) ================== */
+export const updateMenuItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, price, category, isAvailable } = req.body;
+
+    // Create an object with only the fields provided in the body
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (price) updateData.price = price;
+    if (category) updateData.category = category;
+    
+    // Explicit check for boolean, as 'if (isAvailable)' fails on false
+    if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
+
+    const [updated] = await MenuItem.update(updateData, { where: { id } });
+
+    if (updated) {
+      const updatedItem = await MenuItem.findByPk(id);
+      res.json({ success: true, message: "Item Updated ✔", data: updatedItem });
+    } else {
+      res.status(404).json({ success: false, message: "Item not found" });
+    }
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Update failed", error: err.message });
+  }
+};

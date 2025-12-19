@@ -8,7 +8,8 @@ import {
   updateSingleImage,
   updateMultipleImages,
   updateImageById,
-  uploadBulkImages
+  uploadBulkImages,
+  updateMenuItem
 } from "../controllers/menuController.js";
 import { updateCategoryBulk } from "../controllers/menuController.js";
 import multer from "multer";
@@ -29,7 +30,7 @@ router.put("/update-images", updateMultipleImages);
 router.put("/update-category", updateCategoryBulk);
 router.put("/update-image-url", updateImageById);
 router.post("/upload-bulk-images", upload.array("images"), uploadBulkImages);
-
+router.put("/update/:id", updateMenuItem);
 
 
 

@@ -1,118 +1,120 @@
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto'; // ✅ Import crypto for random string generation
 import { Order, OrderItem, MenuItem } from '../models/index.js';
 
-const calculateETA = (menuItemsWithQty) => {
-  // Simple ETA: max(estPrepTime) + queue factor (e.g., 5 mins)
-  let maxPrep = 0;
-  for (const item of menuItemsWithQty) {
-    if (item.estPrepTimeMinutes > maxPrep) {
-      maxPrep = item.estPrepTimeMinutes;
-    }
-  }
-  return maxPrep + 5;
+// --------------------------------------------------
+// HELPER: GENERATE CUSTOM BILL ID
+// Format: AA-X7K9P2M (Prefix + Random Unique String)
+// --------------------------------------------------
+// Helper to generate a Short, Unique Bill ID
+const generateBillId = (cafeteriaId) => {
+  let prefix = "GEN";
+  const mapping = { 1: "AA", 2: "AR", 3: "DP", 4: "FC" };
+  prefix = mapping[Number(cafeteriaId)] || "GEN";
+
+  const randomString = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return `${prefix}-${randomString}`;
 };
 
+// --------------------------------------------------
+// ETA CALCULATOR
+// --------------------------------------------------
+const calculateETA = () => 10; // static ETA or adjust later
+
+// --------------------------------------------------
+// CREATE ORDER (Flutter + Menu format supported)
+// --------------------------------------------------
 export const createOrder = async (req, res) => {
   const t = await Order.sequelize.transaction();
   try {
     const { cafeteriaId, items } = req.body;
-    // items: [{ menuItemId, quantity }]
+    const userId = req.user.id; // Extract ID from JWT
 
     if (!items || items.length === 0) {
-      return res.status(400).json({ message: 'No items' });
-    }
-
-    const dbItems = await MenuItem.findAll({
-      where: { id: items.map(i => i.menuItemId) }
-    });
-
-    if (dbItems.length !== items.length) {
-      return res.status(400).json({ message: 'Some items invalid' });
+      return res.status(400).json({ message: "No items provided" });
     }
 
     let total = 0;
-    const itemsWithDetails = [];
+    const finalItems = [];
 
-    for (const cartItem of items) {
-      const mi = dbItems.find(d => d.id === cartItem.menuItemId);
-      if (!mi || !mi.isAvailable) {
-        return res.status(400).json({ message: `Item not available: ${cartItem.menuItemId}` });
-      }
-      const price = parseFloat(mi.price);
-      total += price * cartItem.quantity;
-      itemsWithDetails.push({
-        menuItem: mi,
-        quantity: cartItem.quantity,
-        priceAtOrder: price
+    // Support both Flutter local cart and Menu-based ID formats
+    for (const item of items) {
+      const price = Number(item.price || item.priceAtOrder);
+      const qty = Number(item.qty || item.quantity);
+      total += price * qty;
+
+      finalItems.push({
+        Id: item.Id || 0,
+        name: item.name,
+        quantity: qty,
+        priceAtOrder: price,
+        imageUrl: item.img || item.imageUrl || null,
       });
     }
 
-    const eta = calculateETA(itemsWithDetails.map(i => i.menuItem));
-
-    const billId = `BILL-${uuidv4().slice(0, 8).toUpperCase()}`;
-
     const order = await Order.create({
-      billId,
-      studentId: req.user.id,
+      billId: generateBillId(cafeteriaId),
+      studentId: userId, // Dynamically linked to logged-in user
       cafeteriaId,
       totalAmount: total.toFixed(2),
-      status: 'PAID', // assume mock payment success
-      paymentStatus: 'SUCCESS',
-      etaMinutes: eta
+      status: "PAID",
+      paymentStatus: "SUCCESS",
     }, { transaction: t });
 
-    for (const it of itemsWithDetails) {
+    for (const item of finalItems) {
       await OrderItem.create({
         orderId: order.id,
-        menuItemId: it.menuItem.id,
-        quantity: it.quantity,
-        priceAtOrder: it.priceAtOrder
+        ...item
       }, { transaction: t });
     }
 
     await t.commit();
-
-    res.status(201).json({
-      message: 'Order created',
-      order: {
-        id: order.id,
-        billId: order.billId,
-        etaMinutes: order.etaMinutes,
-        totalAmount: order.totalAmount,
-        status: order.status
-      }
-    });
+    res.status(201).json({ success: true, orderId: order.id, billId: order.billId });
   } catch (err) {
-    console.error(err);
     await t.rollback();
-    res.status(500).json({ message: 'Error creating order' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
+// --------------------------------------------------
+// GET MY ORDERS
+// --------------------------------------------------
 export const getMyOrders = async (req, res) => {
   try {
+    const userId = req.user?.id;
+
     const orders = await Order.findAll({
-      where: { studentId: req.user.id },
-      order: [['createdAt', 'DESC']]
+      where: { studentId: userId },
+      order: [["createdAt", "DESC"]],
     });
-    res.json(orders);
+
+    return res.json(orders);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error fetching orders' });
+    console.error("🔥 GET MY ORDERS ERROR:", err);
+    return res.status(500).json({ message: "Error fetching orders" });
   }
 };
 
+// --------------------------------------------------
+// GET ORDER BY ID
+// --------------------------------------------------
 export const getOrderById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const userId = req.user?.id;
+    const orderId = req.params.id;
+
     const order = await Order.findOne({
-      where: { id, studentId: req.user.id },
-      include: [OrderItem]
+      where: { id: orderId, studentId: userId },
+      include: [OrderItem],
     });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    res.json(order);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    return res.json(order);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error fetching order' });
+    console.error("🔥 ORDER FETCH ERROR:", err);
+    return res.status(500).json({ message: "Error fetching order" });
   }
 };

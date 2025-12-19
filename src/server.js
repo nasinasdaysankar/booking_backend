@@ -44,7 +44,7 @@ const start = async () => {
     app.use("/api/menu", menuRoutes);
     console.log("Menu Route Mounted ✔ (/api/menu)");
 
-    await sequelize.sync({ alter: true });
+console.log("⚠️ Skipping sequelize.sync() to avoid column conflict");
     console.log("DB synced 🔄");
 
     //================= BANNER ROUTES ========================
@@ -64,14 +64,19 @@ const start = async () => {
     console.log("Notification Route Mounted ✔ (/api/notify)");
 
     // SEED DEFAULT CAFETERIAS
+    // SEED ACTUAL CAFETERIAS
     const count = await Cafeteria.count();
     if (count === 0) {
       await Cafeteria.bulkCreate([
-        { name: "Aromas", location: "Block A", staticQrToken: "AROMAS_QR_123" },
-        { name: "Food Club", location: "Main Block", staticQrToken: "FOODCOURT_QR_456" },
-        { name: "Nestle Cafe", location: "Block B", staticQrToken: "NESTLE_QR_789" }
+        { id: 1, name: "ANANTHA AAHARA", location: "Main Block", staticQrToken: "STATIC_QR_CAFETERIA_1" },
+        { id: 2, name: "AROMOS", location: "Block A", staticQrToken: "AROMAS_QR_123" },
+        { id: 3, name: "DHANAPANI", location: "Block B", staticQrToken: "NESTLE_QR_789" },
+        { id: 4, name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" }
       ]);
-      console.log("📌 Default Cafeterias Inserted ✔");
+      console.log("📌 Actual Cafeterias Inserted ✔");
+      
+      // Sync the ID sequence so the next manual insert doesn't fail
+      await sequelize.query("SELECT setval(pg_get_serial_sequence('cafeterias', 'id'), (SELECT MAX(id) FROM cafeterias))");
     }
 
     // ============ START SERVER (Socket + Express) ========= //

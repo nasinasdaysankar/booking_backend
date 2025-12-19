@@ -1,73 +1,57 @@
+// import express from 'express';
+// const router = express.Router();
+// import { auth } from '../middleware/auth.js';
+// import { 
+//   createOrder, 
+//   getMyOrders, 
+//   getOrderById 
+// } from '../controllers/orderController.js';
+// import { 
+//   markOrderPaid,
+//   scanStaticCafeteriaQR,
+//   confirmOrderPickup
+// } from '../controllers/adminOrderController.js';
+
+// router.post('/', auth, createOrder);
+// router.get('/', auth, getMyOrders);
+// router.get('/:id', auth, getOrderById);
+// router.post('/mark-paid/:orderId', auth, markOrderPaid);
+
+// // 🔥 NEW STATIC QR FLOW ROUTES
+// router.post('/scan-qr', auth, scanStaticCafeteriaQR); // Student scans cafeteria code
+// router.post('/confirm-pickup', auth, confirmOrderPickup); // Student clicks "Pick up"
+
+// export default router;
 import express from 'express';
-import { auth } from '../middleware/auth.js';
-import { createOrder, getMyOrders, getOrderById } from '../controllers/orderController.js';
-
 const router = express.Router();
+import { auth } from '../middleware/auth.js';
 
-/**
- * @swagger
- * tags:
- *   name: Orders
- *   description: Student order operations
- */
+// Order-related functions (user placing orders)
+import { 
+  createOrder, 
+  getMyOrders, 
+  getOrderById 
+} from '../controllers/orderController.js';
 
-/**
- * @swagger
- * /api/orders:
- *   post:
- *     summary: Place a food order
- *     tags: [Orders]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [cafeteriaId, items]
- *             properties:
- *               cafeteriaId: { type: number, example: 2 }
- *               items:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     menuItemId: { type: number, example: 5 }
- *                     quantity:   { type: number, example: 2 }
- *     responses:
- *       201: { description: Order placed successfully }
- */
+// Static QR functions — these are now in userOrderController.js
+import { 
+  scanStaticCafeteriaQR,
+  confirmOrderPickup
+} from '../controllers/userOrderController.js';
+
+// Admin-only function (if still needed here; otherwise move to admin routes)
+import { markOrderPaid } from '../controllers/adminOrderController.js';
+
+// User order routes
 router.post('/', auth, createOrder);
-
-/**
- * @swagger
- * /api/orders:
- *   get:
- *     summary: Get logged-in student's past orders
- *     tags: [Orders]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: Orders returned }
- */
 router.get('/', auth, getMyOrders);
-
-/**
- * @swagger
- * /api/orders/{id}:
- *   get:
- *     summary: Get order by ID (only own order)
- *     tags: [Orders]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         example: 3
- *     responses:
- *       200: { description: Order details returned }
- */
 router.get('/:id', auth, getOrderById);
+
+// Optional: Admin marks order as paid (you can keep or move this to admin routes)
+router.post('/mark-paid/:orderId', auth, markOrderPaid);
+
+// 🔥 STATIC QR FLOW ROUTES (for students/users)
+router.post('/scan-qr', auth, scanStaticCafeteriaQR);         // User scans cafeteria QR
+router.post('/confirm-pickup', auth, confirmOrderPickup);     // User confirms pickup
 
 export default router;

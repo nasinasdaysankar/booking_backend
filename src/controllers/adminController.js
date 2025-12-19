@@ -1,5 +1,78 @@
-import { Order, Cafeteria } from '../models/index.js';
+import { Order, OrderItem, Cafeteria } from '../models/index.js'; // Ensure OrderItem is imported if needed
+import { Sequelize } from 'sequelize';
+const { Op } = Sequelize;
 
+// --------------------------------------------------
+// 1. GET DASHBOARD STATS (Revenue, Counts)
+// --------------------------------------------------
+export const getDashboardStats = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const range = req.query.range || "daily";
+
+    let dateFilter = {};
+
+    if (range === "daily") {
+      dateFilter = {
+        createdAt: {
+          [Op.gte]: Sequelize.literal("CURRENT_DATE")
+        }
+      };
+    }
+
+    if (range === "weekly") {
+      dateFilter = {
+        createdAt: {
+          [Op.gte]: Sequelize.literal("CURRENT_DATE - INTERVAL '7 days'")
+        }
+      };
+    }
+
+    if (range === "monthly") {
+      dateFilter = {
+        createdAt: {
+          [Op.gte]: Sequelize.literal("CURRENT_DATE - INTERVAL '30 days'")
+        }
+      };
+    }
+
+    const where = { cafeteriaId, ...dateFilter };
+
+    const totalOrders = await Order.count({ where });
+
+    const totalRevenue = await Order.sum("totalAmount", {
+      where: {
+        ...where,
+        status: { [Op.not]: "CANCELLED" }
+      }
+    });
+
+    const pendingOrders = await Order.count({
+      where: {
+        cafeteriaId,
+        status: { [Op.in]: ["PAID", "PREPARING", "READY"] }
+      }
+    });
+
+    const avgOrderValue =
+      totalOrders > 0 ? (totalRevenue || 0) / totalOrders : 0;
+
+    res.json({
+      totalRevenue: totalRevenue || 0,
+      totalOrders,
+      pendingOrders,
+      avgOrderValue: avgOrderValue.toFixed(2)
+    });
+  } catch (err) {
+    console.error("STATS ERROR:", err);
+    res.status(500).json({ message: "Failed to fetch stats" });
+  }
+};
+
+
+// --------------------------------------------------
+// 2. GET ALL ORDERS (For the Order List)
+// --------------------------------------------------
 export const getCafeteriaOrders = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
@@ -19,6 +92,9 @@ export const getCafeteriaOrders = async (req, res) => {
   }
 };
 
+// --------------------------------------------------
+// 3. UPDATE ORDER STATUS
+// --------------------------------------------------
 export const updateOrderStatus = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
@@ -38,13 +114,13 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Student scans static QR (contains cafeteriaId or token), then sends billId to verify.
+// --------------------------------------------------
+// 4. VERIFY ORDER (QR Scan)
+// --------------------------------------------------
 export const verifyOrderPickup = async (req, res) => {
   try {
     const { cafeteriaId } = req.params;
     const { billId } = req.body;
-
-    // student must be logged in:
     const studentId = req.user.id;
 
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
