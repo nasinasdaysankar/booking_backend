@@ -175,6 +175,56 @@
 //     });
 //   }
 // };
+
+
+
+// import { CafeteriaQr, Order } from "../models/index.js";
+// import { Op } from "sequelize";
+
+// export const scanStaticCafeteriaQR = async (req, res) => {
+//   try {
+//     const { qrToken } = req.body;
+//     const studentId = req.user.id;
+
+//     const cafeteriaQr = await CafeteriaQr.findOne({ where: { qrToken: qrToken?.trim() } });
+//     if (!cafeteriaQr) return res.status(400).json({ success: false, message: "Invalid QR" });
+
+//     // Find latest active order for this student at this cafeteria
+//     const order = await Order.findOne({
+//       where: {
+//         studentId,
+//         cafeteriaId: cafeteriaQr.cafeteriaId,
+//         status: { [Op.in]: ["PAID", "PREPARING", "READY"] }
+//       },
+//       order: [["createdAt", "DESC"]]
+//     });
+
+//     if (!order) return res.status(404).json({ success: false, message: "No active order found" });
+
+//     let msg = order.status === "READY" ? "✅ Ready for pickup!" : "👨‍🍳 Cooking your order...";
+//     res.json({ success: true, orderId: order.id, status: order.status, message: msg, canPickUp: order.status === "READY" });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: "Scan error" });
+//   }
+// };
+
+// export const confirmOrderPickup = async (req, res) => {
+//   try {
+//     const { orderId } = req.body;
+//     const studentId = req.user.id;
+
+//     const order = await Order.findOne({ where: { id: orderId, studentId } });
+
+//     if (!order || order.status !== "READY") {
+//       return res.status(400).json({ success: false, message: "Order not ready or not yours" });
+//     }
+
+//     await order.update({ status: "PICKED_UP" });
+//     res.json({ success: true, message: "🎉 Picked up successfully!" });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: "Pickup error" });
+//   }
+// };
 import { CafeteriaQr, Order } from "../models/index.js";
 import { Op } from "sequelize";
 
@@ -186,8 +236,8 @@ export const scanStaticCafeteriaQR = async (req, res) => {
     const cafeteriaQr = await CafeteriaQr.findOne({ where: { qrToken: qrToken?.trim() } });
     if (!cafeteriaQr) return res.status(400).json({ success: false, message: "Invalid QR" });
 
-    // Find latest active order for this student at this cafeteria
-    const order = await Order.findOne({
+    // Find all active orders for this student at this cafeteria
+    const activeOrders = await Order.findAll({
       where: {
         studentId,
         cafeteriaId: cafeteriaQr.cafeteriaId,
@@ -196,11 +246,42 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       order: [["createdAt", "DESC"]]
     });
 
-    if (!order) return res.status(404).json({ success: false, message: "No active order found" });
+    if (activeOrders.length > 0) {
+      const ordersData = activeOrders.map(order => {
+        let msg;
+        if (order.status === "PAID" || order.status === "PREPARING") {
+          msg = "we are cooking";
+        } else if (order.status === "READY") {
+          msg = "Ready, pick it up";
+        }
+        return {
+          orderId: order.id,
+          status: order.status,
+          message: msg,
+          canPickUp: order.status === "READY"
+        };
+      });
 
-    let msg = order.status === "READY" ? "✅ Ready for pickup!" : "👨‍🍳 Cooking your order...";
-    res.json({ success: true, orderId: order.id, status: order.status, message: msg, canPickUp: order.status === "READY" });
+      return res.json({ success: true, orders: ordersData });
+    } else {
+      // Check if there is a recently picked up order
+      const pickedOrder = await Order.findOne({
+        where: {
+          studentId,
+          cafeteriaId: cafeteriaQr.cafeteriaId,
+          status: "PICKED_UP"
+        },
+        order: [["updatedAt", "DESC"]] // Latest picked up
+      });
+
+      if (pickedOrder) {
+        return res.status(404).json({ success: false, message: "you have already picked it" });
+      } else {
+        return res.status(404).json({ success: false, message: "No active order found" });
+      }
+    }
   } catch (error) {
+    console.error("❌ scanStaticCafeteriaQR error:", error);
     res.status(500).json({ success: false, message: "Scan error" });
   }
 };
@@ -219,6 +300,7 @@ export const confirmOrderPickup = async (req, res) => {
     await order.update({ status: "PICKED_UP" });
     res.json({ success: true, message: "🎉 Picked up successfully!" });
   } catch (error) {
+    console.error("❌ confirmOrderPickup error:", error);
     res.status(500).json({ success: false, message: "Pickup error" });
   }
 };

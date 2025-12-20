@@ -55,19 +55,6 @@ export default (sequelize) => {
 
     etaMinutes: DataTypes.INTEGER,
 
-    // ⭐ NEW FIELDS FOR QR CODE ⭐
-    // qrToken: {
-    //   type: DataTypes.STRING(255),
-    //   allowNull: true,
-    //   unique: false,
-    // },
-
-    // qrExpiresAt: {
-    //   type: DataTypes.DATE,
-    //   allowNull: true,
-    // },
-    // ⭐ END NEW FIELDS ⭐
-
   }, {
     tableName: "orders",
     timestamps: true,
