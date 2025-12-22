@@ -3,45 +3,26 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Accept Railway-style envs too (PGURL/PG*). If DATABASE_URL is not set,
-// fall back to individual vars.
-const urlFromEnv = process.env.DATABASE_URL || process.env.PGURL;
-const databaseUrl =
-  urlFromEnv ||
-  `postgresql://${process.env.DATABASE_USER || process.env.PGUSER}:${
-    process.env.DATABASE_PASSWORD || process.env.PGPASSWORD
-  }@${process.env.DATABASE_HOST || process.env.PGHOST}:${
-    process.env.DATABASE_PORT || process.env.PGPORT || 5432
-  }/${process.env.DATABASE_NAME || process.env.PGDATABASE}`;
+const databaseUrl = process.env.DATABASE_URL;
 
-// Decide when to force SSL: any hosted URL (non-localhost) or explicit flags.
-const useSsl = (() => {
-  if (process.env.DB_SSL === "false") return false;
-  if (process.env.DB_SSL === "true") return true;
-  if (process.env.PGSSLMODE === "require") return true;
-  return Boolean(
-    urlFromEnv && !databaseUrl.toLowerCase().includes("localhost")
-  );
-})();
-
-// Log the target without exposing credentials to help debug on Railway.
-try {
-  const parsed = new URL(databaseUrl);
-  console.log(
-    `Connecting to database: ${useSsl ? "Production (SSL)" : "Local (No SSL)"} -> ${parsed.hostname}:${parsed.port}/${parsed.pathname.slice(
-      1
-    )}`
-  );
-} catch {
-  console.log(
-    `Connecting to database: ${useSsl ? "Production (SSL)" : "Local (No SSL)"}`
-  );
+if (!databaseUrl) {
+  console.error("❌ DATABASE_URL is not set!");
+  process.exit(1);
 }
+
+console.log(`🔗 Attempting to connect to database...`);
+
+// Determine if we should use SSL
+// Use SSL only if it's a remote Railway host, not localhost
+const isLocalhost = databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+const shouldUseSSL = !isLocalhost;
+
+console.log(`📍 Connection type: ${isLocalhost ? "Local (No SSL)" : "Remote (SSL)"}`);
 
 const sequelize = new Sequelize(databaseUrl, {
   dialect: "postgres",
   logging: false,
-  dialectOptions: useSsl
+  dialectOptions: shouldUseSSL
     ? {
         ssl: {
           require: true,
@@ -56,5 +37,15 @@ const sequelize = new Sequelize(databaseUrl, {
     idle: 10000,
   },
 });
+
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log("✅ Database connected successfully!");
+  })
+  .catch((err) => {
+    console.error("❌ Database connection failed:", err.message);
+    process.exit(1);
+  });
 
 export default sequelize;
