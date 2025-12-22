@@ -2,30 +2,29 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import app from "./app.js";
-import http from "http";                     // NEW ⬅
-import { Server } from "socket.io";          // NEW ⬅
+import http from "http";
+import { Server } from "socket.io";
 
 import { sequelize, Cafeteria } from "./models/index.js";
-import uploadRoutes from "./routes/uploadRoutes.js"; 
+import uploadRoutes from "./routes/uploadRoutes.js";
 import foodRoutes from "./routes/foodRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import menuRoutes from "./routes/menuRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js"; 
-import NotificationModel from "./models/notificationModel.js";  // ✔ CORRECT PATH
-
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const PORT = process.env.PORT || 4000;
+const SHOULD_SYNC = process.env.DB_SYNC === "true";
 
-// ========== Create HTTP server + Bind Socket.IO ========== //
-const server = http.createServer(app);       // REPLACED app.listen()
+// ========== Create HTTP server + Socket.IO ==========
+const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 app.use((req, res, next) => {
-  req.io = io;   // ⬅ allow routes to push notifications
+  req.io = io;
   next();
 });
 
-// ============= REAL TIME SOCKET LOGS ================= //
+// ========== SOCKET LOGS ==========
 io.on("connection", (socket) => {
   console.log("⚡ User Connected:", socket.id);
 
@@ -34,60 +33,63 @@ io.on("connection", (socket) => {
   });
 });
 
-
+// ========== START SERVER ==========
 const start = async () => {
   try {
+    console.log("🔗 Attempting to connect to database...");
     await sequelize.authenticate();
-    console.log("DB connected ✅");
+    console.log("✅ Database connected successfully!");
 
-    //================= MENU ROUTES ==========================
+    // ========== OPTIONAL ONE-TIME TABLE CREATION ==========
+    if (SHOULD_SYNC) {
+      await sequelize.sync({ alter: false });
+      console.log("🧱 Tables created from Sequelize models");
+    } else {
+      console.log("⚠️ Skipping sequelize.sync() (production mode)");
+    }
+
+    // ========== ROUTES ==========
     app.use("/api/menu", menuRoutes);
     console.log("Menu Route Mounted ✔ (/api/menu)");
 
-console.log("⚠️ Skipping sequelize.sync() to avoid column conflict");
-    console.log("DB synced 🔄");
-
-    //================= BANNER ROUTES ========================
     app.use("/api/banners", bannerRoutes);
     console.log("Banner Route Mounted ✔ (/api/banners)");
 
-    //================= FOOD ROUTES ==========================
     app.use("/api/food", foodRoutes);
     console.log("Food Route Mounted ✔ (/api/food)");
 
-    //================= IMAGE UPLOAD ROUTES ==================
     app.use("/api/upload", uploadRoutes);
     console.log("Upload Route Mounted ✔ (/api/upload)");
 
-    //================= Notification API =====================
-    app.use("/api/notify", notificationRoutes);  // NEW ⬅
+    app.use("/api/notify", notificationRoutes);
     console.log("Notification Route Mounted ✔ (/api/notify)");
 
-    // SEED DEFAULT CAFETERIAS
-    // SEED ACTUAL CAFETERIAS
-    const count = await Cafeteria.count();
-    if (count === 0) {
-      await Cafeteria.bulkCreate([
-        { id: 1, name: "ANANTHA AAHARA", location: "Main Block", staticQrToken: "STATIC_QR_CAFETERIA_1" },
-        { id: 2, name: "AROMOS", location: "Block A", staticQrToken: "AROMAS_QR_123" },
-        { id: 3, name: "DHANAPANI", location: "Block B", staticQrToken: "NESTLE_QR_789" },
-        { id: 4, name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" }
-      ]);
-      console.log("📌 Actual Cafeterias Inserted ✔");
-      
-      // Sync the ID sequence so the next manual insert doesn't fail
-      await sequelize.query("SELECT setval(pg_get_serial_sequence('cafeterias', 'id'), (SELECT MAX(id) FROM cafeterias))");
+    // ========== SAFE CAFETERIA SEED ==========
+    let count = 0;
+    try {
+      count = await Cafeteria.count();
+    } catch {
+      console.log("ℹ️ cafeterias table not ready yet");
     }
 
-    // ============ START SERVER (Socket + Express) ========= //
+    if (count === 0) {
+      await Cafeteria.bulkCreate([
+        { name: "ANANTHA AAHARA", location: "Main Block", staticQrToken: "STATIC_QR_CAFETERIA_1" },
+        { name: "AROMOS", location: "Block A", staticQrToken: "AROMAS_QR_123" },
+        { name: "DHANAPANI", location: "Block B", staticQrToken: "NESTLE_QR_789" },
+        { name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" }
+      ]);
+      console.log("📌 Cafeterias seeded successfully");
+    }
+
+    // ========== START LISTENING ==========
     server.listen(PORT, () => {
-      console.log(`\n🚀 Server running on port: ${PORT}`);
-      console.log(`⚡ WebSocket Enabled`);
-      console.log(`📄 Swagger → http://localhost:${PORT}/api-docs\n`);
+      console.log(`🚀 Server running on port: ${PORT}`);
+      console.log("⚡ WebSocket Enabled");
     });
 
   } catch (err) {
-    console.error("Unable to start server ❌", err);
+    console.error("❌ Unable to start server:", err);
     process.exit(1);
   }
 };
