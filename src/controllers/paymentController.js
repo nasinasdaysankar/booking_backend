@@ -90,12 +90,20 @@ export const confirmPayment = async (req, res) => {
     if (!existingItem && Array.isArray(items)) {
       const itemsToCreate = items.map(item => ({
         orderId: order.id,
-        Id: item.menuItemId || null,
+        // ✅ FIX: Use 'menuItemId' as primary key if 'Id' is null in request
+        menuItemId: item.menuItemId || item.id || null, 
         name: item.name,
-        quantity: item.qty,
+        // ✅ FIX: Check both 'quantity' and 'qty' to prevent null violation
+        quantity: item.quantity || item.qty, 
         priceAtOrder: item.price,
         imageUrl: item.imageUrl || item.img || null, 
       }));
+
+      // Validate that no quantity is null before inserting
+      const hasInvalidItem = itemsToCreate.some(i => i.quantity === undefined || i.quantity === null);
+      if (hasInvalidItem) {
+        throw new Error("One or more items are missing a valid quantity.");
+      }
 
       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
     }
