@@ -1,18 +1,23 @@
-import { Sequelize } from 'sequelize';
-import dotenv from 'dotenv';
+import { Sequelize } from "sequelize";
+import dotenv from "dotenv";
+
 dotenv.config();
 
-const sequelize = new Sequelize(
-  process.env.DATABASE_NAME,
-  process.env.DATABASE_USER,
-  process.env.DATABASE_PASSWORD,
-  {
-    host: process.env.DATABASE_HOST,
-    port: process.env.DATABASE_PORT,
-    dialect: "postgres",
-    logging: false
-  }
-);
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  "postgresql://postgres:NewStrongPassword123@localhost:5432/booking_db";
 
-// 🔥 IMPORTANT — Correct export
+const sequelize = new Sequelize(databaseUrl, {
+  dialect: "postgres",
+  logging: false,
+  dialectOptions: process.env.DATABASE_URL
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
+});
+
 export default sequelize;
