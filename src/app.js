@@ -10,6 +10,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import adminOrdersRoutes from "./routes/adminOrders.js";
 import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
+import bannerRoutes from "./routes/bannerRoutes.js";
 
 import "./models/index.js";
 
@@ -52,6 +53,8 @@ app.use("/api/admin/auth", adminAuthRoutes);
 // 🔐 ADMIN FEATURES
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminOrdersRoutes);
+app.use("/api/banners", bannerRoutes);
+
 
 // ================= FALLBACK =================
 app.use((req, res) => {
