@@ -47,7 +47,7 @@ app.use("/api/payments", paymentRoutes);
 
 // ================= ADMIN ROUTES =================
 // 🔐 ADMIN AUTH (ADMIN LOGIN ONLY)
-app.use("/api/auth/admin", adminAuthRoutes);
+app.use("/api/admin/auth", adminAuthRoutes);
 
 // 🔐 ADMIN FEATURES
 app.use("/api/admin", adminRoutes);

@@ -3,6 +3,7 @@ import { adminLogin } from "../controllers/adminAuth.controller.js";
 
 const router = express.Router();
 
+// 🔐 ADMIN LOGIN ONLY
 router.post("/login", adminLogin);
 
 export default router;
