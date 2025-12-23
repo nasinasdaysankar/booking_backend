@@ -23,28 +23,28 @@ export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validate fields
     if (!name || !email || !password)
       return res.status(400).json({ message: "All fields required ❗" });
 
-    const domain = email.split("@")[1];
+    const domain = email.split("@")[1]?.toLowerCase();
 
-    // Allow only college emails
-    if (domain !== "alliance.edu.in" && domain !== "ced.alliance.edu.in") {
+    // ================= NEW DOMAIN LOGIC =================
+    let role;
+    if (domain === "alliance.edu.in") {
+      role = "faculty";
+    } else if (domain === "gmail.com") {
+      role = "student";
+    } else {
       return res.status(400).json({
-        message: "Only college emails are allowed (@alliance.edu.in / @ced.alliance.edu.in)"
+        message: "Use @alliance.edu.in for Faculty or @gmail.com for Students."
       });
     }
+    // ===================================================
 
-    // Auto Assign Role
-    const role = domain === "alliance.edu.in" ? "faculty" : "student";
-
-    // Check if already exists
     const existing = await User.findOne({ where: { email } });
     if (existing)
       return res.status(400).json({ message: "Email already registered ❗" });
 
-    // Encrypt Password
     const hash = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -67,7 +67,6 @@ export const register = async (req, res) => {
     res.status(500).json({ message: "Register error ❌" });
   }
 };
-
 /* ===========================================================
    📌 LOGIN (email + password)
 =========================================================== */
