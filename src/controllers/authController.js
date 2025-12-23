@@ -5,7 +5,7 @@ import { User } from "../models/index.js";
 
 dotenv.config();
 
-// ================= JWT GENERATOR =================
+// Generate JWT Token
 const signToken = (user) => {
   return jwt.sign(
     { id: user.id, role: user.role },
@@ -14,117 +14,83 @@ const signToken = (user) => {
   );
 };
 
-// ================= REGISTER =================
+/* ===========================================================
+   📌 REGISTER ONLY UNIVERSITY EMAILS
+   - alliance.edu.in → FACULTY
+   - ced.alliance.edu.in → STUDENT
+=========================================================== */
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validate input
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        message: "All fields are required",
-      });
-    }
+    // Validate fields
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields required ❗" });
 
     const domain = email.split("@")[1];
 
     // Allow only college emails
     if (domain !== "alliance.edu.in" && domain !== "ced.alliance.edu.in") {
       return res.status(400).json({
-        message:
-          "Only college emails are allowed (@alliance.edu.in / @ced.alliance.edu.in)",
+        message: "Only college emails are allowed (@alliance.edu.in / @ced.alliance.edu.in)"
       });
     }
 
-    // Assign role
+    // Auto Assign Role
     const role = domain === "alliance.edu.in" ? "faculty" : "student";
 
-    // Check existing user
+    // Check if already exists
     const existing = await User.findOne({ where: { email } });
-    if (existing) {
-      return res.status(400).json({
-        message: "Email already registered",
-      });
-    }
+    if (existing)
+      return res.status(400).json({ message: "Email already registered ❗" });
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Encrypt Password
+    const hash = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await User.create({
       name,
       email,
-      passwordHash,
-      role,
+      passwordHash: hash,
+      role
     });
 
     const token = signToken(user);
 
-    return res.status(201).json({
-      message: "Registration successful",
+    res.status(201).json({
+      message: "Registration Successful 🎉",
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: { id: user.id, name: user.name, email: user.email, role }
     });
+
   } catch (err) {
-    console.error("REGISTER ERROR:", err);
-    return res.status(500).json({
-      message: "Registration failed",
-    });
+    console.error(err);
+    res.status(500).json({ message: "Register error ❌" });
   }
 };
 
-// ================= LOGIN =================
+/* ===========================================================
+   📌 LOGIN (email + password)
+=========================================================== */
 export const login = async (req, res) => {
   try {
-    console.log("🔥 LOGIN CONTROLLER HIT", req.body);
-
     const { email, password } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password required",
-      });
-    }
-
-    // Find user
     const user = await User.findOne({ where: { email } });
-    if (!user) {
-      return res.status(401).json({
-        message: "Invalid email or password",
-      });
-    }
+    if (!user) return res.status(400).json({ message: "Invalid email or password ❌" });
 
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(401).json({
-        message: "Invalid email or password",
-      });
-    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(400).json({ message: "Invalid email or password ❌" });
 
-    // Generate token
     const token = signToken(user);
 
-    return res.status(200).json({
-      message: "Login successful",
+    res.json({
+      message: "Login Successful 🚀",
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
+
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
-    return res.status(500).json({
-      message: "Login failed",
-    });
+    console.log(err);
+    res.status(500).json({ message: "Login error ❌" });
   }
 };

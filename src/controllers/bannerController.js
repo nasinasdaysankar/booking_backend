@@ -5,28 +5,12 @@ import cloudinary from "../config/cloudinary.js";
 // ==================== GET ALL BANNERS ====================
 export const getBanners = async (req, res) => {
   try {
-    const { cafeteriaId } = req.query;
-
-    const where = {};
-    if (cafeteriaId) where.cafeteriaId = cafeteriaId;
-
-    const banners = await Banner.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
-
-    res.status(200).json({
-      success: true,
-      data: banners,
-    });
+    const banners = await Banner.findAll();
+    res.json(banners);
   } catch (err) {
-    res.status(500).json({
-      message: "Unable to fetch banners",
-      error: err.message,
-    });
+    res.status(500).json({ message: "Unable to fetch banners", error: err.message });
   }
 };
-
 
 
 // ==================== UPLOAD + SAVE BANNER ====================
