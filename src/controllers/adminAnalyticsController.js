@@ -101,3 +101,64 @@ export const getTopItems = async (req, res) => {
     });
   }
 };
+
+
+export const getOrdersOverview = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const { range = "weekly", from, to } = req.query;
+
+    if (!cafeteriaId) {
+      return res.status(400).json({ message: "Cafeteria not linked" });
+    }
+
+    let groupExpr;
+    let labelExpr;
+
+    if (range === "daily") {
+      groupExpr = `DATE("createdAt")`;
+      labelExpr = `TO_CHAR("createdAt", 'DD Mon')`;
+    } else if (range === "monthly") {
+      groupExpr = `DATE_TRUNC('month', "createdAt")`;
+      labelExpr = `TO_CHAR("createdAt", 'Mon YYYY')`;
+    } else {
+      // weekly (default)
+      groupExpr = `DATE("createdAt")`;
+      labelExpr = `TO_CHAR("createdAt", 'Dy')`;
+    }
+
+    const rows = await sequelize.query(
+      `
+      SELECT
+        ${labelExpr} AS label,
+        COUNT(*)::INT AS count
+      FROM orders
+      WHERE
+        "cafeteriaId" = :cafeteriaId
+        AND "paymentStatus" = 'SUCCESS'
+        AND (
+          (:from IS NULL OR "createdAt" >= :from)
+          AND (:to IS NULL OR "createdAt" <= :to)
+        )
+      GROUP BY ${groupExpr}, label
+      ORDER BY ${groupExpr}
+      `,
+      {
+        replacements: {
+          cafeteriaId,
+          from: from ?? null,
+          to: to ?? null,
+        },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("❌ Orders overview error:", err.message);
+    return res.status(500).json({
+      message: "Failed to fetch orders overview",
+      error: err.message,
+    });
+  }
+};

@@ -8,7 +8,7 @@ import {
   getAdminStats 
 } from '../controllers/adminOrderController.js';
 import {
-  getTrendData, getTopItems
+  getTrendData, getTopItems, getOrdersOverview
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
 
 
@@ -35,6 +35,13 @@ router.get(
   getTopItems
 );
 
+
+router.get(
+  "/orders-overview",
+  auth,
+  requireRole(["admin"]),
+  getOrdersOverview
+);
 
 // 🔥 NEW: Admin verifies student scanned QR
 router.post("/orders/verify-qr", auth, requireRole(['admin']), async (req, res) => {
