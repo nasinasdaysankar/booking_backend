@@ -60,7 +60,7 @@ export const getTopItems = async (req, res) => {
     const items = await sequelize.query(
       `
       SELECT 
-        mi.name AS item,
+        mi.name AS label,
         SUM(oi.quantity)::INT AS count
       FROM order_items oi
       JOIN orders o ON o.id = oi."orderId"
@@ -78,17 +78,24 @@ export const getTopItems = async (req, res) => {
       }
     );
 
-    const total = items.reduce((s, i) => s + i.count, 0);
+    if (!items || items.length === 0) {
+      return res.json([]);
+    }
+
+    const total = items.reduce((sum, i) => sum + i.count, 0);
 
     const response = items.map((i) => ({
-      label: i.item,
+      label: i.label,
       count: i.count,
       percentage: total > 0 ? Math.round((i.count / total) * 100) : 0,
     }));
 
     return res.json(response);
   } catch (err) {
-    console.error("❌ Top items error:", err);
-    res.status(500).json({ message: "Failed to fetch top items" });
+    console.error("❌ Top items SQL error:", err.message);
+    return res.status(500).json({
+      message: "Failed to fetch top items",
+      error: err.message,
+    });
   }
 };
