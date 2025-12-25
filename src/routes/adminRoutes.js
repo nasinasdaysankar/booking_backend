@@ -8,7 +8,7 @@ import {
   getAdminStats 
 } from '../controllers/adminOrderController.js';
 import {
-  getTrendData
+  getTrendData, getTopItems
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
 
 
@@ -27,6 +27,13 @@ router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStat
 router.get("/cafeteria/qr", auth, requireRole(['admin']), getMyCafeteriaQR);
 
 router.get("/trend", auth, requireRole(['admin']), getTrendData);
+
+router.get(
+  "/top-items",
+  auth,
+  requireRole(["admin"]),
+  getTopItems
+);
 
 
 // 🔥 NEW: Admin verifies student scanned QR
