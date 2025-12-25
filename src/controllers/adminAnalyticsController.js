@@ -1,4 +1,6 @@
 import { sequelize } from "../models/index.js";
+import { QueryTypes } from "sequelize"; // ✅ ADD THIS
+
 
 export const getTrendData = async (req, res) => {
   try {
