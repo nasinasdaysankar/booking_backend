@@ -10,6 +10,7 @@ import {
 import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
+import { getCafeteriaDetails } from '../controllers/adminCafeteriaController.js';
 
 
 const router = express.Router();
@@ -27,6 +28,8 @@ router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStat
 router.get("/cafeteria/qr", auth, requireRole(['admin']), getMyCafeteriaQR);
 
 router.get("/trend", auth, requireRole(['admin']), getTrendData);
+
+router.get("/cafeteria/:id", auth, requireRole(['admin']), getCafeteriaDetails); // ← NEW ENDPOINT
 
 router.get(
   "/top-items",

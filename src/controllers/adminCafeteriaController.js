@@ -1,0 +1,40 @@
+// controllers/adminCafeteriaController.js
+import { Cafeteria } from "../models/index.js";
+
+export const getCafeteriaDetails = async (req, res) => {
+  try {
+    const cafeteriaId = parseInt(req.params.id);
+
+    // Security: Ensure admin can only access their own cafeteria
+    if (req.user.cafeteriaId !== cafeteriaId) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: You can only view your own cafeteria"
+      });
+    }
+
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
+      attributes: ['id', 'name', 'location'] // only send needed fields
+    });
+
+    if (!cafeteria) {
+      return res.status(404).json({
+        success: false,
+        message: "Cafeteria not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      id: cafeteria.id,
+      name: cafeteria.name,
+      location: cafeteria.location || null
+    });
+  } catch (error) {
+    console.error("Get cafeteria details error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch cafeteria details"
+    });
+  }
+};
