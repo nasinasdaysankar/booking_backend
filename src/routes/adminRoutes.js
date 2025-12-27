@@ -8,7 +8,7 @@ import {
   getAdminStats 
 } from '../controllers/adminOrderController.js';
 import {
-  getTrendData, getTopItems, getOrdersOverview
+  getTrendData, getTopItems, getOrdersOverview, getPeakHours
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
 
 
@@ -41,6 +41,15 @@ router.get(
   auth,
   requireRole(["admin"]),
   getOrdersOverview
+);
+
+
+// 🔥 Peak Hours Analytics
+router.get(
+  "/peak-hours",
+  auth,
+  requireRole(["admin"]),
+  getPeakHours
 );
 
 // 🔥 NEW: Admin verifies student scanned QR

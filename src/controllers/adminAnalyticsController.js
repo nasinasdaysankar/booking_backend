@@ -180,3 +180,79 @@ export const getOrdersOverview = async (req, res) => {
     });
   }
 };
+
+// ================= PEAK HOURS ANALYTICS =================
+export const getPeakHours = async (req, res) => {
+  try {
+    const { range = "daily", from, to } = req.query;
+    const cafeteriaId = req.user.cafeteriaId;
+
+    if (!cafeteriaId) {
+      return res.status(400).json({ message: "Cafeteria not linked" });
+    }
+
+    let whereDate = "";
+
+    // 🔥 DAILY → only today
+    if (range === "daily") {
+      whereDate = `
+        AND "createdAt"::date = CURRENT_DATE
+      `;
+    }
+
+    // 🔥 WEEKLY → last 7 days
+    else if (range === "weekly") {
+      whereDate = `
+        AND "createdAt" >= CURRENT_DATE - INTERVAL '7 days'
+      `;
+    }
+
+    // 🔥 MONTHLY → current month
+    else if (range === "monthly") {
+      whereDate = `
+        AND DATE_TRUNC('month', "createdAt") = DATE_TRUNC('month', CURRENT_DATE)
+      `;
+    }
+
+    // 🔥 CUSTOM (calendar)
+    else if (range === "custom") {
+      whereDate = `
+        AND (
+          (:from IS NULL OR "createdAt" >= :from)
+          AND (:to IS NULL OR "createdAt" <= :to)
+        )
+      `;
+    }
+
+    const rows = await sequelize.query(
+      `
+      SELECT
+        EXTRACT(HOUR FROM "createdAt")::INT AS hour,
+        COUNT(*)::INT AS orders
+      FROM orders
+      WHERE
+        "cafeteriaId" = :cafeteriaId
+        AND "paymentStatus" = 'SUCCESS'
+        ${whereDate}
+      GROUP BY hour
+      ORDER BY hour ASC
+      `,
+      {
+        replacements: {
+          cafeteriaId,
+          from: from ?? null,
+          to: to ?? null,
+        },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("❌ Peak Hours Error:", err.message);
+    return res.status(500).json({
+      message: "Failed to fetch peak hours",
+      error: err.message,
+    });
+  }
+};
