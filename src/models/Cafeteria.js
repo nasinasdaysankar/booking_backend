@@ -11,6 +11,7 @@ export default (sequelize) => {
         autoIncrement: true,
         allowNull: false,
       },
+
       name: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -19,27 +20,38 @@ export default (sequelize) => {
           len: { args: [3, 100], msg: "Name must be between 3 and 100 characters" },
         },
       },
+
       location: {
         type: DataTypes.STRING(150),
         allowNull: true,
       },
+
       isOpen: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
       },
+
       staticQrToken: {
         type: DataTypes.STRING(255),
         allowNull: false,
-        unique: true, // Ensures no duplicate QR tokens
+        unique: true,
         comment: "Static QR token used for cafeteria identification",
+      },
+
+      // 🔥 THIS IS THE MISSING PIECE
+      ownerId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: "ownerid", // ✅ maps JS ownerId → DB ownerid
       },
     },
     {
       tableName: 'cafeterias',
-      timestamps: true, // createdAt & updatedAt
+      timestamps: true,
       indexes: [
-        { fields: ['staticQrToken'] }, // Speed up QR lookup
+        { fields: ['staticQrToken'] },
+        { fields: ['ownerid'] }, // optional but good
       ],
     }
   );
