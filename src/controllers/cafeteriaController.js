@@ -24,17 +24,23 @@ export const getCafeteriaMenu = async (req, res) => {
 
 export const getMyCafeterias = async (req, res) => {
   try {
-    const ownerId = req.user.id; // admin id
+    const ownerId = req.user.id; // 🔥 ADMIN ID from JWT
 
     const cafeterias = await Cafeteria.findAll({
-      where: { ownerid },
-      attributes: ["id", "name"],
-      order: [["id", "ASC"]],
+      where: { ownerId },
+      attributes: ["id", "name", "location", "staticQrToken", "isOpen"],
+      order: [["createdAt", "ASC"]],
     });
 
-    return res.json(cafeterias);
+    return res.json({
+      success: true,
+      cafeterias,
+    });
   } catch (err) {
     console.error("❌ Fetch cafeterias error:", err);
-    return res.status(500).json({ message: "Failed to fetch cafeterias" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch cafeterias",
+    });
   }
 };
