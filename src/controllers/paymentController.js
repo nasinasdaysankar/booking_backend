@@ -1,12 +1,33 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
 
+// --------------------------------------------------
+// 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
+// --------------------------------------------------
+const generateKotNumber = async (cafeteriaId, transaction) => {
+  const [result] = await sequelize.query(
+    `
+    INSERT INTO kot_counters ("cafeteriaId", "counter")
+    VALUES (:cafeteriaId, 1)
+    ON CONFLICT ("cafeteriaId")
+    DO UPDATE SET "counter" = kot_counters."counter" + 1
+    RETURNING "counter";
+    `,
+    {
+      replacements: { cafeteriaId },
+      transaction,
+    }
+  );
+
+  const counter = result[0].counter;
+  return `KOT-${cafeteriaId}-${String(counter).padStart(5, "0")}`;
+};
+
 export const confirmPayment = async (req, res) => {
-  // Use a transaction to ensure database integrity
   const t = await sequelize.transaction();
 
   try {
     const {
-      orderId,        // Cashfree orderId (string)
+      orderId,
       billId,
       cafeteriaId,
       paymentId,
@@ -15,10 +36,9 @@ export const confirmPayment = async (req, res) => {
       items
     } = req.body;
 
-    // 🛡️ SECURITY: Extract studentId from the verified AUTH token
-    const authenticatedStudentId = req.user.id; 
+    // 🛡️ AUTH STUDENT ID
+    const authenticatedStudentId = req.user.id;
 
-    // 1. Validate required fields
     if (!orderId || !billId || !cafeteriaId || !amount || !transactionId) {
       await t.rollback();
       return res.status(400).json({ success: false, message: "Missing required payment fields." });
@@ -32,23 +52,30 @@ export const confirmPayment = async (req, res) => {
       transaction: t
     });
 
+    let kotNumber = null;
+
     if (!order) {
-      console.log(`⚠️ Creating new order for Student ID: ${authenticatedStudentId}`);
+      // 🆕 Generate KOT ONLY for first-time paid order
+      kotNumber = await generateKotNumber(cafeteriaId, t);
+
       order = await Order.create({
         cashfreeOrderId: orderId,
         billId,
         studentId: authenticatedStudentId,
         cafeteriaId,
         totalAmount: amount,
-        status: "PAID", 
+        status: "PAID",
         paymentStatus: "SUCCESS",
+        kotNumber, // ✅ STORED
       }, { transaction: t });
     } else {
-      // If order exists, update its status
+      // If order already exists, do NOT regenerate KOT
       await order.update({
         status: "PAID",
         paymentStatus: "SUCCESS",
       }, { transaction: t });
+
+      kotNumber = order.kotNumber;
     }
 
     // ---------------------------------------------------------
@@ -60,7 +87,6 @@ export const confirmPayment = async (req, res) => {
     });
 
     if (!existingPayment) {
-      // 🛠️ FIX: Sync sequence to prevent "id already exists" errors
       await sequelize.query(
         "SELECT setval(pg_get_serial_sequence('payments', 'id'), (SELECT MAX(id) FROM payments))",
         { transaction: t }
@@ -90,17 +116,17 @@ export const confirmPayment = async (req, res) => {
     if (!existingItem && Array.isArray(items)) {
       const itemsToCreate = items.map(item => ({
         orderId: order.id,
-        // ✅ FIX: Use 'menuItemId' as primary key if 'Id' is null in request
-        menuItemId: item.menuItemId || item.id || null, 
+        menuItemId: item.menuItemId || item.id || null,
         name: item.name,
-        // ✅ FIX: Check both 'quantity' and 'qty' to prevent null violation
-        quantity: item.quantity || item.qty, 
+        quantity: item.quantity || item.qty,
         priceAtOrder: item.price,
-        imageUrl: item.imageUrl || item.img || null, 
+        imageUrl: item.imageUrl || item.img || null,
       }));
 
-      // Validate that no quantity is null before inserting
-      const hasInvalidItem = itemsToCreate.some(i => i.quantity === undefined || i.quantity === null);
+      const hasInvalidItem = itemsToCreate.some(
+        i => i.quantity === undefined || i.quantity === null
+      );
+
       if (hasInvalidItem) {
         throw new Error("One or more items are missing a valid quantity.");
       }
@@ -108,28 +134,29 @@ export const confirmPayment = async (req, res) => {
       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
     }
 
-    // Commit all changes
+    // ---------------------------------------------------------
+    // ✅ COMMIT TRANSACTION
+    // ---------------------------------------------------------
     await t.commit();
 
-    // 🚀 Send success response
     return res.json({
       success: true,
       dbOrderId: order.id,
       billId: order.billId,
-      message: "Payment confirmed and order updated."
+      kotNumber: kotNumber, // ✅ RETURNED
+      message: "Payment confirmed, KOT generated, and order updated."
     });
 
   } catch (err) {
-    // Rollback changes if any error occurs
     if (t) await t.rollback();
-    
+
     console.error("❌ CONFIRM PAYMENT ERROR:", err);
 
-    if (err.name === 'SequelizeUniqueConstraintError') {
-       return res.status(400).json({ 
-         success: false, 
-         error: "This transaction has already been processed." 
-       });
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({
+        success: false,
+        error: "This transaction has already been processed."
+      });
     }
 
     return res.status(500).json({ success: false, error: err.message });
