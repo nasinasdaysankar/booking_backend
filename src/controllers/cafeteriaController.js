@@ -27,7 +27,7 @@ export const getMyCafeterias = async (req, res) => {
     const ownerId = req.user.id; // admin id
 
     const cafeterias = await Cafeteria.findAll({
-      where: { ownerId },
+      where: { ownerid },
       attributes: ["id", "name"],
       order: [["id", "ASC"]],
     });
