@@ -38,3 +38,27 @@ export const getCafeteriaDetails = async (req, res) => {
     });
   }
 };
+
+
+export const getMyCafeterias = async (req, res) => {
+  try {
+    const ownerId = req.user.id; // ADMIN ID
+
+    const cafeterias = await Cafeteria.findAll({
+      where: { ownerId },
+      attributes: ["id", "name", "location", "staticQrToken", "isOpen"],
+      order: [["createdAt", "ASC"]],
+    });
+
+    return res.json({
+      success: true,
+      cafeterias,
+    });
+  } catch (err) {
+    console.error("❌ Fetch cafeterias error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch cafeterias",
+    });
+  }
+};

@@ -10,9 +10,8 @@ import {
 import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
-import { getCafeteriaDetails } from '../controllers/adminCafeteriaController.js';
-import { getMyCafeterias } from '../controllers/cafeteriaController.js';
-
+import { getCafeteriaDetails} from '../controllers/adminCafeteriaController.js';
+import { getMyCafeterias } from '../controllers/adminCafeteriaController.js';
 
 const router = express.Router();
 
