@@ -11,6 +11,7 @@ import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
 import { getCafeteriaDetails } from '../controllers/adminCafeteriaController.js';
+import { getMyCafeterias } from '../controllers/cafeteriaController.js';
 
 
 const router = express.Router();
@@ -53,6 +54,14 @@ router.get(
   auth,
   requireRole(["admin"]),
   getPeakHours
+);
+
+
+router.get(
+  "/cafeterias",
+  auth,
+  requireRole(["admin"]),
+  getMyCafeterias
 );
 
 // 🔥 NEW: Admin verifies student scanned QR
@@ -133,5 +142,8 @@ router.post("/orders/verify-qr", auth, requireRole(['admin']), async (req, res) 
     });
   }
 });
+
+
+
 
 export default router;

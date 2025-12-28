@@ -20,3 +20,21 @@ export const getCafeteriaMenu = async (req, res) => {
     res.status(500).json({ message: 'Error fetching menu' });
   }
 };
+
+
+export const getMyCafeterias = async (req, res) => {
+  try {
+    const ownerId = req.user.id; // admin id
+
+    const cafeterias = await Cafeteria.findAll({
+      where: { ownerId },
+      attributes: ["id", "name"],
+      order: [["id", "ASC"]],
+    });
+
+    return res.json(cafeterias);
+  } catch (err) {
+    console.error("❌ Fetch cafeterias error:", err);
+    return res.status(500).json({ message: "Failed to fetch cafeterias" });
+  }
+};
