@@ -92,18 +92,19 @@ export const confirmOrderPickup = async (req, res) => {
       },
       include: [
         {
+          model: Cafeteria,
+          attributes: ["name", "location"],
+        },
+        {
           model: OrderItem,
-          as: "items", // ✅ MUST MATCH ASSOCIATION
+          as: "items", // 🔥 MUST MATCH ASSOCIATION
           include: [
             {
               model: MenuItem,
+              as: "menuItem", // 🔥 MUST MATCH ASSOCIATION
               attributes: ["name", "price"],
             },
           ],
-        },
-        {
-          model: Cafeteria,
-          attributes: ["name"],
         },
       ],
     });
@@ -115,21 +116,23 @@ export const confirmOrderPickup = async (req, res) => {
       });
     }
 
-    // ✅ Update status
+    // ✅ Mark as picked up
     await order.update({ status: "PICKED_UP" });
 
     // ✅ Build invoice
     const invoice = {
       orderId: order.id,
-      cafeteriaName: order.Cafeteria.name,
-      totalAmount: order.totalAmount,
+      billId: order.billId,
+      cafeteria: order.Cafeteria?.name ?? "Unknown Cafeteria",
+      location: order.Cafeteria?.location ?? "",
       items: order.items.map((i) => ({
-        name: i.MenuItem.name,
+        name: i.menuItem?.name ?? "Item",
         quantity: i.quantity,
-        price: i.MenuItem.price,
-        total: i.quantity * i.MenuItem.price,
+        price: i.menuItem?.price ?? 0,
+        total: i.quantity * (i.menuItem?.price ?? 0),
       })),
-      pickedUpAt: new Date(),
+      totalAmount: order.totalAmount,
+      pickedAt: new Date(),
     };
 
     return res.json({
