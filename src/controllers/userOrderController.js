@@ -1,6 +1,13 @@
-import { CafeteriaQr, Order, OrderItem, MenuItem, Cafeteria } from "../models/index.js";
+import {
+  CafeteriaQr,
+  Order,
+  OrderItem,
+  MenuItem,
+  Cafeteria,
+} from "../models/index.js";
 import { Op } from "sequelize";
 
+// ================= SCAN QR =================
 export const scanStaticCafeteriaQR = async (req, res) => {
   try {
     const { qrToken } = req.body;
@@ -17,7 +24,6 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 🔥 Find active orders
     const activeOrders = await Order.findAll({
       where: {
         studentId,
@@ -28,27 +34,20 @@ export const scanStaticCafeteriaQR = async (req, res) => {
     });
 
     if (activeOrders.length > 0) {
-      const ordersData = activeOrders.map((order) => {
-        let msg = "we are cooking";
-        if (order.status === "READY") {
-          msg = "Ready, pick it up";
-        }
-
-        return {
-          orderId: order.id,
-          status: order.status,
-          message: msg,
-          canPickUp: order.status === "READY",
-        };
-      });
-
       return res.json({
         success: true,
-        orders: ordersData,
+        orders: activeOrders.map((order) => ({
+          orderId: order.id,
+          status: order.status,
+          message:
+            order.status === "READY"
+              ? "Ready, pick it up"
+              : "We are cooking",
+          canPickUp: order.status === "READY",
+        })),
       });
     }
 
-    // 🔁 Check recently picked order
     const pickedOrder = await Order.findOne({
       where: {
         studentId,
@@ -61,7 +60,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
     if (pickedOrder) {
       return res.status(404).json({
         success: false,
-        message: "you have already picked it",
+        message: "You have already picked it",
       });
     }
 
@@ -78,7 +77,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
   }
 };
 
-
+// ================= CONFIRM PICKUP + INVOICE =================
 export const confirmOrderPickup = async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -97,11 +96,11 @@ export const confirmOrderPickup = async (req, res) => {
         },
         {
           model: OrderItem,
-          as: "items", // 🔥 MUST MATCH ASSOCIATION
+          as: "items", // ✅ MATCHES MODEL
           include: [
             {
               model: MenuItem,
-              as: "menuItem", // 🔥 MUST MATCH ASSOCIATION
+              as: "menuItem", // ✅ MATCHES MODEL
               attributes: ["name", "price"],
             },
           ],
@@ -116,17 +115,15 @@ export const confirmOrderPickup = async (req, res) => {
       });
     }
 
-    // ✅ Mark as picked up
     await order.update({ status: "PICKED_UP" });
 
-    // ✅ Build invoice
     const invoice = {
       orderId: order.id,
       billId: order.billId,
-      cafeteria: order.Cafeteria?.name ?? "Unknown Cafeteria",
+      cafeteria: order.Cafeteria?.name ?? "",
       location: order.Cafeteria?.location ?? "",
       items: order.items.map((i) => ({
-        name: i.menuItem?.name ?? "Item",
+        name: i.menuItem?.name ?? "",
         quantity: i.quantity,
         price: i.menuItem?.price ?? 0,
         total: i.quantity * (i.menuItem?.price ?? 0),
