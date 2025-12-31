@@ -85,48 +85,57 @@ export const confirmOrderPickup = async (req, res) => {
     const studentId = req.user.id;
 
     const order = await Order.findOne({
-      where: { id: orderId, studentId },
+      where: {
+        id: orderId,
+        studentId,
+        status: "READY",
+      },
       include: [
         {
           model: OrderItem,
-          include: [MenuItem],
+          as: "items", // ✅ MUST MATCH ASSOCIATION
+          include: [
+            {
+              model: MenuItem,
+              attributes: ["name", "price"],
+            },
+          ],
         },
-        Cafeteria,
+        {
+          model: Cafeteria,
+          attributes: ["name"],
+        },
       ],
     });
 
-    if (!order || order.status !== "READY") {
+    if (!order) {
       return res.status(400).json({
         success: false,
         message: "Order not ready or not yours",
       });
     }
 
-    // ✅ Mark as picked up
-    await order.update({
-      status: "PICKED_UP",
-      pickedAt: new Date(),
-    });
+    // ✅ Update status
+    await order.update({ status: "PICKED_UP" });
 
-    // 🔥 BUILD RECEIPT (INVOICE)
-    const receipt = {
-      billId: order.billId,
+    // ✅ Build invoice
+    const invoice = {
       orderId: order.id,
-      cafeteriaName: order.Cafeteria?.name,
-      pickedAt: order.pickedAt,
+      cafeteriaName: order.Cafeteria.name,
       totalAmount: order.totalAmount,
-      items: order.OrderItems.map((item) => ({
-        name: item.MenuItem.name,
-        quantity: item.quantity,
-        price: item.priceAtOrder,
-        total: item.quantity * item.priceAtOrder,
+      items: order.items.map((i) => ({
+        name: i.MenuItem.name,
+        quantity: i.quantity,
+        price: i.MenuItem.price,
+        total: i.quantity * i.MenuItem.price,
       })),
+      pickedUpAt: new Date(),
     };
 
     return res.json({
       success: true,
       message: "🎉 Picked up successfully!",
-      receipt, // 🔥 FRONTEND WILL USE THIS
+      invoice,
     });
   } catch (error) {
     console.error("❌ confirmOrderPickup error:", error);
