@@ -9,60 +9,55 @@ import {
 } from '../controllers/adminOrderController.js';
 import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
-} from "../controllers/adminAnalyticsController.js"; // ✅ correct
+} from "../controllers/adminAnalyticsController.js";
 import { getCafeteriaDetails} from '../controllers/adminCafeteriaController.js';
 import { getMyCafeterias } from '../controllers/adminCafeteriaController.js';
-import { refundOrder } from '../controllers/adminRefundController.js';
+import {
+  refundOrder,
+  checkRefundStatus,
+  getRefundHistory
+} from '../controllers/adminRefundController.js';
+
 const router = express.Router();
 
-// Dashboard stats
+// ============================================
+// DASHBOARD & ORDERS
+// ============================================
 router.get("/stats", auth, requireRole(['admin']), getAdminStats);
 
-// Get orders for admin's cafeteria
 router.get("/orders", auth, requireRole(['admin']), getAdminOrders);
 
-// Update order status
 router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStatus);
 
-// Get cafeteria's static QR
+// ============================================
+// CAFETERIA
+// ============================================
 router.get("/cafeteria/qr", auth, requireRole(['admin']), getMyCafeteriaQR);
 
+router.get("/cafeteria/:id", auth, requireRole(['admin']), getCafeteriaDetails);
+
+router.get("/cafeterias", auth, requireRole(['admin']), getMyCafeterias);
+
+// ============================================
+// ANALYTICS
+// ============================================
 router.get("/trend", auth, requireRole(['admin']), getTrendData);
 
-router.get("/cafeteria/:id", auth, requireRole(['admin']), getCafeteriaDetails); // ← NEW ENDPOINT
+router.get("/top-items", auth, requireRole(["admin"]), getTopItems);
 
-router.get(
-  "/top-items",
-  auth,
-  requireRole(["admin"]),
-  getTopItems
-);
+router.get("/orders-overview", auth, requireRole(["admin"]), getOrdersOverview);
 
+router.get("/peak-hours", auth, requireRole(["admin"]), getPeakHours);
 
-router.get(
-  "/orders-overview",
-  auth,
-  requireRole(["admin"]),
-  getOrdersOverview
-);
+// ============================================
+// REFUND ENDPOINTS ✅ NEW
+// ============================================
 
-
-// 🔥 Peak Hours Analytics
-router.get(
-  "/peak-hours",
-  auth,
-  requireRole(["admin"]),
-  getPeakHours
-);
-
-
-router.get(
-  "/cafeterias",
-  auth,
-  requireRole(["admin"]),
-  getMyCafeterias
-);
-
+/**
+ * POST /api/admin/orders/:orderId/refund
+ * Decline order and initiate refund
+ * Admin clicks "Decline" button
+ */
 router.post(
   "/orders/:orderId/refund",
   auth,
@@ -70,7 +65,37 @@ router.post(
   refundOrder
 );
 
-// 🔥 NEW: Admin verifies student scanned QR
+/**
+ * GET /api/admin/orders/:orderId/refund-status
+ * Check current refund status from Cashfree
+ */
+router.get(
+  "/orders/:orderId/refund-status",
+  auth,
+  requireRole(['admin']),
+  checkRefundStatus
+);
+
+/**
+ * GET /api/admin/refunds/history
+ * Get all refunds for admin's cafeteria
+ * Query: ?status=REFUND_SUCCESS (optional)
+ */
+router.get(
+  "/refunds/history",
+  auth,
+  requireRole(['admin']),
+  getRefundHistory
+);
+
+// ============================================
+// QR VERIFICATION
+// ============================================
+
+/**
+ * POST /api/admin/orders/verify-qr
+ * Admin verifies student scanned QR code
+ */
 router.post("/orders/verify-qr", auth, requireRole(['admin']), async (req, res) => {
   try {
     const { qrToken } = req.body;
@@ -148,8 +173,5 @@ router.post("/orders/verify-qr", auth, requireRole(['admin']), async (req, res) 
     });
   }
 });
-
-
-
 
 export default router;

@@ -1,5 +1,5 @@
 import express from "express";
-import { confirmPayment, getPaymentByOrderId, updatePaymentIdFromWebhook } from "../controllers/paymentController.js";
+import { confirmPayment, getPaymentByOrderId, updatePaymentIdFromWebhook, syncFromWebhook} from "../controllers/paymentController.js";
 import { auth } from "../middleware/auth.js"; // ⬅️ Add this import
 
 const router = express.Router();
@@ -11,6 +11,8 @@ router.post("/confirm", auth, confirmPayment);
 router.get("/by-order/:orderId", auth, getPaymentByOrderId);
 
 router.post("/update-payment-id", updatePaymentIdFromWebhook);
+
+router.post("/sync-from-webhook", syncFromWebhook); // ✅ NEW
 
 
 export default router;

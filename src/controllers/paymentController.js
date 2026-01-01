@@ -206,3 +206,43 @@ export const updatePaymentIdFromWebhook = async (req, res) => {
   res.json({ success: true });
 };
 
+
+
+export const syncFromWebhook = async (req, res) => {
+  try {
+    const { cashfreeOrderId, paymentId, orderStatus } = req.body;
+
+    if (!cashfreeOrderId || !paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing cashfreeOrderId or paymentId"
+      });
+    }
+
+    // Update the Payment record with real paymentId from webhook
+    await Payment.update(
+      { 
+        paymentId: paymentId, // ✅ NOW WE HAVE THE REAL pay_xxx
+        status: "SUCCESS" 
+      },
+      { 
+        where: { cashfreeOrderId: cashfreeOrderId }
+      }
+    );
+
+    console.log(`✅ Payment synced: ${cashfreeOrderId} -> ${paymentId}`);
+
+    res.json({
+      success: true,
+      message: "Payment synced successfully"
+    });
+  } catch (err) {
+    console.error("❌ syncFromWebhook error:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+};
+
+
