@@ -190,3 +190,19 @@ export const getPaymentByOrderId = async (req, res) => {
     });
   }
 };
+
+export const updatePaymentIdFromWebhook = async (req, res) => {
+  const { cashfreeOrderId, paymentId } = req.body;
+
+  if (!cashfreeOrderId || !paymentId) {
+    return res.status(400).json({ message: "Missing data" });
+  }
+
+  await Payment.update(
+    { paymentId },
+    { where: { cashfreeOrderId } }
+  );
+
+  res.json({ success: true });
+};
+
