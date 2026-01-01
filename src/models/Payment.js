@@ -11,6 +11,7 @@ export default (sequelize) => {
 
     paymentGateway: { type: DataTypes.STRING },
     paymentId: { type: DataTypes.STRING },
+    cashfreeOrderId: { type: DataTypes.STRING },  
     transactionId: { type: DataTypes.STRING },
 
     amount: { type: DataTypes.DECIMAL(10, 2) },

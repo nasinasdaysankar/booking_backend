@@ -98,6 +98,7 @@ export const confirmPayment = async (req, res) => {
         cafeteriaId,
         paymentGateway: "CASHFREE",
         paymentId,
+        cashfreeOrderId: orderId,  
         transactionId,
         amount,
         status: "SUCCESS",
@@ -160,5 +161,32 @@ export const confirmPayment = async (req, res) => {
     }
 
     return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+
+export const getPaymentByOrderId = async (req, res) => {
+  try {
+    const { orderId } = req.params; // ORDER_xxx
+
+    const payment = await Payment.findOne({
+      where: { cashfreeOrderId: orderId },
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!payment || !payment.paymentId) {
+      return res.status(404).json({
+        message: "Payment not found for this Cashfree order",
+      });
+    }
+
+    return res.json({
+      paymentId: payment.paymentId, // pay_xxx ✅
+    });
+  } catch (err) {
+    console.error("❌ getPaymentByOrderId error:", err);
+    return res.status(500).json({
+      message: "Failed to fetch paymentId",
+    });
   }
 };
