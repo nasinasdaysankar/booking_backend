@@ -52,7 +52,7 @@ app.use("/api/auth/admin", adminAuthRoutes);
 
 // 🔐 ADMIN FEATURES
 app.use("/api/admin", adminRoutes);
-app.use("/api/admin", adminOrdersRoutes);
+// app.use("/api/admin", adminOrdersRoutes);
 app.use("/api/banners", bannerRoutes);
 
 

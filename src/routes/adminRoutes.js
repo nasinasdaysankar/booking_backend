@@ -12,7 +12,7 @@ import {
 } from "../controllers/adminAnalyticsController.js"; // ✅ correct
 import { getCafeteriaDetails} from '../controllers/adminCafeteriaController.js';
 import { getMyCafeterias } from '../controllers/adminCafeteriaController.js';
-
+import { refundOrder } from '../controllers/adminRefundController.js';
 const router = express.Router();
 
 // Dashboard stats
@@ -61,6 +61,13 @@ router.get(
   auth,
   requireRole(["admin"]),
   getMyCafeterias
+);
+
+router.post(
+  "/orders/:orderId/refund",
+  auth,
+  requireRole(['admin']),
+  refundOrder
 );
 
 // 🔥 NEW: Admin verifies student scanned QR
