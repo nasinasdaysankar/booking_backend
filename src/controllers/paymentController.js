@@ -1,5 +1,9 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
 import { emitNewOrder } from "../socket.js";
+import admin from "../firebase.js";
+import { AdminFcmToken } from "../models/index.js";
+
+
 
 
 // --------------------------------------------------
@@ -150,6 +154,30 @@ emitNewOrder(cafeteriaId, {
   status: order.status,
   createdAt: order.createdAt
 });
+// 🔔 FCM: Push notification to Admin devices
+const adminTokens = await AdminFcmToken.findAll({
+  where: { cafeteriaId },
+});
+
+if (adminTokens.length > 0) {
+  await admin.messaging().sendMulticast({
+    tokens: adminTokens.map(t => t.fcmToken),
+    notification: {
+      title: "🍽 New Order Received",
+      body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "high_importance_channel",
+      },
+    },
+  });
+
+  console.log("🔔 FCM notification sent to admins");
+} else {
+  console.log("⚠️ No admin FCM tokens found for cafeteria:", cafeteriaId);
+}
 
     return res.json({
       success: true,
@@ -174,6 +202,8 @@ emitNewOrder(cafeteriaId, {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+
 
 
 export const getPaymentByOrderId = async (req, res) => {
@@ -255,5 +285,6 @@ export const syncFromWebhook = async (req, res) => {
     });
   }
 };
+
 
 

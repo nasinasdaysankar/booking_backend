@@ -10,6 +10,8 @@ import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
+import AdminFcmToken from "./AdminFcmToken.js";
+
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);
@@ -69,4 +71,5 @@ export {
   Banner,
   Payment,
   CafeteriaQr,
+  AdminFcmToken,
 };

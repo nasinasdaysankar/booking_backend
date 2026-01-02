@@ -1,28 +1,29 @@
 import express from "express";
-import { Notification } from "../models/index.js";
+import { auth } from "../middleware/auth.js";
+import { AdminFcmToken } from "../models/index.js";
 
 const router = express.Router();
 
-// Create a Notification + Broadcast to users
-router.post("/send", async (req, res) => {
+router.post("/save-token", auth, async (req, res) => {
   try {
-    const { title, message } = req.body;
+    const { token } = req.body;
+    const { id: adminId, cafeteriaId } = req.user;
 
-    const data = await Notification.create({ title, message });
+    if (!token) {
+      return res.status(400).json({ message: "FCM token required" });
+    }
 
-    req.io.emit("new_notification", data);  // <--- REAL-TIME PUSH 🚀
+    await AdminFcmToken.upsert({
+      adminId,
+      cafeteriaId,
+      fcmToken: token,
+    });
 
-    res.json({ success: true, message: "Notification sent ✓", data });
-  } 
-  catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  } catch (e) {
+    console.error("❌ Save FCM token error:", e);
+    res.status(500).json({ message: "Failed to save FCM token" });
   }
-});
-
-// Fetch All Notifications
-router.get("/", async (req, res) => {
-  const data = await Notification.findAll({ order:[["id","DESC"]] });
-  res.json(data);
 });
 
 export default router;
