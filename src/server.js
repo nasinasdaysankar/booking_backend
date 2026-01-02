@@ -12,84 +12,78 @@ import bannerRoutes from "./routes/bannerRoutes.js";
 import menuRoutes from "./routes/menuRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 
+import { initSocket } from "./socket.js";
+
 const PORT = process.env.PORT || 4000;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
 
-// ========== Create HTTP server + Socket.IO ==========
+// ========== HTTP SERVER ==========
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
 
-app.use((req, res, next) => {
-  req.io = io;
-  next();
+// ========== SOCKET.IO SERVER ==========
+const io = new Server(server, {
+  cors: { origin: "*" },
 });
 
-// ========== SOCKET LOGS ==========
+// ✅ STORE SOCKET INSTANCE
+initSocket(io);
+
+// ========== SOCKET EVENTS ==========
 io.on("connection", (socket) => {
-  console.log("⚡ User Connected:", socket.id);
+  console.log("⚡ Socket connected:", socket.id);
+
+  socket.on("JOIN_CAFETERIA", (cafeteriaId) => {
+    const room = `cafeteria_${cafeteriaId}`;
+    socket.join(room);
+    console.log(`🏪 Joined room: ${room}`);
+  });
 
   socket.on("disconnect", () => {
-    console.log("❌ User Disconnected:", socket.id);
+    console.log("❌ Socket disconnected:", socket.id);
   });
 });
 
 // ========== START SERVER ==========
 const start = async () => {
   try {
-    console.log("🔗 Attempting to connect to database...");
+    console.log("🔗 Connecting to database...");
     await sequelize.authenticate();
-    console.log("✅ Database connected successfully!");
+    console.log("✅ Database connected");
 
-    // ========== OPTIONAL ONE-TIME TABLE CREATION ==========
     if (SHOULD_SYNC) {
       await sequelize.sync({ alter: false });
-      console.log("🧱 Tables created from Sequelize models");
+      console.log("🧱 Sequelize sync done");
     } else {
-      console.log("⚠️ Skipping sequelize.sync() (production mode)");
+      console.log("⚠️ Sequelize sync skipped");
     }
 
     // ========== ROUTES ==========
     app.use("/api/menu", menuRoutes);
-    console.log("Menu Route Mounted ✔ (/api/menu)");
-
     app.use("/api/banners", bannerRoutes);
-    console.log("Banner Route Mounted ✔ (/api/banners)");
-
     app.use("/api/food", foodRoutes);
-    console.log("Food Route Mounted ✔ (/api/food)");
-
     app.use("/api/upload", uploadRoutes);
-    console.log("Upload Route Mounted ✔ (/api/upload)");
-
     app.use("/api/notify", notificationRoutes);
-    console.log("Notification Route Mounted ✔ (/api/notify)");
 
-    // ========== SAFE CAFETERIA SEED ==========
-    let count = 0;
-    try {
-      count = await Cafeteria.count();
-    } catch {
-      console.log("ℹ️ cafeterias table not ready yet");
-    }
+    console.log("✅ Routes mounted");
 
+    // ========== CAFETERIA SEED ==========
+    const count = await Cafeteria.count();
     if (count === 0) {
       await Cafeteria.bulkCreate([
         { name: "ANANTHA AAHARA", location: "Main Block", staticQrToken: "STATIC_QR_CAFETERIA_1" },
         { name: "AROMOS", location: "Block A", staticQrToken: "AROMAS_QR_123" },
         { name: "DHANAPANI", location: "Block B", staticQrToken: "NESTLE_QR_789" },
-        { name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" }
+        { name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" },
       ]);
-      console.log("📌 Cafeterias seeded successfully");
+      console.log("📌 Cafeterias seeded");
     }
 
-    // ========== START LISTENING ==========
     server.listen(PORT, () => {
-      console.log(`🚀 Server running on port: ${PORT}`);
-      console.log("⚡ WebSocket Enabled");
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log("⚡ WebSocket enabled");
     });
-
   } catch (err) {
-    console.error("❌ Unable to start server:", err);
+    console.error("❌ Server failed:", err);
     process.exit(1);
   }
 };

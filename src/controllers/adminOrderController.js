@@ -1,5 +1,6 @@
 import { sequelize, Order, CafeteriaQr } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
+import { emitNewOrder } from "../socket.js";
 
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
@@ -72,6 +73,13 @@ export const updateOrderStatus = async (req, res) => {
     if (etaMinutes !== undefined) updateData.etaMinutes = etaMinutes;
 
     await order.update(updateData);
+    emitNewOrder(order.cafeteriaId, {
+  orderId: order.id,
+  status: order.status,
+  etaMinutes: order.etaMinutes,
+  updatedAt: new Date()
+});
+
 
     return res.json({
       success: true,

@@ -1,4 +1,6 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
+import { emitNewOrder } from "../socket.js";
+
 
 // --------------------------------------------------
 // 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
@@ -139,6 +141,15 @@ export const confirmPayment = async (req, res) => {
     // ✅ COMMIT TRANSACTION
     // ---------------------------------------------------------
     await t.commit();
+// 🔔 REALTIME: Notify Admin (WebSocket)
+emitNewOrder(cafeteriaId, {
+  orderId: order.id,
+  billId: order.billId,
+  kotNumber: order.kotNumber,
+  totalAmount: order.totalAmount,
+  status: order.status,
+  createdAt: order.createdAt
+});
 
     return res.json({
       success: true,
