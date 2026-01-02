@@ -42,26 +42,28 @@ export const confirmPayment = async (req, res) => {
       items
     } = req.body;
 
-    // 🛡️ AUTH STUDENT ID
     const authenticatedStudentId = req.user.id;
 
     if (!orderId || !billId || !cafeteriaId || !amount || !transactionId) {
-      await t.rollback();
-      return res.status(400).json({ success: false, message: "Missing required payment fields." });
+      if (!t.finished) await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Missing required payment fields."
+      });
     }
 
     // ---------------------------------------------------------
-    // ✅ STEP 1: FIND OR CREATE ORDER
+    // STEP 1: FIND OR CREATE ORDER
     // ---------------------------------------------------------
     let order = await Order.findOne({
       where: { cashfreeOrderId: orderId },
-      transaction: t
+      transaction: t,
+      lock: t.LOCK.UPDATE,
     });
 
     let kotNumber = null;
 
     if (!order) {
-      // 🆕 Generate KOT ONLY for first-time paid order
       kotNumber = await generateKotNumber(cafeteriaId, t);
 
       order = await Order.create({
@@ -72,20 +74,19 @@ export const confirmPayment = async (req, res) => {
         totalAmount: amount,
         status: "PAID",
         paymentStatus: "SUCCESS",
-        kotNumber, // ✅ STORED
+        kotNumber,
       }, { transaction: t });
     } else {
-      // If order already exists, do NOT regenerate KOT
+      kotNumber = order.kotNumber;
+
       await order.update({
         status: "PAID",
         paymentStatus: "SUCCESS",
       }, { transaction: t });
-
-      kotNumber = order.kotNumber;
     }
 
     // ---------------------------------------------------------
-    // ✅ STEP 2: SAVE PAYMENT (avoid duplicates)
+    // STEP 2: SAVE PAYMENT (IDEMPOTENT)
     // ---------------------------------------------------------
     const existingPayment = await Payment.findOne({
       where: { transactionId },
@@ -93,18 +94,13 @@ export const confirmPayment = async (req, res) => {
     });
 
     if (!existingPayment) {
-      await sequelize.query(
-        "SELECT setval(pg_get_serial_sequence('payments', 'id'), (SELECT MAX(id) FROM payments))",
-        { transaction: t }
-      ).catch(() => console.log("Sequence sync skipped (table may be empty)."));
-
       await Payment.create({
         orderId: order.id,
         billId,
         cafeteriaId,
         paymentGateway: "CASHFREE",
         paymentId,
-        cashfreeOrderId: orderId,  
+        cashfreeOrderId: orderId,
         transactionId,
         amount,
         status: "SUCCESS",
@@ -113,7 +109,7 @@ export const confirmPayment = async (req, res) => {
     }
 
     // ---------------------------------------------------------
-    // ✅ STEP 3: SAVE ORDER ITEMS
+    // STEP 3: SAVE ORDER ITEMS
     // ---------------------------------------------------------
     const existingItem = await OrderItem.findOne({
       where: { orderId: order.id },
@@ -142,53 +138,69 @@ export const confirmPayment = async (req, res) => {
     }
 
     // ---------------------------------------------------------
-    // ✅ COMMIT TRANSACTION
+    // STEP 4: COMMIT TRANSACTION
     // ---------------------------------------------------------
     await t.commit();
-// 🔔 REALTIME: Notify Admin (WebSocket)
-emitNewOrder(cafeteriaId, {
-  orderId: order.id,
-  billId: order.billId,
-  kotNumber: order.kotNumber,
-  totalAmount: order.totalAmount,
-  status: order.status,
-  createdAt: order.createdAt
-});
-// 🔔 FCM: Push notification to Admin devices
-const adminTokens = await AdminFcmToken.findAll({
-  where: { cafeteriaId },
-});
 
-if (adminTokens.length > 0) {
-  await admin.messaging().sendMulticast({
-    tokens: adminTokens.map(t => t.fcmToken),
-    notification: {
-      title: "🍽 New Order Received",
-      body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-    },
-    android: {
-      priority: "high",
-      notification: {
-        channelId: "high_importance_channel",
-      },
-    },
-  });
+    // ---------------------------------------------------------
+    // 🔔 STEP 5: POST-COMMIT (SAFE ZONE)
+    // ---------------------------------------------------------
+    try {
+      // SOCKET
+      emitNewOrder(cafeteriaId, {
+        orderId: order.id,
+        billId: order.billId,
+        kotNumber: order.kotNumber,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt
+      });
 
-  console.log("🔔 FCM notification sent to admins");
-} else {
-  console.log("⚠️ No admin FCM tokens found for cafeteria:", cafeteriaId);
-}
+      // FCM
+      const adminTokens = await AdminFcmToken.findAll({
+        where: { cafeteriaId },
+      });
 
+      if (adminTokens.length > 0) {
+        await admin.messaging().sendMulticast({
+          tokens: adminTokens.map(t => t.fcmToken),
+          notification: {
+            title: "🍽 New Order Received",
+            body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "high_importance_channel" },
+          },
+        });
+
+        console.log("🔔 FCM notification sent to admins");
+      } else {
+        console.log("⚠️ No admin FCM tokens found for cafeteria:", cafeteriaId);
+      }
+    } catch (notifyErr) {
+      // ⚠️ DO NOT FAIL PAYMENT FOR NOTIFICATIONS
+      console.error("⚠️ Notification error (ignored):", notifyErr);
+    }
+
+    // ---------------------------------------------------------
+    // STEP 6: RESPONSE
+    // ---------------------------------------------------------
     return res.json({
       success: true,
       dbOrderId: order.id,
       billId: order.billId,
-      kotNumber: kotNumber, // ✅ RETURNED
+      kotNumber,
       message: "Payment confirmed, KOT generated, and order updated."
     });
 
   } catch (err) {
-    if (t) await t.rollback();
+    // ---------------------------------------------------------
+    // SAFE ROLLBACK
+    // ---------------------------------------------------------
+    if (!t.finished) {
+      await t.rollback();
+    }
 
     console.error("❌ CONFIRM PAYMENT ERROR:", err);
 
@@ -199,9 +211,13 @@ if (adminTokens.length > 0) {
       });
     }
 
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
   }
 };
+
 
 
 
