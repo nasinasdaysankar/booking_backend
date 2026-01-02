@@ -161,18 +161,21 @@ export const confirmPayment = async (req, res) => {
         where: { cafeteriaId },
       });
 
-      if (adminTokens.length > 0) {
-        await admin.messaging().sendMulticast({
-          tokens: adminTokens.map(t => t.fcmToken),
-          notification: {
-            title: "🍽 New Order Received",
-            body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-          },
-          android: {
-            priority: "high",
-            notification: { channelId: "high_importance_channel" },
-          },
-        });
+     if (adminTokens.length > 0) {
+  await admin.messaging().sendEachForMulticast({
+    tokens: adminTokens.map(t => t.fcmToken),
+    notification: {
+      title: "🍽 New Order Received",
+      body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "high_importance_channel",
+      },
+    },
+  });
+
 
         console.log("🔔 FCM notification sent to admins");
       } else {
