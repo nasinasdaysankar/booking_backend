@@ -1,6 +1,7 @@
 import { sequelize, Order, CafeteriaQr } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
-import { emitNewOrder } from "../socket.js";
+import { emitNewOrder, emitOrderStatusToUser } from "../socket.js";
+
 
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
@@ -78,6 +79,13 @@ export const updateOrderStatus = async (req, res) => {
   status: order.status,
   etaMinutes: order.etaMinutes,
   updatedAt: new Date()
+});
+// 🔔 REALTIME → USER
+emitOrderStatusToUser(order.studentId, {
+  orderId: order.id,
+  status: order.status,
+  etaMinutes: order.etaMinutes,
+  updatedAt: new Date(),
 });
 
 

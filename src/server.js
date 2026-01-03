@@ -32,16 +32,25 @@ initSocket(io);
 io.on("connection", (socket) => {
   console.log("⚡ Socket connected:", socket.id);
 
+  // ===== ADMIN joins cafeteria =====
   socket.on("JOIN_CAFETERIA", (cafeteriaId) => {
     const room = `cafeteria_${cafeteriaId}`;
     socket.join(room);
-    console.log(`🏪 Joined room: ${room}`);
+    console.log(`🏪 Admin joined room: ${room}`);
+  });
+
+  // ===== USER joins personal room =====
+  socket.on("JOIN_USER", (userId) => {
+    const room = `user_${userId}`;
+    socket.join(room);
+    console.log(`👤 User joined room: ${room}`);
   });
 
   socket.on("disconnect", () => {
     console.log("❌ Socket disconnected:", socket.id);
   });
 });
+
 
 // ========== START SERVER ==========
 const start = async () => {

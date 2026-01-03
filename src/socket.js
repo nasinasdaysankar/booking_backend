@@ -5,6 +5,7 @@ export const initSocket = (io) => {
   console.log("🧠 Socket instance stored");
 };
 
+// ================= ADMIN: NEW ORDER =================
 export const emitNewOrder = (cafeteriaId, payload) => {
   if (!ioInstance) {
     console.log("❌ Socket not initialized");
@@ -15,4 +16,17 @@ export const emitNewOrder = (cafeteriaId, payload) => {
   console.log("📢 Emitting NEW_ORDER to:", room);
 
   ioInstance.to(room).emit("NEW_ORDER", payload);
+};
+
+// ================= USER: ORDER STATUS UPDATE =================
+export const emitOrderStatusToUser = (studentId, payload) => {
+  if (!ioInstance) {
+    console.log("❌ Socket not initialized");
+    return;
+  }
+
+  const room = `user_${studentId}`;
+  console.log("📢 Emitting ORDER_STATUS_UPDATE to:", room);
+
+  ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
 };
