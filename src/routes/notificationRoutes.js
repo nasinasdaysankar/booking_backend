@@ -4,6 +4,12 @@ import { AdminFcmToken } from "../models/index.js";
 
 const router = express.Router();
 
+/**
+ * ======================================================
+ * SAVE / UPDATE ADMIN FCM TOKEN
+ * ======================================================
+ * Called after admin login (with JWT)
+ */
 router.post("/save-token", auth, async (req, res) => {
   try {
     console.log("📥 /save-token API HIT");
@@ -15,30 +21,74 @@ router.post("/save-token", auth, async (req, res) => {
     const { id: adminId, cafeteriaId } = req.user;
 
     if (!token) {
-      console.log("❌ FCM token missing in request");
-      return res.status(400).json({ message: "Token missing" });
+      console.log("❌ FCM token missing");
+      return res.status(400).json({ message: "FCM token missing" });
     }
 
-    console.log("💾 Saving FCM token to DB:", {
+    console.log("💾 Replacing FCM token in DB:", {
       adminId,
       cafeteriaId,
       token,
     });
 
-    const result = await AdminFcmToken.upsert({
+    /**
+     * 🔥 IMPORTANT FIX
+     * Remove old tokens for this admin + cafeteria
+     * (prevents sending notifications to old phones)
+     */
+    const deletedCount = await AdminFcmToken.destroy({
+      where: {
+        adminId,
+        cafeteriaId,
+      },
+    });
+
+    console.log(`🧹 Removed ${deletedCount} old FCM tokens`);
+
+    /**
+     * ✅ Save fresh token
+     */
+    const savedToken = await AdminFcmToken.create({
       adminId,
       cafeteriaId,
       fcmToken: token,
     });
 
-    console.log("✅ FCM token saved/updated:", result);
+    console.log("✅ New FCM token saved:", savedToken.dataValues);
 
-    res.json({ success: true });
-  } catch (e) {
-    console.error("❌ Error saving FCM token:", e);
-    res.status(500).json({ message: "Failed to save token" });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error saving FCM token:", err);
+    return res.status(500).json({ message: "Failed to save FCM token" });
   }
 });
 
+/**
+ * ======================================================
+ * (OPTIONAL) REMOVE TOKEN ON LOGOUT
+ * ======================================================
+ * Call this when admin logs out
+ */
+router.post("/remove-token", auth, async (req, res) => {
+  try {
+    const { id: adminId, cafeteriaId } = req.user;
+
+    console.log("🧹 Removing FCM token for admin:", adminId);
+
+    const deleted = await AdminFcmToken.destroy({
+      where: {
+        adminId,
+        cafeteriaId,
+      },
+    });
+
+    console.log(`🧹 Tokens removed: ${deleted}`);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error removing token:", err);
+    res.status(500).json({ message: "Failed to remove token" });
+  }
+});
 
 export default router;
