@@ -12,6 +12,7 @@ import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 
 
 import "./models/index.js";
@@ -57,6 +58,8 @@ app.use("/api/admin", adminRoutes);
 // app.use("/api/admin", adminOrdersRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
+app.use("/api/user/notify", userNotificationRoutes);
+
 console.log("🔔 Notification routes mounted");
 
 

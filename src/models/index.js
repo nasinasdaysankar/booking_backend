@@ -10,8 +10,9 @@ import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
-import AdminFcmToken from "./AdminFcmToken.js";
 
+import AdminFcmTokenModel from "./AdminFcmToken.js";
+import UserFcmTokenModel from "./UserFcmToken.js";
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);
@@ -24,6 +25,9 @@ const Notification = NotificationModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
+
+const AdminFcmToken = AdminFcmTokenModel(sequelize);
+const UserFcmToken = UserFcmTokenModel(sequelize);
 
 // ================= RELATIONS =================
 
@@ -40,23 +44,22 @@ Cafeteria.hasMany(Order, { foreignKey: "cafeteriaId" });
 Order.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
 
 // Order → OrderItems
-Order.hasMany(OrderItem, {
-  foreignKey: "orderId",
-  as: "items", // ✅ IMPORTANT
-});
-OrderItem.belongsTo(Order, {
-  foreignKey: "orderId",
-  as: "order",
-});
+Order.hasMany(OrderItem, { foreignKey: "orderId", as: "items" });
+OrderItem.belongsTo(Order, { foreignKey: "orderId", as: "order" });
 
 // MenuItem → OrderItems
-MenuItem.hasMany(OrderItem, {
-  foreignKey: "menuItemId",
-});
-OrderItem.belongsTo(MenuItem, {
-  foreignKey: "menuItemId",
-  as: "menuItem", // ✅ IMPORTANT
-});
+MenuItem.hasMany(OrderItem, { foreignKey: "menuItemId" });
+OrderItem.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
+
+// ================= FCM RELATIONS =================
+
+// Admin → AdminFcmToken
+Admin.hasMany(AdminFcmToken, { foreignKey: "adminId" });
+AdminFcmToken.belongsTo(Admin, { foreignKey: "adminId" });
+
+// User → UserFcmToken
+User.hasMany(UserFcmToken, { foreignKey: "userId" });
+UserFcmToken.belongsTo(User, { foreignKey: "userId" });
 
 // ================= EXPORT =================
 export {
@@ -72,4 +75,5 @@ export {
   Payment,
   CafeteriaQr,
   AdminFcmToken,
+  UserFcmToken,
 };
