@@ -1,6 +1,8 @@
 import { sequelize, Order, CafeteriaQr } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser } from "../socket.js";
+import admin from "../firebase.js";
+
 
 
 console.log("--------------------------------------------------");
@@ -81,12 +83,39 @@ export const updateOrderStatus = async (req, res) => {
   updatedAt: new Date()
 });
 // 🔔 REALTIME → USER
+// 🔔 REALTIME → USER (SOCKET)
 emitOrderStatusToUser(order.studentId, {
   orderId: order.id,
   status: order.status,
   etaMinutes: order.etaMinutes,
   updatedAt: new Date(),
 });
+
+// 🔔 FCM → USER (BACKGROUND SAFE)
+const userTokens = await UserFcmToken.findAll({
+  where: { userId: order.studentId },
+});
+
+if (userTokens.length > 0) {
+  await admin.messaging().sendEachForMulticast({
+    tokens: userTokens.map(t => t.fcmToken),
+    notification: {
+      title: "📦 Order Update",
+      body: `Your order is now ${order.status}`,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "high_importance_channel",
+      },
+    },
+  });
+
+  console.log("🔔 FCM notification sent to USER");
+} else {
+  console.log("⚠️ No USER FCM tokens found for user:", order.studentId);
+}
+
 
 
     return res.json({
