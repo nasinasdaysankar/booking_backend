@@ -13,6 +13,7 @@ import CafeteriaQrModel from "./cafeteriaQr.js";
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
+import UserStreakModel from "./UserStreak.js";
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);
@@ -28,6 +29,9 @@ const CafeteriaQr = CafeteriaQrModel(sequelize);
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
+
+const UserStreak = UserStreakModel(sequelize);
+
 
 // ================= RELATIONS =================
 
@@ -61,6 +65,13 @@ AdminFcmToken.belongsTo(Admin, { foreignKey: "adminId" });
 User.hasMany(UserFcmToken, { foreignKey: "userId" });
 UserFcmToken.belongsTo(User, { foreignKey: "userId" });
 
+
+User.hasMany(UserStreak, { foreignKey: "userId" });
+UserStreak.belongsTo(User, { foreignKey: "userId" });
+
+Cafeteria.hasMany(UserStreak, { foreignKey: "cafeteriaId" });
+UserStreak.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+
 // ================= EXPORT =================
 export {
   sequelize,
@@ -76,4 +87,5 @@ export {
   CafeteriaQr,
   AdminFcmToken,
   UserFcmToken,
+  UserStreak,
 };

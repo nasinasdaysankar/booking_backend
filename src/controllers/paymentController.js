@@ -2,6 +2,8 @@ import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../firebase.js";
 import { AdminFcmToken } from "../models/index.js";
+import { UserStreak } from "../models/index.js";
+import dayjs from "dayjs";
 
 
 
@@ -27,6 +29,55 @@ const generateKotNumber = async (cafeteriaId, transaction) => {
   const counter = result[0].counter;
   return `KOT-${cafeteriaId}-${String(counter).padStart(5, "0")}`;
 };
+
+
+/* ======================================================
+   🔥 USER STREAK HELPER (DO NOT EXPORT)
+   ====================================================== */
+async function updateUserStreak(userId, cafeteriaId, transaction) {
+  const today = dayjs().format("YYYY-MM-DD");
+
+  let streak = await UserStreak.findOne({
+    where: { userId, cafeteriaId },
+    transaction,
+  });
+
+  if (!streak) {
+    await UserStreak.create(
+      {
+        userId,
+        cafeteriaId,
+        currentStreak: 1,
+        maxStreak: 1,
+        lastOrderDate: today,
+      },
+      { transaction }
+    );
+    return;
+  }
+
+  const lastDate = dayjs(streak.lastOrderDate);
+  const diff = dayjs(today).diff(lastDate, "day");
+
+  if (diff === 1) {
+    // ✅ Continue streak
+    streak.currentStreak += 1;
+  } else if (diff > 1) {
+    // ❌ Missed a day → reset
+    streak.currentStreak = 1;
+  } else {
+    // Same day order → ignore
+    return;
+  }
+
+  streak.lastOrderDate = today;
+  streak.maxStreak = Math.max(
+    streak.maxStreak,
+    streak.currentStreak
+  );
+
+  await streak.save({ transaction });
+}
 
 export const confirmPayment = async (req, res) => {
   const t = await sequelize.transaction();
@@ -136,6 +187,16 @@ export const confirmPayment = async (req, res) => {
 
       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
     }
+
+
+     /* ======================================================
+       🔥 3.5️⃣ UPDATE USER STREAK (IMPORTANT)
+       ====================================================== */
+    await updateUserStreak(
+      authenticatedStudentId,
+      cafeteriaId,
+      t
+    );
 
     // ---------------------------------------------------------
     // STEP 4: COMMIT TRANSACTION
