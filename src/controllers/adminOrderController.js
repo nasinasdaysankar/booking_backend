@@ -1,8 +1,11 @@
-import { sequelize, Order, CafeteriaQr } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser } from "../socket.js";
 import admin from "../firebase.js";
-
+import {
+  Order,
+  CafeteriaQr,
+  UserFcmToken
+} from "../models/index.js";
 
 
 console.log("--------------------------------------------------");
