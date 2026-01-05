@@ -64,70 +64,67 @@ export const updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     let { status, etaMinutes } = req.body;
 
-    if (status) status = status.toString().trim().toUpperCase();
+    if (status) status = status.toUpperCase();
 
     const order = await Order.findByPk(id);
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (etaMinutes !== undefined) updateData.etaMinutes = etaMinutes;
+    await order.update({
+      status,
+      etaMinutes,
+    });
 
-    await order.update(updateData);
+    // 🔔 REALTIME → ADMIN
     emitNewOrder(order.cafeteriaId, {
-  orderId: order.id,
-  status: order.status,
-  etaMinutes: order.etaMinutes,
-  updatedAt: new Date()
-});
-// 🔔 REALTIME → USER
-// 🔔 REALTIME → USER (SOCKET)
-emitOrderStatusToUser(order.studentId, {
-  orderId: order.id,
-  status: order.status,
-  etaMinutes: order.etaMinutes,
-  updatedAt: new Date(),
-});
+      orderId: order.id,
+      status: order.status,
+      etaMinutes: order.etaMinutes,
+      updatedAt: new Date(),
+    });
+
+    // 🔔 REALTIME → USER (SOCKET)
+    emitOrderStatusToUser(order.studentId, {
+      orderId: order.id,
+      status: order.status,
+      etaMinutes: order.etaMinutes,
+      updatedAt: new Date(),
+    });
 
 // 🔔 FCM → USER (BACKGROUND SAFE)
 const userTokens = await UserFcmToken.findAll({
-  where: { userId: order.studentId },
-});
+      where: { userId: order.studentId },
+    });
 
-if (userTokens.length > 0) {
-  await admin.messaging().sendEachForMulticast({
-    tokens: userTokens.map(t => t.fcmToken),
-    notification: {
-      title: "📦 Order Update",
-      body: `Your order is now ${order.status}`,
-    },
-    android: {
-      priority: "high",
-      notification: {
-        channelId: "high_importance_channel",
-      },
-    },
-  });
+    if (userTokens.length > 0) {
+      await admin.messaging().sendEachForMulticast({
+        tokens: userTokens.map(t => t.fcmToken),
+        notification: {
+          title: "📦 Order Update",
+          body: `Your order is now ${order.status}`,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "high_importance_channel",
+          },
+        },
+      });
 
-  console.log("🔔 FCM notification sent to USER");
-} else {
-  console.log("⚠️ No USER FCM tokens found for user:", order.studentId);
-}
+      console.log("🔔 FCM notification sent to USER");
+    } else {
+      console.log("⚠️ No USER FCM tokens found for user:", order.studentId);
+    }
 
-
-
-    return res.json({
+    res.json({
       success: true,
       message: `Order status updated to ${status}`,
       order,
     });
   } catch (err) {
     console.error("❌ updateOrderStatus Error:", err);
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to update status" });
+    res.status(500).json({ success: false, message: "Failed to update status" });
   }
 };
 
