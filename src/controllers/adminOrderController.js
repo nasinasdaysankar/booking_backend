@@ -1,12 +1,7 @@
+import { sequelize, Order, CafeteriaQr, UserFcmToken } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser } from "../socket.js";
 import admin from "../firebase.js";
-import {
-  Order,
-  CafeteriaQr,
-  UserFcmToken
-} from "../models/index.js";
-
 
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
@@ -79,13 +74,16 @@ export const updateOrderStatus = async (req, res) => {
       etaMinutes,
     });
 
-    // 🔔 REALTIME → ADMIN
+    console.log(`📝 Order ${order.id} updated to status: ${status}`);
+
+    // 🔔 REALTIME → ADMIN (SOCKET)
     emitNewOrder(order.cafeteriaId, {
       orderId: order.id,
       status: order.status,
       etaMinutes: order.etaMinutes,
       updatedAt: new Date(),
     });
+    console.log("✅ Admin notification sent via socket");
 
     // 🔔 REALTIME → USER (SOCKET)
     emitOrderStatusToUser(order.studentId, {
@@ -94,40 +92,71 @@ export const updateOrderStatus = async (req, res) => {
       etaMinutes: order.etaMinutes,
       updatedAt: new Date(),
     });
+    console.log("✅ User socket notification sent");
 
-// 🔔 FCM → USER (BACKGROUND SAFE)
-const userTokens = await UserFcmToken.findAll({
-      where: { userId: order.studentId },
-    });
-
-    if (userTokens.length > 0) {
-      await admin.messaging().sendEachForMulticast({
-        tokens: userTokens.map(t => t.fcmToken),
-        notification: {
-          title: "📦 Order Update",
-          body: `Your order is now ${order.status}`,
-        },
-        android: {
-          priority: "high",
-          notification: {
-            channelId: "high_importance_channel",
-          },
-        },
+    // 🔔 FCM → USER (BACKGROUND NOTIFICATION)
+    try {
+      const userTokens = await UserFcmToken.findAll({
+        where: { userId: order.studentId },
       });
 
-      console.log("🔔 FCM notification sent to USER");
-    } else {
-      console.log("⚠️ No USER FCM tokens found for user:", order.studentId);
+      console.log(`🔍 Found ${userTokens.length} FCM tokens for user ${order.studentId}`);
+
+      if (userTokens.length > 0) {
+        const tokens = userTokens.map((t) => t.fcmToken);
+        
+        console.log("📤 Sending FCM notification to tokens:", tokens);
+
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: "📦 Order Update",
+            body: `Your order is now ${order.status}`,
+          },
+          data: {
+            orderId: String(order.id),
+            status: order.status,
+            etaMinutes: String(order.etaMinutes || 0),
+          },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "high_importance_channel",
+            },
+          },
+        });
+
+        console.log(`✅ FCM sent successfully. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+        // Remove invalid tokens
+        if (response.failureCount > 0) {
+          const invalidTokens = response.responses
+            .map((resp, idx) => (!resp.success ? tokens[idx] : null))
+            .filter(Boolean);
+
+          if (invalidTokens.length > 0) {
+            console.log("🗑️ Removing invalid tokens:", invalidTokens);
+            await UserFcmToken.destroy({
+              where: { fcmToken: invalidTokens },
+            });
+          }
+        }
+      } else {
+        console.log(`⚠️ No FCM tokens found for user: ${order.studentId}`);
+      }
+    } catch (fcmError) {
+      console.error("❌ FCM Error (Non-blocking):", fcmError.message);
+      // Don't fail the entire request if FCM fails
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `Order status updated to ${status}`,
       order,
     });
   } catch (err) {
     console.error("❌ updateOrderStatus Error:", err);
-    res.status(500).json({ success: false, message: "Failed to update status" });
+    return res.status(500).json({ success: false, message: "Failed to update status" });
   }
 };
 
@@ -239,7 +268,7 @@ export const getAdminStats = async (req, res) => {
         status: { [Op.in]: ["PAID", "PREPARING", "READY", "PICKED_UP"] },
         ...dateFilter,
       },
-      attributes: ["totalAmount", "status", "studentId"], // ✅ studentId included
+      attributes: ["totalAmount", "status", "studentId"],
     });
 
     const totalOrders = orders.length;
@@ -265,7 +294,7 @@ export const getAdminStats = async (req, res) => {
     return res.json({
       totalRevenue: Number(totalRevenue.toFixed(2)),
       totalOrders,
-      totalCustomers, // ✅ FIXED
+      totalCustomers,
       pendingOrders,
       avgOrderValue: Number(avgOrderValue.toFixed(2)),
     });
