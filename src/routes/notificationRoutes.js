@@ -1,6 +1,6 @@
 import express from "express";
 import { auth } from "../middleware/auth.js";
-import { AdminFcmToken } from "../models/index.js";
+import { AdminFcmToken, UserFcmToken } from "../models/index.js";
 
 const router = express.Router();
 
@@ -88,6 +88,32 @@ router.post("/remove-token", auth, async (req, res) => {
   } catch (err) {
     console.error("❌ Error removing token:", err);
     res.status(500).json({ message: "Failed to remove token" });
+  }
+});
+
+
+/* ================= USER TOKEN ================= */
+router.post("/save-user-token", auth, async (req, res) => {
+  try {
+    console.log("📥 /save-user-token API HIT");
+
+    const { token } = req.body;
+    const { id: userId } = req.user;
+
+    if (!token) {
+      return res.status(400).json({ message: "Token missing" });
+    }
+
+    await UserFcmToken.upsert({
+      userId,
+      fcmToken: token,
+    });
+
+    console.log("✅ User FCM token saved");
+    res.json({ success: true });
+  } catch (e) {
+    console.error("❌ User FCM error:", e);
+    res.status(500).json({ message: "Failed to save user token" });
   }
 });
 
