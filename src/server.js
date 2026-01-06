@@ -11,6 +11,7 @@ import foodRoutes from "./routes/foodRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import menuRoutes from "./routes/menuRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 
 import { initSocket } from "./socket.js";
@@ -73,6 +74,7 @@ const start = async () => {
     app.use("/api/food", foodRoutes);
     app.use("/api/upload", uploadRoutes);
     app.use("/api/notify", notificationRoutes);
+    app.use("/api/user", userRoutes);
 
 
     console.log("✅ Routes mounted");
