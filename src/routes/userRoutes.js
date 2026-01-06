@@ -5,6 +5,7 @@ import {
   confirmOrderPickup,
 } from "../controllers/userOrderController.js";
 import { getUserStreak } from "../controllers/userStreakController.js";
+import { updateProfile } from "../controllers/userProfileController.js";
 
 const router = express.Router();
 
@@ -14,5 +15,11 @@ router.post("/orders/confirm-pickup", auth, confirmOrderPickup);
 
 // 🔥 STREAK ROUTE (THIS IS THE KEY)
 router.get("/streak/:cafeteriaId", auth, getUserStreak);
+
+router.put(
+  "/profile",
+  auth,
+  updateProfile
+);
 
 export default router;

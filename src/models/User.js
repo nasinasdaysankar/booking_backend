@@ -6,6 +6,12 @@ export default (sequelize) => {
     name: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     passwordHash: { type: DataTypes.STRING, allowNull: true },
+
+     phone: {                     // ✅ ADD THIS
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  
     role: { // 'student' or 'staff'
       type: DataTypes.ENUM('student', 'staff', 'admin'),
       allowNull: false,
