@@ -4,6 +4,7 @@ import {
   confirmOrderPickup 
 } from "../controllers/userOrderController.js";
 import { auth } from "../middleware/auth.js";
+import { getUserStreak } from "../controllers/userStreakController.js";
 
 const router = express.Router();
 
@@ -12,5 +13,10 @@ router.post("/orders/scan-qr", auth, scanStaticCafeteriaQR);
 
 // // ✅ Route for confirming the order has been picked up
 router.post("/orders/confirm-pickup", auth, confirmOrderPickup);
+router.get(
+  "/users/streak/:cafeteriaId",
+  auth,
+  getUserStreak
+);
 
 export default router;
