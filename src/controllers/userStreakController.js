@@ -31,6 +31,10 @@ export const getUserStreak = async (req, res) => {
       nextRewardAt = 70;
     }
 
+    console.log(
+      `🔥 STREAK FETCH → user=${userId}, caf=${cafeteriaId}, streak=${streak.currentStreak}`
+    );
+
     return res.json({
       currentStreak: streak.currentStreak,
       discount,
