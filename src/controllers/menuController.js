@@ -1,4 +1,4 @@
-import { MenuItem } from "../models/index.js";
+import { MenuItem, sequelize } from "../models/index.js";
 
 /* ================== ADD SINGLE MENU ITEM ================== */
 export const addMenuItem = async (req, res) => {
