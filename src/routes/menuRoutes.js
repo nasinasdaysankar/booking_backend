@@ -32,7 +32,7 @@ router.put("/update-category", updateCategoryBulk);
 router.put("/update-image-url", updateImageById);
 router.post("/upload-bulk-images", upload.array("images"), uploadBulkImages);
 router.put("/update/:id", updateMenuItem);
-router.get("/menu/most-loved", getMostLovedItems);
+router.get("/most-loved", getMostLovedItems);
 
 
 
