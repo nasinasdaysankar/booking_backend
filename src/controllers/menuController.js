@@ -221,3 +221,34 @@ export const updateMenuItem = async (req, res) => {
     res.status(500).json({ success: false, message: "Update failed", error: err.message });
   }
 };
+
+
+// controllers/menuController.js
+export const getMostLovedItems = async (req, res) => {
+  try {
+    const [items] = await sequelize.query(`
+      SELECT
+        mi.id,
+        mi.name,
+        mi.price,
+        mi."imageUrl",
+        mi."cafeteriaId",
+        COUNT(oi.id) AS "orderCount"
+      FROM order_items oi
+      JOIN menu_items mi ON mi.id = oi."menuItemId"
+      JOIN orders o ON o.id = oi."orderId"
+      WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
+      GROUP BY mi.id
+      ORDER BY "orderCount" DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      data: items,
+    });
+  } catch (err) {
+    console.error("Most loved items error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
