@@ -344,13 +344,15 @@ export const refundOrder = async (req, res) => {
     }
 
     // 4️⃣ CHECK IF paymentId EXISTS (webhook must have arrived)
-    if (!payment.paymentId) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Payment ID not available. Webhook may not have been received yet. Please try again in a moment.",
-        hint: "This typically takes 1-2 seconds. The cashfreeOrderId is available but paymentId from webhook is required for refunds."
-      });
-    }
+    if (!payment.paymentId.startsWith("pay_")) {
+  return res.status(400).json({
+    success: false,
+    message: "Refund not allowed",
+    error: "Invalid Cashfree paymentId. Expected pay_xxx",
+    storedPaymentId: payment.paymentId
+  });
+}
+
 
     console.log(`💳 Payment found:`, {
       id: payment.id,
@@ -364,22 +366,22 @@ export const refundOrder = async (req, res) => {
     console.log(`   paymentId: ${payment.paymentId}`);
     console.log(`   amount: ₹${order.totalAmount}`);
 
-    const refundResponse = await axios.post(
-      "https://api.cashfree.com/pg/refunds",
-      {
-        payment_id: payment.paymentId,
-        refund_amount: order.totalAmount,
-        refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`
-      },
-      {
-        headers: {
-          "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+   const refundResponse = await axios.post(
+  `https://api.cashfree.com/pg/payments/${payment.paymentId}/refunds`,
+  {
+    refund_amount: Number(order.totalAmount),
+    refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`
+  },
+  {
+    headers: {
+      "x-api-version": "2023-08-01",
+      "x-client-id": process.env.CASHFREE_CLIENT_ID,
+      "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+      "Content-Type": "application/json",
+    },
+  }
+);
+
 
     console.log("✅ Cashfree refund initiated:", refundResponse.data);
 
