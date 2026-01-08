@@ -325,7 +325,7 @@ export const syncFromWebhook = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing IDs" });
     }
 
-    // 1️⃣ Find Payment created by App
+    // 1️⃣ Payment MUST already exist (created by confirmPayment)
     const payment = await Payment.findOne({
       where: { cashfreeOrderId },
       transaction: t,
@@ -333,31 +333,23 @@ export const syncFromWebhook = async (req, res) => {
     });
 
     if (!payment) {
-      // ⏳ App not yet confirmed payment
-      await Payment.create({
-        cashfreeOrderId,
-        paymentId,
-        paymentGateway: "CASHFREE",
-        status: "PENDING_SYNC",
-      }, { transaction: t });
-
+      // App not confirmed yet → wait
       await t.commit();
-      return res.json({ success: true, pendingAppSync: true });
+      return res.json({
+        success: true,
+        message: "Payment not yet confirmed by app. Webhook ignored safely.",
+      });
     }
 
-    // 2️⃣ Merge webhook data into existing row
+    // 2️⃣ Update ONLY webhook fields
     await payment.update({
       paymentId, // cf_payment_id
       status: paymentStatus || "SUCCESS",
       paidAt: new Date(),
     }, { transaction: t });
 
-    // 3️⃣ Update order if exists
-    const order = await Order.findOne({
-      where: { id: payment.orderId },
-      transaction: t,
-    });
-
+    // 3️⃣ Update Order status
+    const order = await Order.findByPk(payment.orderId, { transaction: t });
     if (order) {
       await order.update({
         status: orderStatus || "PAID",
@@ -374,6 +366,7 @@ export const syncFromWebhook = async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
 
 /* ======================================================
    ✅ GET PAYMENT BY ORDER ID (FOR VERIFICATION)
@@ -396,33 +389,36 @@ export const getPaymentByOrderId = async (req, res) => {
       });
     }
 
-    // Check if webhook has arrived yet
-    if (!payment.paymentId || !payment.paymentId.startsWith("pay_")) {
+    // ✅ CORRECT CHECK (NO pay_ assumption)
+    if (!payment.paymentId) {
       return res.json({
         success: true,
-        message: "Payment record exists but webhook pending",
+        message: "Payment exists but webhook not received yet",
         cashfreeOrderId: payment.cashfreeOrderId,
         paymentId: null,
-        webhookPending: true
+        webhookPending: true,
       });
     }
 
+    // ✅ Webhook has arrived
     return res.json({
       success: true,
-      paymentId: payment.paymentId, // pay_xxx ✅
+      paymentId: payment.paymentId, // cf_payment_id ✅
       cashfreeOrderId: payment.cashfreeOrderId,
       status: payment.status,
-      webhookPending: false
+      webhookPending: false,
     });
+
   } catch (err) {
     console.error("❌ getPaymentByOrderId error:", err);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch paymentId",
-      error: err.message
+      error: err.message,
     });
   }
 };
+
 
 /* ======================================================
    ✅ LEGACY: UPDATE PAYMENT ID FROM WEBHOOK
