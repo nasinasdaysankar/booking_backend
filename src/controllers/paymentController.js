@@ -333,34 +333,47 @@ export const syncFromWebhook = async (req, res) => {
     }
 
     // 1️⃣ Find the payment record
+   // ---------------------------------------------------------
+    // STEP 2: CREATE OR UPDATE PAYMENT RECORD (UPSERT)
+    // ---------------------------------------------------------
+    // Check if the Webhook already created a placeholder row
     let payment = await Payment.findOne({
-      where: { cashfreeOrderId },
+      where: { cashfreeOrderId: cashfreeOrderId },
       transaction: t,
-      lock: t.LOCK.UPDATE
+      lock: t.LOCK.UPDATE, // Prevent race conditions during update
     });
 
-    const statusValue = paymentStatus === "SUCCESS" ? "SUCCESS" : "FAILED";
-
     if (payment) {
-      // SCENARIO: App arrived first, we update it with the real paymentId
+      console.log("🔄 Webhook arrived first. Updating placeholder with real Order data.");
+      
+      // Update the placeholder row with data received from the Flutter App
       await payment.update({
-        paymentId: paymentId,
-        status: statusValue,
-        updatedAt: new Date()
+        orderId: order.id,
+        billId: billId,
+        cafeteriaId: cafeteriaId,
+        transactionId: transactionId,
+        amount: amount,
+        status: "SUCCESS",
+        paidAt: new Date(),
       }, { transaction: t });
-      console.log("✅ Existing payment updated with real paymentId");
+
+      console.log("✅ Placeholder synced with App data. paymentId is preserved.");
     } else {
-      // SCENARIO: Webhook arrived first, create placeholder
-      payment = await Payment.create({
-        cashfreeOrderId: cashfreeOrderId,
-        paymentId: paymentId,
-        status: statusValue,
-        billId: "PENDING_SYNC", 
-        orderId: 0,            
-        cafeteriaId: 0,        
+      console.log("💳 App arrived first. Creating new payment record.");
+      
+      // Normal flow: Create the record if the webhook hasn't arrived yet
+      await Payment.create({
+        orderId: order.id,
+        billId,
+        cafeteriaId,
         paymentGateway: "CASHFREE",
-        updatedAt: new Date()
+        cashfreeOrderId: cashfreeOrderId, 
+        transactionId,
+        amount,
+        status: "SUCCESS",
+        paidAt: new Date(),
       }, { transaction: t });
+    
       console.log("⚠️ Created placeholder payment record");
     }
 
