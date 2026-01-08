@@ -328,86 +328,66 @@ export const syncFromWebhook = async (req, res) => {
     console.log(`🔄 Webhook Sync: CF_Order: ${cashfreeOrderId} | Pay_ID: ${paymentId}`);
 
     if (!cashfreeOrderId || !paymentId) {
-      await t.rollback();
+      if (t) await t.rollback();
       return res.status(400).json({ success: false, message: "Missing IDs" });
     }
 
-    // 1️⃣ Try to find existing payment
-    /* ======================================================
-   ✅ UPDATED STEP 2: CREATE OR UPDATE PAYMENT RECORD
-   ====================================================== */
-// 1. Check if the Webhook already created a placeholder row
-let payment = await Payment.findOne({
-  where: { cashfreeOrderId: cashfreeOrderId },
-  transaction: t,
-  lock: t.LOCK.UPDATE, // Prevent the webhook from touching this row while we update it
-});
+    // 1️⃣ Find the payment record
+    let payment = await Payment.findOne({
+      where: { cashfreeOrderId },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
 
-if (payment) {
-  console.log("🔄 Webhook arrived first. Updating placeholder with real Order data.");
-  
-  // Update the existing placeholder row with the data from the App
-  await payment.update({
-    orderId: order.id,
-    billId: billId,
-    cafeteriaId: cafeteriaId,
-    transactionId: transactionId,
-    amount: amount,
-    status: "SUCCESS",
-    paidAt: new Date(),
-  }, { transaction: t });
+    const statusValue = paymentStatus === "SUCCESS" ? "SUCCESS" : "FAILED";
 
-  console.log("✅ Placeholder synced with App data. paymentId is preserved.");
-} else {
-  console.log("💳 App arrived first. Creating new payment record.");
-  
-  // Normal flow: Create the record if the webhook hasn't arrived yet
-  await Payment.create({
-    orderId: order.id,
-    billId,
-    cafeteriaId,
-    paymentGateway: "CASHFREE",
-    cashfreeOrderId: cashfreeOrderId, 
-    transactionId,
-    amount,
-    status: "SUCCESS",
-    paidAt: new Date(),
-  }, { transaction: t });
-
-      
-      console.log("⚠️ Created placeholder payment record (Webhook arrived first)");
+    if (payment) {
+      // SCENARIO: App arrived first, we update it with the real paymentId
+      await payment.update({
+        paymentId: paymentId,
+        status: statusValue,
+        updatedAt: new Date()
+      }, { transaction: t });
+      console.log("✅ Existing payment updated with real paymentId");
+    } else {
+      // SCENARIO: Webhook arrived first, create placeholder
+      payment = await Payment.create({
+        cashfreeOrderId: cashfreeOrderId,
+        paymentId: paymentId,
+        status: statusValue,
+        billId: "PENDING_SYNC", 
+        orderId: 0,            
+        cafeteriaId: 0,        
+        paymentGateway: "CASHFREE",
+        updatedAt: new Date()
+      }, { transaction: t });
+      console.log("⚠️ Created placeholder payment record");
     }
 
-    // 2️⃣ Sync Order Status if the Order record exists
-    const order = await Order.findOne({ 
+    // 2️⃣ Correctly fetch the Order record BEFORE checking if it exists
+    const orderRecord = await Order.findOne({ 
       where: { cashfreeOrderId },
       transaction: t 
     });
 
-    if (order) {
-      await order.update({
+    // Use orderRecord (the variable we just defined)
+    if (orderRecord) {
+      await orderRecord.update({
         status: orderStatus || (paymentStatus === "SUCCESS" ? "PAID" : "FAILED"),
         paymentStatus: paymentStatus,
-        // If the webhook has the real ID, ensure the order is linked
       }, { transaction: t });
       console.log("✅ Associated Order status updated");
     }
 
     await t.commit();
-    
-    return res.json({
-      success: true,
-      message: "Sync complete",
-      type: order ? "FULL_SYNC" : "PAYMENT_ONLY"
-    });
+    return res.json({ success: true, message: "Sync complete" });
 
   } catch (err) {
     if (t) await t.rollback();
-    console.error("❌ syncFromWebhook Fatal Error:", err);
+    console.error("❌ syncFromWebhook Fatal Error:", err); // This is where your error was logging
     res.status(500).json({ success: false, error: err.message });
   }
 };
-
 /* ======================================================
    ✅ GET PAYMENT BY ORDER ID (FOR VERIFICATION)
    ====================================================== */
