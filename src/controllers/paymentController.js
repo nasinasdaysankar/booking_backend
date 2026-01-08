@@ -318,89 +318,63 @@ export const confirmPayment = async (req, res) => {
 export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { 
-      cashfreeOrderId, 
-      paymentId, 
-      orderStatus, 
-      paymentStatus 
-    } = req.body;
-
-    console.log(`🔄 Webhook Sync: CF_Order: ${cashfreeOrderId} | Pay_ID: ${paymentId}`);
+    const { cashfreeOrderId, paymentId, paymentStatus, orderStatus } = req.body;
 
     if (!cashfreeOrderId || !paymentId) {
-      if (t) await t.rollback();
+      await t.rollback();
       return res.status(400).json({ success: false, message: "Missing IDs" });
     }
 
-    // 1️⃣ Find the payment record
-   // ---------------------------------------------------------
-    // STEP 2: CREATE OR UPDATE PAYMENT RECORD (UPSERT)
-    // ---------------------------------------------------------
-    // Check if the Webhook already created a placeholder row
-    let payment = await Payment.findOne({
-      where: { cashfreeOrderId: cashfreeOrderId },
+    // 1️⃣ Find Payment created by App
+    const payment = await Payment.findOne({
+      where: { cashfreeOrderId },
       transaction: t,
-      lock: t.LOCK.UPDATE, // Prevent race conditions during update
+      lock: t.LOCK.UPDATE,
     });
 
-    if (payment) {
-      console.log("🔄 Webhook arrived first. Updating placeholder with real Order data.");
-      
-      // Update the placeholder row with data received from the Flutter App
-      await payment.update({
-        orderId: order.id,
-        billId: billId,
-        cafeteriaId: cafeteriaId,
-        transactionId: transactionId,
-        amount: amount,
-        status: "SUCCESS",
-        paidAt: new Date(),
+    if (!payment) {
+      // ⏳ App not yet confirmed payment
+      await Payment.create({
+        cashfreeOrderId,
+        paymentId,
+        paymentGateway: "CASHFREE",
+        status: "PENDING_SYNC",
       }, { transaction: t });
 
-      console.log("✅ Placeholder synced with App data. paymentId is preserved.");
-    } else {
-      console.log("💳 App arrived first. Creating new payment record.");
-      
-      // Normal flow: Create the record if the webhook hasn't arrived yet
-      await Payment.create({
-        orderId: order.id,
-        billId,
-        cafeteriaId,
-        paymentGateway: "CASHFREE",
-        cashfreeOrderId: cashfreeOrderId, 
-        transactionId,
-        amount,
-        status: "SUCCESS",
-        paidAt: new Date(),
-      }, { transaction: t });
-    
-      console.log("⚠️ Created placeholder payment record");
+      await t.commit();
+      return res.json({ success: true, pendingAppSync: true });
     }
 
-    // 2️⃣ Correctly fetch the Order record BEFORE checking if it exists
-    const orderRecord = await Order.findOne({ 
-      where: { cashfreeOrderId },
-      transaction: t 
+    // 2️⃣ Merge webhook data into existing row
+    await payment.update({
+      paymentId, // cf_payment_id
+      status: paymentStatus || "SUCCESS",
+      paidAt: new Date(),
+    }, { transaction: t });
+
+    // 3️⃣ Update order if exists
+    const order = await Order.findOne({
+      where: { id: payment.orderId },
+      transaction: t,
     });
 
-    // Use orderRecord (the variable we just defined)
-    if (orderRecord) {
-      await orderRecord.update({
-        status: orderStatus || (paymentStatus === "SUCCESS" ? "PAID" : "FAILED"),
-        paymentStatus: paymentStatus,
+    if (order) {
+      await order.update({
+        status: orderStatus || "PAID",
+        paymentStatus: paymentStatus || "SUCCESS",
       }, { transaction: t });
-      console.log("✅ Associated Order status updated");
     }
 
     await t.commit();
-    return res.json({ success: true, message: "Sync complete" });
+    return res.json({ success: true, merged: true });
 
   } catch (err) {
-    if (t) await t.rollback();
-    console.error("❌ syncFromWebhook Fatal Error:", err); // This is where your error was logging
-    res.status(500).json({ success: false, error: err.message });
+    await t.rollback();
+    console.error("❌ syncFromWebhook error:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
+
 /* ======================================================
    ✅ GET PAYMENT BY ORDER ID (FOR VERIFICATION)
    ====================================================== */
