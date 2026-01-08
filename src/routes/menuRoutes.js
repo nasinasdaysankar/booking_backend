@@ -52,7 +52,8 @@ import {
   updateImageById,
   uploadBulkImages,
   updateMenuItem,
-  getMostLovedItems
+  getMostLovedItems,
+  deleteMenuItem
 } from "../controllers/menuController.js";
 import { updateCategoryBulk } from "../controllers/menuController.js";
 import multer from "multer";
