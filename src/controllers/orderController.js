@@ -86,6 +86,12 @@ export const getMyOrders = async (req, res) => {
     const orders = await Order.findAll({
       where: { studentId: userId },
       order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: OrderItem,
+          attributes: ["name", "imageUrl", "quantity"],
+        },
+      ],
     });
 
     return res.json(orders);
