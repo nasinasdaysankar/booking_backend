@@ -333,37 +333,47 @@ export const syncFromWebhook = async (req, res) => {
     }
 
     // 1️⃣ Try to find existing payment
-    let payment = await Payment.findOne({
-      where: { cashfreeOrderId },
-      transaction: t,
-      lock: t.LOCK.UPDATE // Lock row to prevent race conditions
-    });
+    /* ======================================================
+   ✅ UPDATED STEP 2: CREATE OR UPDATE PAYMENT RECORD
+   ====================================================== */
+// 1. Check if the Webhook already created a placeholder row
+let payment = await Payment.findOne({
+  where: { cashfreeOrderId: cashfreeOrderId },
+  transaction: t,
+  lock: t.LOCK.UPDATE, // Prevent the webhook from touching this row while we update it
+});
 
-    const statusValue = paymentStatus === "SUCCESS" ? "SUCCESS" : "FAILED";
+if (payment) {
+  console.log("🔄 Webhook arrived first. Updating placeholder with real Order data.");
+  
+  // Update the existing placeholder row with the data from the App
+  await payment.update({
+    orderId: order.id,
+    billId: billId,
+    cafeteriaId: cafeteriaId,
+    transactionId: transactionId,
+    amount: amount,
+    status: "SUCCESS",
+    paidAt: new Date(),
+  }, { transaction: t });
 
-    if (payment) {
-      // SCENARIO A: Payment record already created by /confirm
-      // Just update the missing paymentId (pay_xxx)
-      await payment.update({
-        paymentId: paymentId,
-        status: statusValue,
-        updatedAt: new Date()
-      }, { transaction: t });
-      
-      console.log("✅ Existing payment updated with real paymentId");
-    } else {
-      // SCENARIO B: Webhook arrived BEFORE /confirm (Race Condition)
-      // We create a "Placeholder" record so /confirm can find it later
-      payment = await Payment.create({
-        cashfreeOrderId: cashfreeOrderId,
-        paymentId: paymentId,
-        status: statusValue,
-        billId: "PENDING_SYNC", // Temporary
-        orderId: 0,            // Temporary, will be linked by /confirm
-        cafeteriaId: 0,        // Temporary
-        paymentGateway: "CASHFREE",
-        updatedAt: new Date()
-      }, { transaction: t });
+  console.log("✅ Placeholder synced with App data. paymentId is preserved.");
+} else {
+  console.log("💳 App arrived first. Creating new payment record.");
+  
+  // Normal flow: Create the record if the webhook hasn't arrived yet
+  await Payment.create({
+    orderId: order.id,
+    billId,
+    cafeteriaId,
+    paymentGateway: "CASHFREE",
+    cashfreeOrderId: cashfreeOrderId, 
+    transactionId,
+    amount,
+    status: "SUCCESS",
+    paidAt: new Date(),
+  }, { transaction: t });
+
       
       console.log("⚠️ Created placeholder payment record (Webhook arrived first)");
     }
