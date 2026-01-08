@@ -81,7 +81,7 @@ export const createOrder = async (req, res) => {
 // --------------------------------------------------
 export const getMyOrders = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.id;
 
     const orders = await Order.findAll({
       where: { studentId: userId },
@@ -89,7 +89,8 @@ export const getMyOrders = async (req, res) => {
       include: [
         {
           model: OrderItem,
-          attributes: ["name", "imageUrl", "quantity"],
+          as: "items", // ✅ MUST MATCH index.js
+          attributes: ["name", "imageUrl", "quantity", "priceAtOrder"],
         },
       ],
     });
@@ -97,10 +98,11 @@ export const getMyOrders = async (req, res) => {
     return res.json(orders);
   } catch (err) {
     console.error("🔥 GET MY ORDERS ERROR:", err);
-    return res.status(500).json({ message: "Error fetching orders" });
+    return res.status(500).json({
+      message: err.message, // TEMP: expose real error
+    });
   }
 };
-
 // --------------------------------------------------
 // GET ORDER BY ID
 // --------------------------------------------------
