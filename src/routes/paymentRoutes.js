@@ -1,24 +1,18 @@
 import express from "express";
-import { 
-  confirmPayment, 
-  syncFromWebhook, 
-  getPaymentByOrderId,
-  updatePaymentIdFromWebhook 
-} from "../controllers/paymentController.js";
-import { auth } from "../middleware/auth.js";
+import { confirmPayment, getPaymentByOrderId, updatePaymentIdFromWebhook, syncFromWebhook} from "../controllers/paymentController.js";
+import { auth } from "../middleware/auth.js"; // ⬅️ Add this import
 
 const router = express.Router();
 
-// ✅ User confirms payment after Cashfree SDK
+// 🔥 FIXED: Added 'auth' middleware here
+// This populates req.user so confirmPayment can read req.user.id
 router.post("/confirm", auth, confirmPayment);
 
-// ✅ Webhook syncs real paymentId from Cashfree
-router.post("/sync-from-webhook", syncFromWebhook);
+router.get("/by-order/:orderId", auth, getPaymentByOrderId);
 
-// ✅ Get payment details by Cashfree order ID
-router.get("/order/:orderId", auth, getPaymentByOrderId);
+router.post("/update-payment-id", updatePaymentIdFromWebhook);
 
-// ✅ Legacy webhook update
-router.post("/update-from-webhook", updatePaymentIdFromWebhook);
+router.post("/sync-from-webhook", syncFromWebhook); // ✅ NEW
+
 
 export default router;
