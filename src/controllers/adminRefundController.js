@@ -464,14 +464,7 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    if (!payment.paymentId.startsWith("pay_")) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Cashfree paymentId format",
-        storedPaymentId: payment.paymentId,
-      });
-    }
-
+   
     // ====================================
     // 5️⃣ CALL CASHFREE REFUND API
     // ====================================
