@@ -293,56 +293,37 @@ export const confirmPayment = async (req, res) => {
 export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { cashfreeOrderId, paymentId, paymentStatus, orderStatus } = req.body;
+    const { cashfreeOrderId, paymentId, paymentStatus } = req.body;
 
-    if (!cashfreeOrderId || !paymentId) {
-      await t.rollback();
-      return res.status(400).json({ success: false, message: "Missing IDs" });
-    }
-
-    const payment = await Payment.findOne({
+    // Use "findOrCreate" or update even if not created by app yet
+    const [payment, created] = await Payment.findOrCreate({
       where: { cashfreeOrderId },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
-    if (!payment) {
-      await t.commit();
-      return res.json({
-        success: true,
-        message: "Payment not yet confirmed by app. Webhook ignored safely.",
-      });
-    }
-
-    await payment.update(
-      {
+      defaults: {
         paymentId,
         status: paymentStatus || "SUCCESS",
-        paidAt: new Date(),
+        cashfreeOrderId,
+        // Fill in placeholders if app hasn't called yet
+        orderId: 0, 
+        billId: 'PENDING_SYNC',
+        cafeteriaId: 0
       },
-      { transaction: t }
-    );
+      transaction: t
+    });
 
-    const order = await Order.findByPk(payment.orderId, { transaction: t });
-    if (order) {
-      await order.update(
-        {
-          status: orderStatus || "PAID",
-          paymentStatus: paymentStatus || "SUCCESS",
-        },
-        { transaction: t }
-      );
+    if (!created) {
+      await payment.update({ 
+        paymentId, 
+        status: paymentStatus || "SUCCESS" 
+      }, { transaction: t });
     }
 
     await t.commit();
-    return res.json({ success: true, merged: true });
+    return res.json({ success: true });
   } catch (err) {
     await t.rollback();
-    console.error("❌ syncFromWebhook error:", err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
-
 // ===================================================================
 // ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
 // ===================================================================
