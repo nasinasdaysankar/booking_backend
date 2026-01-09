@@ -293,35 +293,48 @@ export const confirmPayment = async (req, res) => {
 export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { cashfreeOrderId, paymentId, paymentStatus } = req.body;
+    const { cashfreeOrderId, paymentId, paymentStatus, orderStatus } = req.body;
 
-    // Use "findOrCreate" or update even if not created by app yet
+    // Use findOrCreate so we don't ignore webhooks that arrive early
     const [payment, created] = await Payment.findOrCreate({
       where: { cashfreeOrderId },
       defaults: {
         paymentId,
-        status: paymentStatus || "SUCCESS",
         cashfreeOrderId,
-        // Fill in placeholders if app hasn't called yet
-        orderId: 0, 
-        billId: 'PENDING_SYNC',
-        cafeteriaId: 0
+        status: paymentStatus || "SUCCESS",
+        orderId: 0, // Placeholder, App will update this in confirmPayment
+        billId: 'SYNC_PENDING',
+        cafeteriaId: 0,
+        paidAt: new Date(),
       },
-      transaction: t
+      transaction: t,
     });
 
     if (!created) {
-      await payment.update({ 
-        paymentId, 
-        status: paymentStatus || "SUCCESS" 
+      // If record exists (created by App), just update the paymentId
+      await payment.update({
+        paymentId,
+        status: paymentStatus || "SUCCESS",
       }, { transaction: t });
     }
 
+    // Link to Order if it exists
+    if (payment.orderId !== 0) {
+      const order = await Order.findByPk(payment.orderId, { transaction: t });
+      if (order) {
+        await order.update({
+          status: orderStatus || "PAID",
+          paymentStatus: paymentStatus || "SUCCESS",
+        }, { transaction: t });
+      }
+    }
+
     await t.commit();
-    return res.json({ success: true });
+    return res.json({ success: true, message: "Webhook synced successfully" });
   } catch (err) {
-    await t.rollback();
-    return res.status(500).json({ error: err.message });
+    if (!t.finished) await t.rollback();
+    console.error("❌ syncFromWebhook error:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 // ===================================================================
