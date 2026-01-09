@@ -296,38 +296,41 @@ export const syncFromWebhook = async (req, res) => {
     const { cashfreeOrderId, paymentId, paymentStatus, orderStatus } = req.body;
 
     // Use findOrCreate so we don't ignore webhooks that arrive early
-    const [payment, created] = await Payment.findOrCreate({
-      where: { cashfreeOrderId },
-      defaults: {
-        paymentId,
-        cashfreeOrderId,
-        status: paymentStatus || "SUCCESS",
-        orderId: 0, // Placeholder, App will update this in confirmPayment
-        billId: 'SYNC_PENDING',
-        cafeteriaId: 0,
-        paidAt: new Date(),
-      },
-      transaction: t,
-    });
+    // ===================================================================
+// FIXED: Handle Webhook-First or App-First Scenarios
+// ===================================================================
+const [payment, created] = await Payment.findOrCreate({
+  where: { cashfreeOrderId: cashfreeOrderId },
+  defaults: {
+    orderId: order.id,
+    billId: billId,
+    cafeteriaId: cafeteriaId,
+    paymentGateway: "CASHFREE",
+    transactionId: transactionId,
+    amount: amount,
+    status: "SUCCESS",
+    paidAt: new Date(),
+  },
+  transaction: t,
+});
 
-    if (!created) {
-      // If record exists (created by App), just update the paymentId
-      await payment.update({
-        paymentId,
-        status: paymentStatus || "SUCCESS",
-      }, { transaction: t });
-    }
-
-    // Link to Order if it exists
-    if (payment.orderId !== 0) {
-      const order = await Order.findByPk(payment.orderId, { transaction: t });
-      if (order) {
-        await order.update({
-          status: orderStatus || "PAID",
-          paymentStatus: paymentStatus || "SUCCESS",
-        }, { transaction: t });
-      }
-    }
+if (!created) {
+  // 🔄 WEBHOOK ARRIVED FIRST (Rows 245/247 in your screenshot)
+  // We must update the placeholder values with real Order data
+  await payment.update({
+    orderId: order.id,
+    billId: billId,
+    cafeteriaId: cafeteriaId,
+    transactionId: transactionId, // Fill missing transactionId
+    amount: amount,
+    status: "SUCCESS"
+  }, { transaction: t });
+  
+  console.log(`✅ Linked existing Webhook record (ID: ${payment.id}) to Order: ${order.id}`);
+} else {
+  // 📱 APP ARRIVED FIRST
+  console.log(`✅ Created new Payment record (ID: ${payment.id}) for Order: ${order.id}`);
+}
 
     await t.commit();
     return res.json({ success: true, message: "Webhook synced successfully" });
