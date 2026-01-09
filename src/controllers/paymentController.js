@@ -150,6 +150,31 @@ export const confirmPayment = async (req, res) => {
       console.log("✅ Order updated:", order.id);
     }
 
+
+    const [pending] = await sequelize.query(`
+  SELECT payment_id FROM pending_webhooks
+  WHERE cashfree_order_id = :orderId
+`, {
+  replacements: { orderId: cashfreeOrderId },
+  transaction: t
+});
+
+if (pending.length > 0) {
+  console.log("🔗 Linking stored webhook paymentId");
+
+  await Payment.update(
+    { paymentId: pending[0].payment_id },
+    { where: { cashfreeOrderId }, transaction: t }
+  );
+
+  await sequelize.query(`
+    DELETE FROM pending_webhooks WHERE cashfree_order_id = :orderId
+  `, {
+    replacements: { orderId: cashfreeOrderId },
+    transaction: t
+  });
+}
+
     // Create payment record
     const existingPayment = await Payment.findOne({
       where: { cashfreeOrderId },
@@ -339,36 +364,30 @@ export const syncFromWebhook = async (req, res) => {
       lock: t.LOCK.UPDATE
     });
 
-    if (payment_record) {
-      // ✅ App already created record, just update with paymentId
-      console.log(`✅ [WEBHOOK] Found existing payment record (id: ${payment_record.id})`);
-      console.log(`   Updating with paymentId: ${paymentId}`);
-      
-      await payment_record.update({
-        paymentId,
-        status: "SUCCESS",
-        paidAt: payment_record.paidAt || new Date(),
-      }, { transaction: t });
+    if (!payment_record) {
+  console.log("⚠️ [WEBHOOK] Payment not created yet. Storing webhook.");
 
-      console.log(`✅ [WEBHOOK] Payment record updated successfully`);
+  await sequelize.query(`
+    INSERT INTO pending_webhooks (cashfree_order_id, payment_id)
+    VALUES (:orderId, :paymentId)
+    ON CONFLICT (cashfree_order_id)
+    DO UPDATE SET payment_id = EXCLUDED.payment_id
+  `, {
+    replacements: {
+      orderId: cashfreeOrderId,
+      paymentId
+    },
+    transaction: t
+  });
 
-      // Update order status if linked
-      if (payment_record.orderId && payment_record.orderId !== 0) {
-        const order = await Order.findByPk(payment_record.orderId, {
-          transaction: t
-        });
+  await t.commit();
 
-        if (order) {
-          await order.update({
-            status: "PAID",
-            paymentStatus: "SUCCESS",
-          }, { transaction: t });
-          
-          console.log(`✅ [WEBHOOK] Updated order ${payment_record.orderId} to PAID`);
-        }
-      }
-
-    } else {
+  return res.json({
+    success: true,
+    message: "Webhook stored, will be linked when app confirms"
+  });
+}
+else {
       // ⚠️ Webhook arrived before app
       console.log("⚠️ [WEBHOOK] No payment record found - arrived before /confirm");
       console.log("   Waiting for app to create the record...");
