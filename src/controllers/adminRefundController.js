@@ -301,27 +301,24 @@
 // Complete refund controller for admin dashboard
 // ===================================================================
 
+// ===================================================================
+// FILE: controllers/adminRefundController.js
+// Admin-specific refund management functions
+// ===================================================================
+
 import { Payment, Order } from "../models/index.js";
-import axios from "axios";
-
-console.log("--------------------------------------------------");
-console.log("✅ LOADED: adminRefundController.js");
-console.log("--------------------------------------------------");
 
 // ===================================================================
-// ✅ REFUND ORDER (MAIN REFUND FUNCTION)
+// ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
 // ===================================================================
-export const refundOrder = async (req, res) => {
+export const checkWebhookStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const authenticatedAdminId = req.user?.id;
-    const cafeteriaId = req.user?.cafeteriaId;
+    const cafeteriaId = req.user.cafeteriaId;
 
-    console.log(
-      `🔄 Refund request for order: ${orderId} by admin: ${authenticatedAdminId}`
-    );
+    console.log(`🔍 [ADMIN WEBHOOK CHECK] Order: ${orderId}, Cafeteria: ${cafeteriaId}`);
 
-    // 1️⃣ FETCH ORDER
+    // Verify order belongs to admin's cafeteria
     const order = await Order.findByPk(orderId);
 
     if (!order) {
@@ -331,30 +328,110 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    console.log(`📦 Order found:`, {
-      id: order.id,
-      status: order.status,
-      totalAmount: order.totalAmount,
-      cafeteriaId: order.cafeteriaId,
-    });
-
-    // 2️⃣ VERIFY ADMIN OWNS THIS CAFETERIA
     if (order.cafeteriaId !== cafeteriaId) {
       return res.status(403).json({
         success: false,
-        message: "Unauthorized: This order belongs to a different cafeteria",
+        message: "You don't have permission to access this order",
       });
     }
 
-    // 3️⃣ CHECK IF ORDER CAN BE REFUNDED
+    // Find payment for this order
+    const payment = await Payment.findOne({
+      where: { orderId },
+      attributes: ["paymentId", "cashfreeOrderId", "status", "createdAt"],
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found for this order",
+      });
+    }
+
+    const hasPaymentId = !!payment.paymentId;
+    const waitTime =
+      (Date.now() - new Date(payment.createdAt).getTime()) / 1000;
+
+    console.log(`📊 [WEBHOOK STATUS]`, {
+      hasPaymentId,
+      waitedSeconds: waitTime.toFixed(2),
+    });
+
+    const message = hasPaymentId
+      ? "✅ Webhook received - ready for refund"
+      : `⏳ Webhook pending (${waitTime.toFixed(1)}s) - retry in 2-3 seconds`;
+
+    return res.json({
+      success: true,
+      webhookReceived: hasPaymentId,
+      paymentId: payment.paymentId || null,
+      cashfreeOrderId: payment.cashfreeOrderId,
+      orderStatus: order.status,
+      paymentStatus: payment.status,
+      waitedSeconds: waitTime.toFixed(2),
+      message,
+    });
+  } catch (error) {
+    console.error("❌ [WEBHOOK CHECK ERROR]", error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
+// ===================================================================
+// ✅ REFUND ORDER (ADMIN VERSION)
+// ===================================================================
+export const refundOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.id;
+    const cafeteriaId = req.user.cafeteriaId;
+
+    console.log(`🔄 [ADMIN REFUND] Order: ${orderId}, Admin: ${adminId}`);
+
+    // ====================================
+    // 1️⃣ FETCH & VERIFY ORDER
+    // ====================================
+    const order = await Order.findByPk(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    console.log(`📦 [ORDER INFO]`, {
+      id: order.id,
+      status: order.status,
+      amount: order.totalAmount,
+      cafeteriaId: order.cafeteriaId,
+    });
+
+    // Verify order belongs to admin's cafeteria
+    if (order.cafeteriaId !== cafeteriaId) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to refund this order",
+      });
+    }
+
+    // ====================================
+    // 2️⃣ CHECK IF ORDER CAN BE REFUNDED
+    // ====================================
     if (order.status !== "PAID") {
       return res.status(400).json({
         success: false,
-        message: `Cannot refund order. Current status is "${order.status}". Only PAID orders can be refunded.`,
+        message: `Cannot refund order with status "${order.status}". Only PAID orders can be refunded.`,
       });
     }
 
-    // 4️⃣ FETCH PAYMENT RECORD
+    // ====================================
+    // 3️⃣ FETCH PAYMENT RECORD
+    // ====================================
     const payment = await Payment.findOne({
       where: { orderId: order.id },
     });
@@ -366,44 +443,49 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    console.log(`💳 Payment found:`, {
+    console.log(`💳 [PAYMENT INFO]`, {
       id: payment.id,
       paymentId: payment.paymentId,
-      cashfreeOrderId: payment.cashfreeOrderId,
       status: payment.status,
     });
 
-    // 5️⃣ CHECK IF paymentId EXISTS (WEBHOOK MUST HAVE ARRIVED)
+    // ====================================
+    // 4️⃣ CHECK IF paymentId EXISTS
+    // ====================================
     if (!payment.paymentId) {
-      console.log("❌ WEBHOOK NOT RECEIVED YET");
+      console.log("❌ [NO PAYMENT ID] Webhook hasn't arrived yet");
       return res.status(400).json({
         success: false,
         message: "Cannot refund yet - payment webhook not received",
         hint: "Webhook typically arrives within 2-3 seconds. Please try again.",
         receivedPaymentId: null,
         orderCreatedAt: order.createdAt,
+        retryAfter: 3,
       });
     }
 
     if (!payment.paymentId.startsWith("pay_")) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Cashfree paymentId",
-        error: "Expected format: pay_xxx",
+        message: "Invalid Cashfree paymentId format",
         storedPaymentId: payment.paymentId,
       });
     }
 
-    // 6️⃣ CALL CASHFREE REFUND API
-    console.log(`🔄 Initiating Cashfree refund...`);
+    // ====================================
+    // 5️⃣ CALL CASHFREE REFUND API
+    // ====================================
+    console.log(`🔄 [REFUND API] Calling Cashfree API`);
     console.log(`   paymentId: ${payment.paymentId}`);
     console.log(`   amount: ₹${order.totalAmount}`);
+
+    const axios = (await import("axios")).default;
 
     const refundResponse = await axios.post(
       `https://api.cashfree.com/pg/payments/${payment.paymentId}/refunds`,
       {
         refund_amount: Number(order.totalAmount),
-        refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
+        refund_note: `${reason || "Order declined"} - Order #${order.id}`,
       },
       {
         headers: {
@@ -412,12 +494,10 @@ export const refundOrder = async (req, res) => {
           "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
           "Content-Type": "application/json",
         },
+        timeout: 10000,
       }
     );
 
-    console.log("✅ Cashfree refund initiated:", refundResponse.data);
-
-    // 7️⃣ EXTRACT REFUND ID FROM RESPONSE
     const refundId = refundResponse.data?.refund?.refund_id;
     const refundStatus = refundResponse.data?.refund?.refund_status;
 
@@ -429,9 +509,11 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    console.log(`✅ Refund ID received: ${refundId}`);
+    console.log(`✅ [REFUND SUCCESS]`, { refundId, refundStatus });
 
-    // 8️⃣ UPDATE PAYMENT TABLE
+    // ====================================
+    // 6️⃣ UPDATE PAYMENT TABLE
+    // ====================================
     await Payment.update(
       {
         status: "REFUND_INITIATED",
@@ -442,47 +524,47 @@ export const refundOrder = async (req, res) => {
       { where: { id: payment.id } }
     );
 
-    console.log(`✅ Payment updated with refund info`);
+    console.log(`✅ [PAYMENT UPDATED] Refund info saved`);
 
-    // 9️⃣ UPDATE ORDER STATUS
+    // ====================================
+    // 7️⃣ UPDATE ORDER STATUS
+    // ====================================
     await order.update({
       status: "REFUND_INITIATED",
-      refundReason: `Order declined by cafeteria. Refund ID: ${refundId}`,
+      refundReason: reason || "Order declined by cafeteria",
       updatedAt: new Date(),
     });
 
-    console.log(`✅ Order status updated to REFUND_INITIATED`);
+    console.log(`✅ [ORDER UPDATED] Status: REFUND_INITIATED`);
 
-    // 🔟 SEND SUCCESS RESPONSE
+    // ====================================
+    // 8️⃣ RETURN SUCCESS
+    // ====================================
     return res.json({
       success: true,
       message: "Refund initiated successfully",
       data: {
-        refundId: refundId,
-        refundStatus: refundStatus,
+        refundId,
+        refundStatus,
         orderId: order.id,
         billId: order.billId,
         amount: order.totalAmount,
         paymentId: payment.paymentId,
-        initiatedBy: authenticatedAdminId,
+        initiatedBy: adminId,
         initiatedAt: new Date(),
+        reason: reason || "Order declined",
       },
     });
   } catch (error) {
     console.error(
-      "❌ Refund error:",
+      "❌ [REFUND ERROR]",
       error.response?.data || error.message
     );
-
-    const errorMessage =
-      error.response?.data?.message || error.message;
-    const errorCode = error.response?.data?.code;
 
     return res.status(error.response?.status || 500).json({
       success: false,
       message: "Refund initiation failed",
-      error: errorMessage,
-      code: errorCode,
+      error: error.response?.data?.message || error.message,
     });
   }
 };
@@ -493,32 +575,36 @@ export const refundOrder = async (req, res) => {
 export const checkRefundStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const cafeteriaId = req.user?.cafeteriaId;
+    const cafeteriaId = req.user.cafeteriaId;
 
-    console.log(`🔍 Checking refund status for order: ${orderId}`);
+    console.log(`🔍 [CHECK REFUND] Order: ${orderId}`);
 
+    // Verify order belongs to admin's cafeteria
+    const order = await Order.findByPk(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    if (order.cafeteriaId !== cafeteriaId) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to access this order",
+      });
+    }
+
+    // Find payment
     const payment = await Payment.findOne({
-      where: { orderId: orderId },
-      include: [
-        {
-          model: Order,
-          where: { id: orderId },
-        },
-      ],
+      where: { orderId },
     });
 
     if (!payment) {
       return res.status(404).json({
         success: false,
-        message: "Payment not found for this order",
-      });
-    }
-
-    // Verify admin owns this cafeteria
-    if (payment.Order.cafeteriaId !== cafeteriaId) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized: This order belongs to a different cafeteria",
+        message: "Payment not found",
       });
     }
 
@@ -529,7 +615,12 @@ export const checkRefundStatus = async (req, res) => {
       });
     }
 
-    console.log(`🔍 Refund ID found: ${payment.refundId}`);
+    console.log(`🔍 [CHECK REFUND] Refund ID: ${payment.refundId}`);
+
+    // ====================================
+    // FETCH REFUND STATUS FROM CASHFREE
+    // ====================================
+    const axios = (await import("axios")).default;
 
     const refundResponse = await axios.get(
       `https://api.cashfree.com/pg/refunds/${payment.refundId}`,
@@ -538,17 +629,19 @@ export const checkRefundStatus = async (req, res) => {
           "x-api-version": "2023-08-01",
           "x-client-id": process.env.CASHFREE_CLIENT_ID,
           "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
-          "Content-Type": "application/json",
         },
+        timeout: 10000,
       }
     );
 
     const refundStatus = refundResponse.data?.refund?.refund_status;
     const refundAmount = refundResponse.data?.refund?.refund_amount;
 
-    console.log(`📊 Current refund status from Cashfree: ${refundStatus}`);
+    console.log(`📊 [REFUND STATUS] ${refundStatus}`);
 
-    // 4️⃣ UPDATE LOCAL DATABASE BASED ON CASHFREE STATUS
+    // ====================================
+    // UPDATE LOCAL DB BASED ON STATUS
+    // ====================================
     if (refundStatus === "SUCCESS") {
       await Payment.update(
         { status: "REFUND_SUCCESS" },
@@ -560,7 +653,7 @@ export const checkRefundStatus = async (req, res) => {
         { where: { id: orderId } }
       );
 
-      console.log(`✅ Refund marked as SUCCESS in local DB`);
+      console.log(`✅ [REFUND SUCCESS] Updated in DB`);
     } else if (refundStatus === "FAILED") {
       await Payment.update(
         { status: "REFUND_FAILED" },
@@ -572,64 +665,47 @@ export const checkRefundStatus = async (req, res) => {
         { where: { id: orderId } }
       );
 
-      console.log(`❌ Refund marked as FAILED in local DB`);
+      console.log(`❌ [REFUND FAILED] Updated in DB`);
     }
 
     return res.json({
       success: true,
       message: "Refund status retrieved",
       data: {
-        orderId: orderId,
+        orderId,
         refundId: payment.refundId,
-        refundStatus: refundStatus,
-        refundAmount: refundAmount,
+        refundStatus,
+        refundAmount,
         refundedAt: payment.refundedAt,
-        orderStatus: payment.Order?.status,
+        orderStatus: order.status,
       },
     });
   } catch (error) {
-    console.error(
-      "❌ Check refund status error:",
-      error.response?.data || error.message
-    );
-
+    console.error("❌ [CHECK REFUND ERROR]", error.message);
     return res.status(error.response?.status || 500).json({
       success: false,
       message: "Failed to check refund status",
-      error: error.response?.data?.message || error.message,
+      error: error.message,
     });
   }
 };
 
 // ===================================================================
-// ✅ GET REFUND HISTORY (FOR ADMIN DASHBOARD)
+// ✅ GET REFUND HISTORY
 // ===================================================================
 export const getRefundHistory = async (req, res) => {
   try {
-    const cafeteriaId = req.user?.cafeteriaId;
     const { status } = req.query;
+    const cafeteriaId = req.user.cafeteriaId;
 
-    console.log(`📊 Fetching refund history for cafeteria: ${cafeteriaId}`);
+    console.log(`📊 [REFUND HISTORY] Cafeteria: ${cafeteriaId}, Status: ${status || "all"}`);
 
-    if (!cafeteriaId) {
-      return res.status(400).json({
-        success: false,
-        message: "Cafeteria ID not found in user data",
-      });
-    }
-
-    let whereClause = {
-      cafeteriaId: cafeteriaId,
-    };
+    let whereClause = { cafeteriaId };
 
     if (status) {
       whereClause.status = status;
     } else {
-      whereClause.status = [
-        "REFUND_INITIATED",
-        "REFUND_SUCCESS",
-        "REFUND_FAILED",
-      ];
+      whereClause.status = ["REFUND_INITIATED", "REFUND_SUCCESS", "REFUND_FAILED"];
     }
 
     const refunds = await Payment.findAll({
@@ -637,81 +713,27 @@ export const getRefundHistory = async (req, res) => {
       include: [
         {
           model: Order,
-          attributes: [
-            "id",
-            "billId",
-            "totalAmount",
-            "status",
-            "createdAt",
-            "kotNumber",
-          ],
+          where: { cafeteriaId },
+          attributes: ["id", "billId", "totalAmount", "status", "createdAt"],
         },
       ],
       order: [["refundedAt", "DESC"]],
       limit: 50,
     });
 
-    console.log(`✅ Found ${refunds.length} refund records`);
+    console.log(`✅ [REFUND HISTORY] Found ${refunds.length} refunds`);
 
     return res.json({
       success: true,
       count: refunds.length,
+      cafeteriaId,
       data: refunds,
     });
   } catch (error) {
-    console.error("❌ Get refund history error:", error);
-
+    console.error("❌ [REFUND HISTORY ERROR]", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch refund history",
-      error: error.message,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
-// ===================================================================
-export const checkWebhookStatus = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    console.log(`🔍 Checking webhook status for order: ${orderId}`);
-
-    const payment = await Payment.findOne({
-      where: { orderId },
-      attributes: ["paymentId", "cashfreeOrderId", "status", "createdAt"],
-    });
-
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment not found",
-      });
-    }
-
-    const hasPaymentId = !!payment.paymentId;
-    const waitTime =
-      (Date.now() - new Date(payment.createdAt).getTime()) / 1000;
-
-    console.log(
-      `📊 Webhook status: ${hasPaymentId ? "RECEIVED" : "PENDING"} (${waitTime.toFixed(2)}s)`
-    );
-
-    return res.json({
-      success: true,
-      webhookReceived: hasPaymentId,
-      paymentId: payment.paymentId || null,
-      cashfreeOrderId: payment.cashfreeOrderId,
-      waitedSeconds: waitTime.toFixed(2),
-      message: hasPaymentId
-        ? "✅ Ready for refund"
-        : `⏳ Webhook pending (${waitTime.toFixed(1)}s elapsed)`,
-    });
-  } catch (error) {
-    console.error("❌ checkWebhookStatus error:", error);
-    return res.status(500).json({
-      success: false,
       error: error.message,
     });
   }
