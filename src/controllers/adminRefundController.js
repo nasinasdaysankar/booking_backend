@@ -475,18 +475,19 @@ export const refundOrder = async (req, res) => {
     const axios = (await import("axios")).default;
 
    const refundResponse = await axios.post(
-  `https://api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
+  `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
   {
     refund_amount: Number(order.totalAmount),
     refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
   },
   {
     headers: {
-      "x-api-version": "2023-08-01",
-      "x-client-id": process.env.CASHFREE_CLIENT_ID,
-      "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
-      "Content-Type": "application/json",
-    },
+  "x-api-version": "2023-08-01",
+  "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
+  "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+  "Content-Type": "application/json",
+},
+
   }
 );
 
