@@ -1,6 +1,6 @@
 // ===================================================================
 // FILE: controllers/paymentController.js
-// FIXED: Better webhook handling, retry logic, and debugging
+// Complete refund functions with all fixes
 // ===================================================================
 
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
@@ -75,7 +75,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 }
 
 // ===================================================================
-// ✅ CONFIRM PAYMENT (FROM FLUTTER APP) - IMPROVED
+// ✅ CONFIRM PAYMENT (FROM FLUTTER APP)
 // ===================================================================
 export const confirmPayment = async (req, res) => {
   const t = await sequelize.transaction();
@@ -93,16 +93,14 @@ export const confirmPayment = async (req, res) => {
 
     const authenticatedStudentId = req.user.id;
 
-    console.log("💳 [CONFIRM PAYMENT] Request received:", {
+    console.log("💳 Payment confirmation request:", {
       cashfreeOrderId,
       billId,
       cafeteriaId,
       amount,
       studentId: authenticatedStudentId,
-      timestamp: new Date().toISOString(),
     });
 
-    // VALIDATION
     if (
       !cashfreeOrderId ||
       !billId ||
@@ -117,7 +115,6 @@ export const confirmPayment = async (req, res) => {
       });
     }
 
-    // FIX #1: Use LOCK to prevent race conditions
     let order = await Order.findOne({
       where: { cashfreeOrderId: cashfreeOrderId },
       transaction: t,
@@ -128,7 +125,8 @@ export const confirmPayment = async (req, res) => {
 
     if (!order) {
       kotNumber = await generateKotNumber(cafeteriaId, t);
-      console.log("📝 [CREATE ORDER] New KOT:", kotNumber);
+
+      console.log("📝 Creating new order with KOT:", kotNumber);
 
       order = await Order.create(
         {
@@ -137,40 +135,38 @@ export const confirmPayment = async (req, res) => {
           studentId: authenticatedStudentId,
           cafeteriaId,
           totalAmount: amount,
-          status: "PENDING", // 🔥 FIX: Start as PENDING (webhook will set to PAID)
-          paymentStatus: "PENDING",
+          status: "PAID",
+          paymentStatus: "SUCCESS",
           kotNumber,
           isParcel: isParcel || false,
         },
         { transaction: t }
       );
 
-      console.log("✅ [ORDER CREATED]", order.id);
+      console.log("✅ Order created:", order.id);
     } else {
       kotNumber = order.kotNumber;
-      console.log("♻️ [ORDER EXISTS] Updating existing order:", order.id);
-      
-      // Only update if not already paid
-      if (order.status !== "PAID") {
-        await order.update(
-          {
-            status: "PENDING",
-            paymentStatus: "PENDING",
-          },
-          { transaction: t }
-        );
-      }
+
+      await order.update(
+        {
+          status: "PAID",
+          paymentStatus: "SUCCESS",
+        },
+        { transaction: t }
+      );
+
+      console.log("✅ Order updated:", order.id);
     }
 
-    // FIX #2: Check if payment already exists
     const existingPayment = await Payment.findOne({
       where: { transactionId },
       transaction: t,
-      lock: t.LOCK.UPDATE,
     });
 
     if (!existingPayment) {
-      console.log("💳 [CREATE PAYMENT] New payment record");
+      console.log(
+        "💳 Creating payment record (paymentId will come from webhook)"
+      );
 
       await Payment.create(
         {
@@ -181,19 +177,19 @@ export const confirmPayment = async (req, res) => {
           cashfreeOrderId: cashfreeOrderId,
           transactionId,
           amount,
-          status: "PENDING", // 🔥 FIX: Explicitly PENDING
-          paymentId: null, // ⚠️ Will be updated by webhook
-          paidAt: null,
+          status: "SUCCESS",
+          paidAt: new Date(),
         },
         { transaction: t }
       );
 
-      console.log("✅ [PAYMENT CREATED] Awaiting webhook...");
+      console.log(
+        "✅ Payment record created (awaiting webhook for real paymentId)"
+      );
     } else {
-      console.log("ℹ️ [PAYMENT EXISTS] Skipping duplicate:", existingPayment.id);
+      console.log("ℹ️ Payment already exists:", existingPayment.id);
     }
 
-    // Create order items
     const existingItem = await OrderItem.findOne({
       where: { orderId: order.id },
       transaction: t,
@@ -218,15 +214,14 @@ export const confirmPayment = async (req, res) => {
       }
 
       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
-      console.log(`✅ [ITEMS CREATED] ${itemsToCreate.length} items`);
+      console.log(`✅ Created ${itemsToCreate.length} order items`);
     }
 
     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
 
     await t.commit();
-    console.log("✅ [TRANSACTION COMMITTED]");
+    console.log("✅ Transaction committed successfully");
 
-    // Notify admin (non-blocking)
     try {
       emitNewOrder(cafeteriaId, {
         orderId: order.id,
@@ -236,6 +231,8 @@ export const confirmPayment = async (req, res) => {
         status: order.status,
         createdAt: order.createdAt,
       });
+
+      console.log("📡 Socket event emitted");
 
       const adminTokens = await AdminFcmToken.findAll({
         where: { cafeteriaId },
@@ -256,10 +253,10 @@ export const confirmPayment = async (req, res) => {
           },
         });
 
-        console.log("🔔 [FCM SENT] Notification queued");
+        console.log("🔔 FCM notification sent to admins");
       }
     } catch (notifyErr) {
-      console.error("⚠️ [NOTIFY ERROR] Non-critical:", notifyErr.message);
+      console.error("⚠️ Notification error (ignored):", notifyErr);
     }
 
     return res.json({
@@ -267,20 +264,19 @@ export const confirmPayment = async (req, res) => {
       dbOrderId: order.id,
       billId: order.billId,
       kotNumber,
-      message: "Order created. Awaiting payment confirmation...",
-      waitingForWebhook: true,
+      message: "Payment confirmed successfully. Order sent to cafeteria.",
     });
   } catch (err) {
     if (!t.finished) {
       await t.rollback();
     }
 
-    console.error("❌ [CONFIRM PAYMENT ERROR]", err.message);
+    console.error("❌ CONFIRM PAYMENT ERROR:", err);
 
     if (err.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({
         success: false,
-        error: "Duplicate transaction - already processed.",
+        error: "This transaction has already been processed.",
       });
     }
 
@@ -292,27 +288,18 @@ export const confirmPayment = async (req, res) => {
 };
 
 // ===================================================================
-// ✅ SYNC FROM WEBHOOK (ROBUST VERSION WITH RETRY)
+// ✅ SYNC FROM WEBHOOK (ROBUST VERSION)
 // ===================================================================
 export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { cashfreeOrderId, paymentId, paymentStatus, orderStatus } = req.body;
 
-    console.log("🔄 [WEBHOOK SYNC] Received:", {
-      cashfreeOrderId,
-      paymentId,
-      paymentStatus,
-      timestamp: new Date().toISOString(),
-    });
-
     if (!cashfreeOrderId || !paymentId) {
       await t.rollback();
-      console.error("❌ [WEBHOOK] Missing IDs");
       return res.status(400).json({ success: false, message: "Missing IDs" });
     }
 
-    // FIX #3: Look for payment by cashfreeOrderId (not orderId)
     const payment = await Payment.findOne({
       where: { cashfreeOrderId },
       transaction: t,
@@ -320,63 +307,38 @@ export const syncFromWebhook = async (req, res) => {
     });
 
     if (!payment) {
-      await t.rollback();
-      console.log("⚠️ [WEBHOOK] Payment not found (app confirm may be delayed)");
+      await t.commit();
       return res.json({
         success: true,
-        message: "Payment record not yet in DB. Will retry.",
-        shouldRetry: true,
+        message: "Payment not yet confirmed by app. Webhook ignored safely.",
       });
     }
 
-    // FIX #4: Only update if paymentId is not already set
-    const updatedPayment = await payment.update(
+    await payment.update(
       {
-        paymentId: paymentId, // 🔥 THIS IS THE KEY UPDATE
-        status: paymentStatus === "SUCCESS" ? "SUCCESS" : "PENDING",
-        paidAt: paymentStatus === "SUCCESS" ? new Date() : payment.paidAt,
+        paymentId,
+        status: paymentStatus || "SUCCESS",
+        paidAt: new Date(),
       },
       { transaction: t }
     );
 
-    console.log("✅ [PAYMENT UPDATED]", {
-      paymentId,
-      status: updatedPayment.status,
-    });
-
-    // Update order to PAID
-    const order = await Order.findByPk(payment.orderId, {
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
+    const order = await Order.findByPk(payment.orderId, { transaction: t });
     if (order) {
       await order.update(
         {
-          status: paymentStatus === "SUCCESS" ? "PAID" : "PENDING",
-          paymentStatus: paymentStatus === "SUCCESS" ? "SUCCESS" : "PENDING",
+          status: orderStatus || "PAID",
+          paymentStatus: paymentStatus || "SUCCESS",
         },
         { transaction: t }
       );
-
-      console.log("✅ [ORDER UPDATED]", {
-        orderId: order.id,
-        status: order.status,
-      });
     }
 
     await t.commit();
-    console.log("✅ [WEBHOOK COMMITTED]");
-
-    return res.json({
-      success: true,
-      merged: true,
-      paymentId,
-      message: "Payment synced successfully",
-    });
+    return res.json({ success: true, merged: true });
   } catch (err) {
     await t.rollback();
-    console.error("❌ [WEBHOOK SYNC ERROR]", err.message);
+    console.error("❌ syncFromWebhook error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -388,7 +350,7 @@ export const checkWebhookStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    console.log(`🔍 [WEBHOOK CHECK] Order: ${orderId}`);
+    console.log(`🔍 Checking webhook status for order: ${orderId}`);
 
     const payment = await Payment.findOne({
       where: { orderId },
@@ -406,14 +368,9 @@ export const checkWebhookStatus = async (req, res) => {
     const waitTime =
       (Date.now() - new Date(payment.createdAt).getTime()) / 1000;
 
-    const message = hasPaymentId
-      ? "✅ Webhook received - ready for refund"
-      : `⏳ Webhook pending (${waitTime.toFixed(1)}s) - retry in 2-3 seconds`;
-
-    console.log(`📊 [STATUS]`, {
-      hasPaymentId,
-      waitedSeconds: waitTime.toFixed(2),
-    });
+    console.log(
+      `📊 Webhook status: ${hasPaymentId ? "RECEIVED" : "PENDING"} (${waitTime.toFixed(2)}s)`
+    );
 
     return res.json({
       success: true,
@@ -421,10 +378,12 @@ export const checkWebhookStatus = async (req, res) => {
       paymentId: payment.paymentId || null,
       cashfreeOrderId: payment.cashfreeOrderId,
       waitedSeconds: waitTime.toFixed(2),
-      message,
+      message: hasPaymentId
+        ? "✅ Ready for refund"
+        : `⏳ Webhook pending (${waitTime.toFixed(1)}s elapsed)`,
     });
   } catch (error) {
-    console.error("❌ [WEBHOOK CHECK ERROR]", error.message);
+    console.error("❌ checkWebhookStatus error:", error);
     return res.status(500).json({
       success: false,
       error: error.message,
@@ -440,7 +399,9 @@ export const refundOrder = async (req, res) => {
     const { orderId } = req.params;
     const authenticatedAdminId = req.user?.id;
 
-    console.log(`🔄 [REFUND START] Order: ${orderId}, Admin: ${authenticatedAdminId}`);
+    console.log(
+      `🔄 Refund request for order: ${orderId} by admin: ${authenticatedAdminId}`
+    );
 
     // 1️⃣ FETCH ORDER
     const order = await Order.findByPk(orderId);
@@ -452,17 +413,17 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    console.log(`📦 [ORDER INFO]`, {
+    console.log(`📦 Order found:`, {
       id: order.id,
       status: order.status,
-      amount: order.totalAmount,
+      totalAmount: order.totalAmount,
     });
 
     // 2️⃣ CHECK IF ORDER CAN BE REFUNDED
     if (order.status !== "PAID") {
       return res.status(400).json({
         success: false,
-        message: `Cannot refund. Current status: "${order.status}". Only PAID orders can be refunded.`,
+        message: `Cannot refund order. Current status is "${order.status}". Only PAID orders can be refunded.`,
       });
     }
 
@@ -474,23 +435,24 @@ export const refundOrder = async (req, res) => {
     if (!payment) {
       return res.status(404).json({
         success: false,
-        message: "Payment record not found",
+        message: "Payment record not found for this order",
       });
     }
 
-    console.log(`💳 [PAYMENT INFO]`, {
+    console.log(`💳 Payment found:`, {
       id: payment.id,
       paymentId: payment.paymentId,
+      cashfreeOrderId: payment.cashfreeOrderId,
       status: payment.status,
     });
 
-    // 4️⃣ CHECK IF paymentId EXISTS
+    // 4️⃣ CHECK IF paymentId EXISTS (WEBHOOK MUST HAVE ARRIVED)
     if (!payment.paymentId) {
-      console.log("❌ [NO PAYMENT ID] Webhook hasn't arrived yet");
+      console.log("❌ WEBHOOK NOT RECEIVED YET");
       return res.status(400).json({
         success: false,
-        message: "Cannot refund - webhook not received yet",
-        hint: "Webhook typically arrives within 2-3 seconds. Retry in 3 seconds.",
+        message: "Cannot refund yet - payment webhook not received",
+        hint: "Webhook typically arrives within 2-3 seconds. Please try again.",
         receivedPaymentId: null,
         orderCreatedAt: order.createdAt,
       });
@@ -499,16 +461,16 @@ export const refundOrder = async (req, res) => {
     if (!payment.paymentId.startsWith("pay_")) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Cashfree paymentId format",
+        message: "Invalid Cashfree paymentId",
+        error: "Expected format: pay_xxx",
         storedPaymentId: payment.paymentId,
       });
     }
 
     // 5️⃣ CALL CASHFREE REFUND API
-    console.log(`🔄 [REFUND API] Calling Cashfree:`, {
-      paymentId: payment.paymentId,
-      amount: order.totalAmount,
-    });
+    console.log(`🔄 Initiating Cashfree refund...`);
+    console.log(`   paymentId: ${payment.paymentId}`);
+    console.log(`   amount: ₹${order.totalAmount}`);
 
     const axios = (await import("axios")).default;
 
@@ -525,10 +487,12 @@ export const refundOrder = async (req, res) => {
           "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
           "Content-Type": "application/json",
         },
-        timeout: 10000,
       }
     );
 
+    console.log("✅ Cashfree refund initiated:", refundResponse.data);
+
+    // 6️⃣ EXTRACT REFUND ID FROM RESPONSE
     const refundId = refundResponse.data?.refund?.refund_id;
     const refundStatus = refundResponse.data?.refund?.refund_status;
 
@@ -540,9 +504,9 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    console.log(`✅ [REFUND SUCCESS]`, { refundId, refundStatus });
+    console.log(`✅ Refund ID received: ${refundId}`);
 
-    // 6️⃣ UPDATE PAYMENT TABLE
+    // 7️⃣ UPDATE PAYMENT TABLE
     await Payment.update(
       {
         status: "REFUND_INITIATED",
@@ -553,31 +517,47 @@ export const refundOrder = async (req, res) => {
       { where: { id: payment.id } }
     );
 
-    // 7️⃣ UPDATE ORDER STATUS
+    console.log(`✅ Payment updated with refund info`);
+
+    // 8️⃣ UPDATE ORDER STATUS
     await order.update({
       status: "REFUND_INITIATED",
-      refundReason: `Declined. Refund ID: ${refundId}`,
+      refundReason: `Order declined by cafeteria. Refund ID: ${refundId}`,
       updatedAt: new Date(),
     });
 
+    console.log(`✅ Order status updated to REFUND_INITIATED`);
+
+    // 9️⃣ SEND SUCCESS RESPONSE
     return res.json({
       success: true,
       message: "Refund initiated successfully",
       data: {
-        refundId,
-        refundStatus,
+        refundId: refundId,
+        refundStatus: refundStatus,
         orderId: order.id,
+        billId: order.billId,
         amount: order.totalAmount,
+        paymentId: payment.paymentId,
+        initiatedBy: authenticatedAdminId,
         initiatedAt: new Date(),
       },
     });
   } catch (error) {
-    console.error("❌ [REFUND ERROR]", error.response?.data || error.message);
+    console.error(
+      "❌ Refund error:",
+      error.response?.data || error.message
+    );
+
+    const errorMessage =
+      error.response?.data?.message || error.message;
+    const errorCode = error.response?.data?.code;
 
     return res.status(error.response?.status || 500).json({
       success: false,
-      message: "Refund failed",
-      error: error.response?.data?.message || error.message,
+      message: "Refund initiation failed",
+      error: errorMessage,
+      code: errorCode,
     });
   }
 };
@@ -589,7 +569,7 @@ export const checkRefundStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    console.log(`🔍 [REFUND CHECK] Order: ${orderId}`);
+    console.log(`🔍 Checking refund status for order: ${orderId}`);
 
     const payment = await Payment.findOne({
       where: { orderId: orderId },
@@ -604,7 +584,7 @@ export const checkRefundStatus = async (req, res) => {
     if (!payment) {
       return res.status(404).json({
         success: false,
-        message: "Payment not found",
+        message: "Payment not found for this order",
       });
     }
 
@@ -615,6 +595,8 @@ export const checkRefundStatus = async (req, res) => {
       });
     }
 
+    console.log(`🔍 Refund ID found: ${payment.refundId}`);
+
     const axios = (await import("axios")).default;
 
     const refundResponse = await axios.get(
@@ -624,15 +606,17 @@ export const checkRefundStatus = async (req, res) => {
           "x-api-version": "2023-08-01",
           "x-client-id": process.env.CASHFREE_CLIENT_ID,
           "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+          "Content-Type": "application/json",
         },
-        timeout: 10000,
       }
     );
 
     const refundStatus = refundResponse.data?.refund?.refund_status;
     const refundAmount = refundResponse.data?.refund?.refund_amount;
 
-    // Update local DB based on Cashfree status
+    console.log(`📊 Current refund status from Cashfree: ${refundStatus}`);
+
+    // 4️⃣ UPDATE LOCAL DATABASE BASED ON CASHFREE STATUS
     if (refundStatus === "SUCCESS") {
       await Payment.update(
         { status: "REFUND_SUCCESS" },
@@ -643,6 +627,8 @@ export const checkRefundStatus = async (req, res) => {
         { status: "REFUND_SUCCESS" },
         { where: { id: orderId } }
       );
+
+      console.log(`✅ Refund marked as SUCCESS in local DB`);
     } else if (refundStatus === "FAILED") {
       await Payment.update(
         { status: "REFUND_FAILED" },
@@ -653,42 +639,53 @@ export const checkRefundStatus = async (req, res) => {
         { status: "REFUND_FAILED" },
         { where: { id: orderId } }
       );
+
+      console.log(`❌ Refund marked as FAILED in local DB`);
     }
 
     return res.json({
       success: true,
       message: "Refund status retrieved",
       data: {
-        orderId,
+        orderId: orderId,
         refundId: payment.refundId,
-        refundStatus,
-        refundAmount,
+        refundStatus: refundStatus,
+        refundAmount: refundAmount,
         refundedAt: payment.refundedAt,
+        orderStatus: payment.Order?.status,
       },
     });
   } catch (error) {
-    console.error("❌ [REFUND CHECK ERROR]", error.message);
+    console.error(
+      "❌ Check refund status error:",
+      error.response?.data || error.message
+    );
+
     return res.status(error.response?.status || 500).json({
       success: false,
       message: "Failed to check refund status",
-      error: error.message,
+      error: error.response?.data?.message || error.message,
     });
   }
 };
 
 // ===================================================================
-// ✅ GET REFUND HISTORY
+// ✅ GET REFUND HISTORY (FOR ADMIN DASHBOARD)
 // ===================================================================
 export const getRefundHistory = async (req, res) => {
   try {
     const { cafeteriaId, status } = req.query;
 
+    console.log(`📊 Fetching refund history - cafeteriaId: ${cafeteriaId}, status: ${status}`);
+
     let whereClause = {};
+
     if (status) {
       whereClause.status = status;
     } else {
       whereClause.status = ["REFUND_INITIATED", "REFUND_SUCCESS", "REFUND_FAILED"];
     }
+
     if (cafeteriaId) {
       whereClause.cafeteriaId = cafeteriaId;
     }
@@ -698,12 +695,20 @@ export const getRefundHistory = async (req, res) => {
       include: [
         {
           model: Order,
-          attributes: ["id", "billId", "totalAmount", "status", "createdAt"],
+          attributes: [
+            "id",
+            "billId",
+            "totalAmount",
+            "status",
+            "createdAt",
+          ],
         },
       ],
       order: [["refundedAt", "DESC"]],
       limit: 50,
     });
+
+    console.log(`✅ Found ${refunds.length} refund records`);
 
     return res.json({
       success: true,
@@ -711,7 +716,8 @@ export const getRefundHistory = async (req, res) => {
       data: refunds,
     });
   } catch (error) {
-    console.error("❌ [REFUND HISTORY ERROR]", error.message);
+    console.error("❌ Get refund history error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch refund history",
@@ -721,13 +727,13 @@ export const getRefundHistory = async (req, res) => {
 };
 
 // ===================================================================
-// ✅ GET PAYMENT BY ORDER ID
+// ✅ GET PAYMENT BY ORDER ID (FOR VERIFICATION)
 // ===================================================================
 export const getPaymentByOrderId = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    console.log("🔍 [GET PAYMENT] Order:", orderId);
+    console.log("🔍 Looking up payment for order:", orderId);
 
     const payment = await Payment.findOne({
       where: { cashfreeOrderId: orderId },
@@ -737,12 +743,11 @@ export const getPaymentByOrderId = async (req, res) => {
     if (!payment) {
       return res.status(404).json({
         success: false,
-        message: "Payment not found",
+        message: "Payment not found for this Cashfree order",
       });
     }
 
     if (!payment.paymentId) {
-      console.log("⏳ [PAYMENT] Webhook pending for:", orderId);
       return res.json({
         success: true,
         message: "Payment exists but webhook not received yet",
@@ -760,53 +765,29 @@ export const getPaymentByOrderId = async (req, res) => {
       webhookPending: false,
     });
   } catch (err) {
-    console.error("❌ [GET PAYMENT ERROR]", err.message);
+    console.error("❌ getPaymentByOrderId error:", err);
     return res.status(500).json({
       success: false,
+      message: "Failed to fetch paymentId",
       error: err.message,
     });
   }
 };
 
 // ===================================================================
-// ✅ LEGACY: UPDATE PAYMENT ID FROM WEBHOOK (DEPRECATED)
+// ✅ LEGACY: UPDATE PAYMENT ID FROM WEBHOOK
 // ===================================================================
-// This is kept for backward compatibility but not recommended
-// Use syncFromWebhook() instead which is more robust
 export const updatePaymentIdFromWebhook = async (req, res) => {
-  try {
-    const { cashfreeOrderId, paymentId } = req.body;
+  const { cashfreeOrderId, paymentId } = req.body;
 
-    console.log("⚠️ [LEGACY] updatePaymentIdFromWebhook called");
-
-    if (!cashfreeOrderId || !paymentId) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Missing cashfreeOrderId or paymentId" 
-      });
-    }
-
-    const result = await Payment.update(
-      { paymentId },
-      { where: { cashfreeOrderId } }
-    );
-
-    if (result[0] === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Payment not found" 
-      });
-    }
-
-    return res.json({ 
-      success: true,
-      message: "Payment ID updated (legacy endpoint)"
-    });
-  } catch (err) {
-    console.error("❌ [LEGACY ENDPOINT ERROR]", err.message);
-    return res.status(500).json({ 
-      success: false,
-      error: err.message 
-    });
+  if (!cashfreeOrderId || !paymentId) {
+    return res.status(400).json({ message: "Missing data" });
   }
+
+  await Payment.update(
+    { paymentId },
+    { where: { cashfreeOrderId } }
+  );
+
+  res.json({ success: true });
 };
