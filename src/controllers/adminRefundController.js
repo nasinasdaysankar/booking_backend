@@ -481,12 +481,13 @@ export const refundOrder = async (req, res) => {
     refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
   },
   {
-    headers: {
+  headers: {
   "x-api-version": "2023-08-01",
   "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-  "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+  "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
   "Content-Type": "application/json",
 },
+
 
   }
 );
