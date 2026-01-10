@@ -567,30 +567,27 @@ export const checkRefundStatus = async (req, res) => {
     console.log(`🔍 [CHECK REFUND] Refund ID: ${payment.refundId}`);
 
     // ====================================
-    // FETCH REFUND STATUS FROM CASHFREE
+    // ✅ FIX: FETCH EXISTING REFUND STATUS
     // ====================================
     const axios = (await import("axios")).default;
 
-    const refundResponse = await axios.post(
-  `https://sandbox-api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
-  {
-    refund_amount: Number(order.totalAmount),
-    refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
-  },
-  {
-    headers: {
-      "x-api-version": "2023-08-01",
-      "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-      "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
-      "Content-Type": "application/json",
-    },
-    timeout: 15000,
-  }
-);
+    const refundResponse = await axios.get(
+      // ✅ FIX #3: Use correct URL (sandbox.cashfree.com, no -api)
+      // ✅ FIX #1: Use GET endpoint to fetch refund, not POST
+      `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
+      {
+        headers: {
+          "x-api-version": "2023-08-01",
+          // ✅ FIX #2: Use x-secret-key consistently
+          "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
+          "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+        },
+        timeout: 15000,
+      }
+    );
 
-
-    const refundStatus = refundResponse.data?.refund?.refund_status;
-    const refundAmount = refundResponse.data?.refund?.refund_amount;
+    const refundStatus = refundResponse.data?.refund_status;
+    const refundAmount = refundResponse.data?.refund_amount;
 
     console.log(`📊 [REFUND STATUS] ${refundStatus}`);
 
@@ -644,7 +641,6 @@ export const checkRefundStatus = async (req, res) => {
     });
   }
 };
-
 // ===================================================================
 // ✅ GET REFUND HISTORY
 // ===================================================================
