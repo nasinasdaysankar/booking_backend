@@ -10,7 +10,7 @@ import {
 import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
 } from "../controllers/adminAnalyticsController.js";
-import { getCafeteriaDetails, getMyCafeterias } from '../controllers/adminCafeteriaController.js';
+import { getCafeteriaDetails, getMyCafeterias, updateCafeteria } from '../controllers/adminCafeteriaController.js';
 import {
   refundOrder,
   checkRefundStatus,
@@ -155,6 +155,9 @@ router.get(
   requireRole(['admin']),
   getRefundHistory
 );
+
+
+router.put("/cafeteria/:id", auth, requireRole(['admin']), updateCafeteria);
 
 // ============================================
 // QR CODE VERIFICATION

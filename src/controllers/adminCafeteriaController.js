@@ -62,3 +62,47 @@ export const getMyCafeterias = async (req, res) => {
     });
   }
 };
+
+export const updateCafeteria = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, location, isOpen } = req.body;
+    const adminCafeteriaId = req.user.cafeteriaId;
+
+    // Verify admin can only update their own cafeteria
+    if (parseInt(id) !== adminCafeteriaId) {
+      return res.status(403).json({ 
+        message: "You can only update your own cafeteria" 
+      });
+    }
+
+    const cafeteria = await Cafeteria.findByPk(id);
+
+    if (!cafeteria) {
+      return res.status(404).json({ message: "Cafeteria not found" });
+    }
+
+    // Update only provided fields
+    if (name !== undefined) cafeteria.name = name;
+    if (location !== undefined) cafeteria.location = location;
+    if (isOpen !== undefined) cafeteria.isOpen = isOpen;
+
+    await cafeteria.save();
+
+    console.log(`✅ Cafeteria ${id} updated by admin ${req.user.id}`);
+
+    return res.json({
+      message: "Cafeteria updated successfully",
+      data: {
+        id: cafeteria.id,
+        name: cafeteria.name,
+        location: cafeteria.location,
+        isOpen: cafeteria.isOpen,
+        staticQrToken: cafeteria.staticQrToken,
+      },
+    });
+  } catch (err) {
+    console.error("UPDATE CAFETERIA ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
