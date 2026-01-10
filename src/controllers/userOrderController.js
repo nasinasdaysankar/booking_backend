@@ -8,13 +8,12 @@ import {
 import { Op } from "sequelize";
 
 
-
+// ================= SCAN QR =================
 export const scanStaticCafeteriaQR = async (req, res) => {
   try {
     const { qrToken } = req.body;
     const studentId = req.user.id;
 
-    // 1️⃣ Validate QR
     const cafeteriaQr = await CafeteriaQr.findOne({
       where: { qrToken: qrToken?.trim() },
     });
@@ -26,47 +25,30 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 2️⃣ Find active order WITH ITEMS
-    const activeOrder = await Order.findOne({
+    const activeOrders = await Order.findAll({
       where: {
         studentId,
         cafeteriaId: cafeteriaQr.cafeteriaId,
         status: { [Op.in]: ["PAID", "PREPARING", "READY"] },
       },
       order: [["createdAt", "DESC"]],
-      include: [
-        {
-          model: OrderItem,
-          as: "items", // MUST match association
-          attributes: ["name", "quantity", "priceAtOrder", "imageUrl"],
-        },
-      ],
     });
 
-    // 3️⃣ Active order found → return full details
-    if (activeOrder) {
+    if (activeOrders.length > 0) {
       return res.json({
         success: true,
-        orders: [
-          {
-            id: activeOrder.id,
-            status: activeOrder.status,
-            billId: activeOrder.billId,
-            kotNumber: activeOrder.kotNumber,
-            totalAmount: activeOrder.totalAmount,
-            canPickUp: activeOrder.status === "READY",
-            items: activeOrder.items.map((i) => ({
-              name: i.name,
-              quantity: i.quantity,
-              priceAtOrder: i.priceAtOrder,
-              imageUrl: i.imageUrl,
-            })),
-          },
-        ],
+        orders: activeOrders.map((order) => ({
+          orderId: order.id,
+          status: order.status,
+          message:
+            order.status === "READY"
+              ? "Ready, pick it up"
+              : "We are cooking",
+          canPickUp: order.status === "READY",
+        })),
       });
     }
 
-    // 4️⃣ If no active order, check picked up
     const pickedOrder = await Order.findOne({
       where: {
         studentId,
@@ -77,18 +59,16 @@ export const scanStaticCafeteriaQR = async (req, res) => {
     });
 
     if (pickedOrder) {
-      return res.json({
+      return res.status(404).json({
         success: false,
-        message: "You have already picked up this order",
+        message: "You have already picked it",
       });
     }
 
-    // 5️⃣ Nothing found
-    return res.json({
+    return res.status(404).json({
       success: false,
       message: "No active order found",
     });
-
   } catch (error) {
     console.error("❌ scanStaticCafeteriaQR error:", error);
     res.status(500).json({

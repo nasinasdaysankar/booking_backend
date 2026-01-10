@@ -1,3 +1,4 @@
+
 // import { MenuItem, sequelize } from "../models/index.js";
 
 // /* ================== ADD SINGLE MENU ITEM ================== */
@@ -321,6 +322,19 @@ export const getBeveragesMenu = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success:false, message:"Category fetch failed", error:err.message });
   }
+};
+export const getDeletedMenuItems = async (req, res) => {
+  const { cafeteriaId } = req.query;
+
+  const items = await MenuItem.findAll({
+    where: {
+      cafeteriaId,
+      isDeleted: true,
+    },
+    order: [['updatedAt', 'DESC']],
+  });
+
+  res.json(items);
 };
 
 

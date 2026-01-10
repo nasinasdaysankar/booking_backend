@@ -53,7 +53,8 @@ import {
   uploadBulkImages,
   updateMenuItem,
   getMostLovedItems,
-  deleteMenuItem
+  deleteMenuItem,
+  getDeletedMenuItems,
 } from "../controllers/menuController.js";
 import { updateCategoryBulk } from "../controllers/menuController.js";
 import multer from "multer";
@@ -75,6 +76,7 @@ router.post("/upload-bulk-images", upload.array("images"), uploadBulkImages);
 router.put("/update/:id", updateMenuItem);
 router.get("/most-loved", getMostLovedItems);
 router.delete("/delete/:id", deleteMenuItem);
+router.get('/deleted', getDeletedMenuItems);
 
 
 export default router;
