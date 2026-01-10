@@ -390,176 +390,130 @@ export const refundOrder = async (req, res) => {
     const adminId = req.user.id;
     const cafeteriaId = req.user.cafeteriaId;
 
-    console.log(`🔄 [ADMIN REFUND] Order: ${orderId}, Admin: ${adminId}`);
+    console.log("=======================================");
+    console.log("🔄 [ADMIN REFUND] Order:", orderId);
+    console.log("👨‍🍳 Cafeteria:", cafeteriaId);
 
-    // ====================================
-    // 1️⃣ FETCH & VERIFY ORDER
-    // ====================================
+    // 1️⃣ Load order
     const order = await Order.findByPk(orderId);
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    console.log(`📦 [ORDER INFO]`, {
-      id: order.id,
-      status: order.status,
-      amount: order.totalAmount,
-      cafeteriaId: order.cafeteriaId,
-    });
-
-    // Verify order belongs to admin's cafeteria
     if (order.cafeteriaId !== cafeteriaId) {
-      return res.status(403).json({
-        success: false,
-        message: "You don't have permission to refund this order",
-      });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    // ====================================
-    // 2️⃣ CHECK IF ORDER CAN BE REFUNDED
-    // ====================================
     if (order.status !== "PAID") {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot refund order with status "${order.status}". Only PAID orders can be refunded.`,
-      });
+      return res.status(400).json({ success: false, message: "Order is not PAID" });
     }
 
-    // ====================================
-    // 3️⃣ FETCH PAYMENT RECORD
-    // ====================================
-    const payment = await Payment.findOne({
-      where: { orderId: order.id },
+    console.log("📦 Order:", {
+      id: order.id,
+      amount: order.totalAmount,
+      billId: order.billId,
     });
 
+    // 2️⃣ Load payment
+    const payment = await Payment.findOne({ where: { orderId } });
     if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment record not found for this order",
-      });
+      return res.status(400).json({ success: false, message: "Payment record missing" });
     }
 
-    console.log(`💳 [PAYMENT INFO]`, {
-      id: payment.id,
+    console.log("💳 Payment:", {
       paymentId: payment.paymentId,
+      cashfreeOrderId: payment.cashfreeOrderId,
       status: payment.status,
     });
 
-    // ====================================
-    // 4️⃣ CHECK IF paymentId EXISTS
-    // ====================================
-    if (!payment.paymentId) {
-      console.log("❌ [NO PAYMENT ID] Webhook hasn't arrived yet");
+    if (!payment.cashfreeOrderId) {
       return res.status(400).json({
         success: false,
-        message: "Cannot refund yet - payment webhook not received",
-        hint: "Webhook typically arrives within 2-3 seconds. Please try again.",
-        receivedPaymentId: null,
-        orderCreatedAt: order.createdAt,
-        retryAfter: 3,
+        message: "Cashfree order not linked yet (webhook pending)",
       });
     }
 
-   
-    // ====================================
-    // 5️⃣ CALL CASHFREE REFUND API
-    // ====================================
-    console.log(`🔄 [REFUND API] Calling Cashfree API`);
-    console.log(`   paymentId: ${payment.paymentId}`);
-    console.log(`   amount: ₹${order.totalAmount}`);
+    // 3️⃣ PRINT CASHFREE KEYS (debug)
+    console.log("🔐 Cashfree Sandbox App ID:", process.env.CASHFREE_SANDBOX_CLIENT_ID);
+    console.log(
+      "🔐 Cashfree Sandbox Secret:",
+      process.env.CASHFREE_SANDBOX_CLIENT_SECRET
+        ? process.env.CASHFREE_SANDBOX_CLIENT_SECRET.slice(0, 6) + "******"
+        : "MISSING"
+    );
 
-    const axios = (await import("axios")).default;
-
-   const refundResponse = await axios.post(
-  `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
-  {
-    refund_amount: Number(order.totalAmount),
-    refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
-  },
-  {
-  headers: {
-  "x-api-version": "2023-08-01",
-  "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-  "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
-  "Content-Type": "application/json",
-},
-
-
-  }
-);
-
-
-    const refundId = refundResponse.data?.refund?.refund_id;
-    const refundStatus = refundResponse.data?.refund?.refund_status;
-
-    if (!refundId) {
+    if (!process.env.CASHFREE_SANDBOX_CLIENT_ID || !process.env.CASHFREE_SANDBOX_CLIENT_SECRET) {
       return res.status(500).json({
         success: false,
-        message: "Failed to get refund ID from Cashfree",
-        details: refundResponse.data,
+        message: "Cashfree sandbox credentials not configured in Railway",
       });
     }
 
-    console.log(`✅ [REFUND SUCCESS]`, { refundId, refundStatus });
+    // 4️⃣ Call Cashfree
+    const axios = (await import("axios")).default;
 
-    // ====================================
-    // 6️⃣ UPDATE PAYMENT TABLE
-    // ====================================
+    console.log("🚀 Calling Cashfree refund API...");
+
+    const refundResponse = await axios.post(
+      `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
+      {
+        refund_amount: Number(order.totalAmount),
+        refund_note: `Order #${order.id} declined by cafeteria ${cafeteriaId}`,
+      },
+      {
+        headers: {
+          "x-api-version": "2023-08-01",
+          "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
+          "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+
+    console.log("💸 Cashfree Raw Response:", refundResponse.data);
+
+    const refund = refundResponse.data?.refund;
+    if (!refund || !refund.refund_id) {
+      return res.status(500).json({
+        success: false,
+        message: "Cashfree refund failed",
+        raw: refundResponse.data,
+      });
+    }
+
+    // 5️⃣ Save refund in DB
     await Payment.update(
       {
         status: "REFUND_INITIATED",
-        refundId: refundId,
+        refundId: refund.refund_id,
         refundedAt: new Date(),
-        refundAmount: order.totalAmount,
+        refundAmount: refund.refund_amount,
       },
       { where: { id: payment.id } }
     );
 
-    console.log(`✅ [PAYMENT UPDATED] Refund info saved`);
-
-    // ====================================
-    // 7️⃣ UPDATE ORDER STATUS
-    // ====================================
     await order.update({
       status: "REFUND_INITIATED",
-      refundReason: reason || "Order declined by cafeteria",
-      updatedAt: new Date(),
+      refundReason: reason || "Declined by cafeteria",
     });
 
-    console.log(`✅ [ORDER UPDATED] Status: REFUND_INITIATED`);
+    console.log("✅ Refund saved in DB");
 
-    // ====================================
-    // 8️⃣ RETURN SUCCESS
-    // ====================================
     return res.json({
       success: true,
-      message: "Refund initiated successfully",
+      message: "Refund initiated",
       data: {
-        refundId,
-        refundStatus,
+        refundId: refund.refund_id,
+        refundStatus: refund.refund_status,
+        amount: refund.refund_amount,
         orderId: order.id,
-        billId: order.billId,
-        amount: order.totalAmount,
-        paymentId: payment.paymentId,
-        initiatedBy: adminId,
-        initiatedAt: new Date(),
-        reason: reason || "Order declined",
       },
     });
   } catch (error) {
-    console.error(
-      "❌ [REFUND ERROR]",
-      error.response?.data || error.message
-    );
-
-    return res.status(error.response?.status || 500).json({
+    console.error("❌ [REFUND ERROR]", error.response?.data || error.message);
+    return res.status(500).json({
       success: false,
-      message: "Refund initiation failed",
-      error: error.response?.data?.message || error.message,
+      message: "Refund failed",
+      error: error.response?.data || error.message,
     });
   }
 };
