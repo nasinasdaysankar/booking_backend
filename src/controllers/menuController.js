@@ -334,7 +334,10 @@ export const getDeletedMenuItems = async (req, res) => {
     order: [['updatedAt', 'DESC']],
   });
 
-  res.json(items);
+  res.json({
+    success: true,
+    data: items,
+  });
 };
 
 
