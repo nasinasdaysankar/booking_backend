@@ -462,7 +462,8 @@ export const refundOrder = async (req, res) => {
         headers: {
           "x-api-version": "2023-08-01",
           "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+          // ✅ FIX: Changed from "x-secret-key" to "x-client-secret"
+          "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
           "Content-Type": "application/json",
         },
         timeout: 15000,
@@ -517,7 +518,6 @@ export const refundOrder = async (req, res) => {
     });
   }
 };
-
 // ===================================================================
 // ✅ CHECK REFUND STATUS
 // ===================================================================
@@ -572,15 +572,13 @@ export const checkRefundStatus = async (req, res) => {
     const axios = (await import("axios")).default;
 
     const refundResponse = await axios.get(
-      // ✅ FIX #3: Use correct URL (sandbox.cashfree.com, no -api)
-      // ✅ FIX #1: Use GET endpoint to fetch refund, not POST
       `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
       {
         headers: {
           "x-api-version": "2023-08-01",
-          // ✅ FIX #2: Use x-secret-key consistently
           "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          "x-secret-key": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+          // ✅ FIX: Use correct header name
+          "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
         },
         timeout: 15000,
       }
