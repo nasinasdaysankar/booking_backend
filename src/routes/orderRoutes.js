@@ -18,8 +18,12 @@ import { getActiveOrders } from "../controllers/orderStatusController.js";
 
 // ================= USER ORDER ROUTES =================
 
-// 🔥 ACTIVE ORDER MUST COME BEFORE :id
+// ✅ Active orders
 router.get("/active", auth, getActiveOrders);
+
+// ✅ QR routes MUST be before :id
+router.post("/scan-qr", auth, scanStaticCafeteriaQR);
+router.post("/confirm-pickup", auth, confirmOrderPickup);
 
 // Place order
 router.post("/", auth, createOrder);
@@ -27,11 +31,7 @@ router.post("/", auth, createOrder);
 // Get my orders
 router.get("/", auth, getMyOrders);
 
-// Get order by ID (KEEP THIS LAST)
+// ❗ KEEP THIS LAST
 router.get("/:id", auth, getOrderById);
-
-// QR flow
-router.post("/scan-qr", auth, scanStaticCafeteriaQR);
-router.post("/confirm-pickup", auth, confirmOrderPickup);
 
 export default router;
