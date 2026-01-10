@@ -472,7 +472,7 @@ export const refundOrder = async (req, res) => {
 
     console.log("💸 Cashfree Raw Response:", refundResponse.data);
 
-    const refund = refundResponse.data?.refund;
+const refund = refundResponse.data; 
     if (!refund || !refund.refund_id) {
       return res.status(500).json({
         success: false,
