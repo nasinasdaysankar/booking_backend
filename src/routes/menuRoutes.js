@@ -55,6 +55,7 @@ import {
   getMostLovedItems,
   deleteMenuItem,
   getDeletedMenuItems,
+  getTodaySpecials,
 } from "../controllers/menuController.js";
 import { updateCategoryBulk } from "../controllers/menuController.js";
 import multer from "multer";
@@ -77,6 +78,8 @@ router.put("/update/:id", updateMenuItem);
 router.get("/most-loved", getMostLovedItems);
 router.delete("/delete/:id", deleteMenuItem);
 router.get('/deleted', getDeletedMenuItems);
+router.get("/today-specials/:id", getTodaySpecials);
+
 
 
 export default router;

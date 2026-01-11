@@ -57,65 +57,98 @@
 
 
 
-import { DataTypes } from 'sequelize';
+import { DataTypes } from "sequelize";
 
 export default (sequelize) => {
-  const MenuItem = sequelize.define('MenuItem', {
-    id: { 
-      type: DataTypes.INTEGER, 
-      primaryKey: true, 
-      autoIncrement: true 
-    },
+  const MenuItem = sequelize.define(
+    "MenuItem",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
 
-    cafeteriaId: { 
-      type: DataTypes.INTEGER, 
-      allowNull: false 
-    },
+      cafeteriaId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
 
-    name: { 
-      type: DataTypes.STRING, 
-      allowNull: false 
-    },
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
 
-    price: { 
-      type: DataTypes.DECIMAL(10, 2), 
-      allowNull: false 
-    },
+      price: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+      },
 
-    estPrepTimeMinutes: { 
-      type: DataTypes.INTEGER, 
-      allowNull: false, 
-      defaultValue: 5 
-    },
+      // ⏱ Estimated preparation time
+      estPrepTimeMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 5,
+      },
 
-    isAvailable: { 
-      type: DataTypes.BOOLEAN, 
-      allowNull: false, 
-      defaultValue: true 
-    },
-// models/MenuItem.js
-isDeleted: {
-  type: DataTypes.BOOLEAN,
-  allowNull: false,
-  defaultValue: false,
-},
+      // ✅ Available for ordering
+      isAvailable: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
 
-    // 🔥 Cloudinary Image URL
-    imageUrl: { 
-      type: DataTypes.STRING, 
-      allowNull: true 
-    },
+      // 🗑 Soft delete
+      isDeleted: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
 
-    // 🔥 CATEGORY FIELD ADDED
-    category: { 
-      type: DataTypes.STRING, 
-      allowNull: true 
+      // 🖼 Image
+      imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
+      // 🍔 Category
+      category: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
+      // 🔥 TODAY'S SPECIAL SYSTEM
+      isTodaySpecial: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      // 📅 Which date it is special for (YYYY-MM-DD)
+      specialDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      },
+
+      // 📝 Optional note shown to users
+      specialNote: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+    },
+    {
+      tableName: "menu_items",
+      timestamps: true,
+
+      indexes: [
+        { fields: ["cafeteriaId"] },
+        { fields: ["isAvailable"] },
+        { fields: ["isDeleted"] },
+        { fields: ["isTodaySpecial"] },
+        { fields: ["specialDate"] },
+      ],
     }
-    
-  }, {
-    tableName: 'menu_items',
-    timestamps: true
-  });
+  );
 
   return MenuItem;
 };

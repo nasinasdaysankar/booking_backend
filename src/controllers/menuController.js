@@ -260,15 +260,24 @@ import { MenuItem, sequelize } from "../models/index.js";
 /* ================== ADD SINGLE MENU ITEM ================== */
 export const addMenuItem = async (req, res) => {
   try {
-    const { cafeteriaId, name, price, imageUrl, category } = req.body;
+    const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial } = req.body;
 
     if (!cafeteriaId || !name || !price)
       return res.status(400).json({ success:false, message:"Missing fields" });
 
-    const item = await MenuItem.create({ cafeteriaId, name, price, imageUrl, category });
+    const today = new Date().toISOString().split("T")[0];
+
+    const item = await MenuItem.create({
+      cafeteriaId,
+      name,
+      price,
+      imageUrl,
+      category,
+      isTodaySpecial: isTodaySpecial === true,
+      specialDate: isTodaySpecial ? today : null,
+    });
 
     res.json({ success:true, message:"Item Added ✔", data:item });
-
   } catch (err) {
     res.status(500).json({ success:false, message:"Insert failed", error:err.message });
   }
@@ -344,13 +353,29 @@ export const getDeletedMenuItems = async (req, res) => {
 /* ================== GET BY CAFETERIA ================== */
 export const getMenuByCafeteria = async (req, res) => {
   try {
-    const items = await MenuItem.findAll({
-  where: {
-    cafeteriaId: req.params.id,
-    isDeleted: false,
-  },
-});
+    const today = new Date().toISOString().split("T")[0];
 
+    // Remove expired specials
+    await MenuItem.update(
+      { isTodaySpecial: false, specialDate: null },
+      {
+        where: {
+          isTodaySpecial: true,
+          specialDate: { [Op.ne]: today },
+        },
+      }
+    );
+
+    const items = await MenuItem.findAll({
+      where: {
+        cafeteriaId: req.params.id,
+        isDeleted: false,
+      },
+      order: [
+        ["isTodaySpecial", "DESC"], // specials first
+        ["name", "ASC"],
+      ],
+    });
 
     res.json({ success:true, count:items.length, data:items });
   } catch (err) {
@@ -506,30 +531,37 @@ export const uploadBulkImages = async (req, res) => {
 export const updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, isAvailable } = req.body;
+    const { name, price, category, isAvailable, isTodaySpecial } = req.body;
 
-    // Create an object with only the fields provided in the body
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (price) updateData.price = price;
-    if (category) updateData.category = category;
-    
-    // Explicit check for boolean, as 'if (isAvailable)' fails on false
-    if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
+    const item = await MenuItem.findByPk(id);
+    if (!item) return res.status(404).json({ success:false, message:"Item not found" });
 
-    const [updated] = await MenuItem.update(updateData, { where: { id } });
+    const today = new Date().toISOString().split("T")[0];
 
-    if (updated) {
-      const updatedItem = await MenuItem.findByPk(id);
-      res.json({ success: true, message: "Item Updated ✔", data: updatedItem });
-    } else {
-      res.status(404).json({ success: false, message: "Item not found" });
+    if (name) item.name = name;
+    if (price) item.price = price;
+    if (category) item.category = category;
+    if (isAvailable !== undefined) item.isAvailable = isAvailable;
+
+    // ⭐ Today Special logic
+    if (isTodaySpecial !== undefined) {
+      if (isTodaySpecial === true) {
+        item.isTodaySpecial = true;
+        item.specialDate = today;
+      } else {
+        item.isTodaySpecial = false;
+        item.specialDate = null;
+      }
     }
 
+    await item.save();
+
+    res.json({ success:true, message:"Item Updated ✔", data:item });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Update failed", error: err.message });
+    res.status(500).json({ success:false, message:"Update failed", error:err.message });
   }
 };
+
 
 
 // controllers/menuController.js
@@ -559,5 +591,35 @@ export const getMostLovedItems = async (req, res) => {
   } catch (err) {
     console.error("Most loved items error:", err);
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getTodaySpecials = async (req, res) => {
+  try {
+    const cafeteriaId = req.params.id;
+    const today = new Date().toISOString().split("T")[0];
+
+    const items = await MenuItem.findAll({
+      where: {
+        cafeteriaId,
+        isTodaySpecial: true,
+        specialDate: today,
+        isAvailable: true,
+        isDeleted: false,
+      },
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.json({
+      success: true,
+      count: items.length,
+      data: items,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch today's specials",
+      error: err.message,
+    });
   }
 };
