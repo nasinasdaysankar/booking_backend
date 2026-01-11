@@ -48,7 +48,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    return res.json({
+    res.json({
       success: true,
       orders: [
         {
@@ -57,7 +57,12 @@ export const scanStaticCafeteriaQR = async (req, res) => {
           billId: order.billId,
           kotNumber: order.kotNumber,
           totalAmount: order.totalAmount,
-          items: order.items,
+          items: order.items.map(i => ({
+            name: i.name,
+            imageUrl: i.imageUrl,
+            quantity: i.quantity,
+            priceAtOrder: i.priceAtOrder
+          })),
           canPickUp: order.status === "READY",
           message:
             order.status === "READY"
@@ -67,12 +72,8 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       ],
     });
   } catch (error) {
-    console.error("❌ scanStaticCafeteriaQR error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Scan error",
-      error: error.message,
-    });
+    console.error("QR ERROR:", error);
+    res.status(500).json({ success:false, message:"Scan failed" });
   }
 };
 
