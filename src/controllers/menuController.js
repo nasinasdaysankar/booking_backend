@@ -592,13 +592,9 @@ export const getMostLovedItems = async (req, res) => {
   try {
     const cafeteriaId = req.query.cafeteriaId;
 
-    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
-    if (!cafeteria || cafeteria.isOpen === false) {
-      return res.json({
-        success: true,
-        closed: true,
-        data: [],
-      });
+    let cafeteriaFilter = "";
+    if (cafeteriaId) {
+      cafeteriaFilter = `AND mi."cafeteriaId" = ${cafeteriaId}`;
     }
 
     const [items] = await sequelize.query(`
@@ -612,8 +608,8 @@ export const getMostLovedItems = async (req, res) => {
       FROM order_items oi
       JOIN menu_items mi ON mi.id = oi."menuItemId"
       JOIN orders o ON o.id = oi."orderId"
-      WHERE mi."cafeteriaId" = ${cafeteriaId}
-      AND o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
+      WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
+      ${cafeteriaFilter}
       GROUP BY mi.id
       ORDER BY "orderCount" DESC
       LIMIT 10
@@ -621,13 +617,14 @@ export const getMostLovedItems = async (req, res) => {
 
     res.json({
       success: true,
-      closed: false,
       data: items,
     });
   } catch (err) {
+    console.error("Most loved error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
 
 export const getTodaySpecials = async (req, res) => {
   try {
