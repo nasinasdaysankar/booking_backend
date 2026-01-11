@@ -5,18 +5,16 @@ export const getCafeteriaDetails = async (req, res) => {
   try {
     const cafeteriaId = parseInt(req.params.id);
 
-    // Security: Ensure admin can only access their own cafeteria
     if (req.user.cafeteriaId !== cafeteriaId) {
       return res.status(403).json({
         success: false,
-        message: "Access denied: You can only view your own cafeteria"
+        message: "Access denied"
       });
     }
 
-   const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-  attributes: ['id', 'name', 'location', 'isOpen', 'staticQrToken']
-});
-
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
+      attributes: ["id", "name", "location", "isOpen", "staticQrToken"]
+    });
 
     if (!cafeteria) {
       return res.status(404).json({
@@ -27,15 +25,20 @@ export const getCafeteriaDetails = async (req, res) => {
 
     res.json({
       success: true,
-      id: cafeteria.id,
-      name: cafeteria.name,
-      location: cafeteria.location || null
+      data: {
+        id: cafeteria.id,
+        name: cafeteria.name,
+        location: cafeteria.location,
+        isOpen: cafeteria.isOpen,
+        staticQrToken: cafeteria.staticQrToken
+      }
     });
+
   } catch (error) {
-    console.error("Get cafeteria details error:", error);
+    console.error("Get cafeteria error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch cafeteria details"
+      message: "Failed to fetch cafeteria"
     });
   }
 };
