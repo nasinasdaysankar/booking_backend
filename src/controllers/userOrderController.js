@@ -1,7 +1,9 @@
 // userOrderController.js
+// Make sure your imports match your actual model export style
 
-import Order from "../models/Order.js";
-import OrderItem from "../models/OrderItem.js";
+import * as models from "../models/index.js";
+
+const { Order, OrderItem } = models;
 
 /**
  * 🔥 SCAN QR CODE - Get complete order with items, prices, and images
@@ -10,6 +12,9 @@ export const scanStaticCafeteriaQR = async (req, res) => {
   try {
     const { qrToken } = req.body;
     const userId = req.userId;
+
+    console.log("📡 QR Token:", qrToken);
+    console.log("👤 User ID:", userId);
 
     if (!qrToken) {
       return res.status(400).json({
@@ -37,6 +42,8 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
+    console.log("📦 Order Found:", order);
+
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -62,6 +69,8 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       createdAt: order.createdAt,
     };
 
+    console.log("✅ Formatted Order:", formattedOrder);
+
     res.json({
       success: true,
       orders: [formattedOrder],
@@ -69,6 +78,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ SCAN QR ERROR:", error);
+    console.error("❌ Error Stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Error scanning QR code",
