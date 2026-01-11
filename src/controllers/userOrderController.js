@@ -25,55 +25,53 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    const activeOrders = await Order.findAll({
+    const order = await Order.findOne({
       where: {
         studentId,
         cafeteriaId: cafeteriaQr.cafeteriaId,
         status: { [Op.in]: ["PAID", "PREPARING", "READY"] },
       },
       order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          attributes: ["name", "imageUrl", "quantity", "priceAtOrder"],
+        },
+      ],
     });
 
-    if (activeOrders.length > 0) {
-      return res.json({
-        success: true,
-        orders: activeOrders.map((order) => ({
-          orderId: order.id,
-          status: order.status,
-          message:
-            order.status === "READY"
-              ? "Ready, pick it up"
-              : "We are cooking",
-          canPickUp: order.status === "READY",
-        })),
-      });
-    }
-
-    const pickedOrder = await Order.findOne({
-      where: {
-        studentId,
-        cafeteriaId: cafeteriaQr.cafeteriaId,
-        status: "PICKED_UP",
-      },
-      order: [["updatedAt", "DESC"]],
-    });
-
-    if (pickedOrder) {
+    if (!order) {
       return res.status(404).json({
         success: false,
-        message: "You have already picked it",
+        message: "No active order found",
       });
     }
 
-    return res.status(404).json({
-      success: false,
-      message: "No active order found",
+    return res.json({
+      success: true,
+      orders: [
+        {
+          orderId: order.id,
+          status: order.status,
+          billId: order.billId,
+          kotNumber: order.kotNumber,
+          totalAmount: order.totalAmount,
+          items: order.items,
+          canPickUp: order.status === "READY",
+          message:
+            order.status === "READY"
+              ? "Your order is ready!"
+              : "Your food is being prepared 🍳",
+        },
+      ],
     });
   } catch (error) {
     console.error("❌ scanStaticCafeteriaQR error:", error);
     res.status(500).json({
       success: false,
       message: "Scan error",
+      error: error.message,
     });
   }
 };
