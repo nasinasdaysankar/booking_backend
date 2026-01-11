@@ -353,11 +353,25 @@ export const getDeletedMenuItems = async (req, res) => {
 
 
 /* ================== GET BY CAFETERIA ================== */
+import { Cafeteria } from "../models/index.js";
+
 export const getMenuByCafeteria = async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const cafeteriaId = req.params.id;
 
-    // Remove expired specials
+    // 1️⃣ Check cafeteria open/closed
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (!cafeteria || cafeteria.isOpen === false) {
+      return res.json({
+        success: true,
+        closed: true,
+        message: "Cafeteria is currently closed",
+        data: [],
+      });
+    }
+
+    // 2️⃣ Clean expired specials
+    const today = new Date().toISOString().split("T")[0];
     await MenuItem.update(
       { isTodaySpecial: false, specialDate: null },
       {
@@ -368,20 +382,27 @@ export const getMenuByCafeteria = async (req, res) => {
       }
     );
 
+    // 3️⃣ Fetch menu
     const items = await MenuItem.findAll({
       where: {
-        cafeteriaId: req.params.id,
+        cafeteriaId,
         isDeleted: false,
+        isAvailable: true,
       },
       order: [
-        ["isTodaySpecial", "DESC"], // specials first
+        ["isTodaySpecial", "DESC"],
         ["name", "ASC"],
       ],
     });
 
-    res.json({ success:true, count:items.length, data:items });
+    res.json({
+      success: true,
+      closed: false,
+      count: items.length,
+      data: items,
+    });
   } catch (err) {
-    res.status(500).json({ success:false, message:"Fetch failed", error:err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -569,6 +590,17 @@ export const updateMenuItem = async (req, res) => {
 // controllers/menuController.js
 export const getMostLovedItems = async (req, res) => {
   try {
+    const cafeteriaId = req.query.cafeteriaId;
+
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (!cafeteria || cafeteria.isOpen === false) {
+      return res.json({
+        success: true,
+        closed: true,
+        data: [],
+      });
+    }
+
     const [items] = await sequelize.query(`
       SELECT
         mi.id,
@@ -580,7 +612,8 @@ export const getMostLovedItems = async (req, res) => {
       FROM order_items oi
       JOIN menu_items mi ON mi.id = oi."menuItemId"
       JOIN orders o ON o.id = oi."orderId"
-      WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
+      WHERE mi."cafeteriaId" = ${cafeteriaId}
+      AND o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
       GROUP BY mi.id
       ORDER BY "orderCount" DESC
       LIMIT 10
@@ -588,10 +621,10 @@ export const getMostLovedItems = async (req, res) => {
 
     res.json({
       success: true,
+      closed: false,
       data: items,
     });
   } catch (err) {
-    console.error("Most loved items error:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -601,6 +634,15 @@ export const getTodaySpecials = async (req, res) => {
     const cafeteriaId = req.params.id;
     const today = new Date().toISOString().split("T")[0];
 
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (!cafeteria || cafeteria.isOpen === false) {
+      return res.json({
+        success: true,
+        closed: true,
+        data: [],
+      });
+    }
+
     const items = await MenuItem.findAll({
       where: {
         cafeteriaId,
@@ -609,19 +651,14 @@ export const getTodaySpecials = async (req, res) => {
         isAvailable: true,
         isDeleted: false,
       },
-      order: [["createdAt", "DESC"]],
     });
 
     res.json({
       success: true,
-      count: items.length,
+      closed: false,
       data: items,
     });
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch today's specials",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
