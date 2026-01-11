@@ -13,9 +13,10 @@ export const getCafeteriaDetails = async (req, res) => {
       });
     }
 
-    const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-      attributes: ['id', 'name', 'location'] // only send needed fields
-    });
+   const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
+  attributes: ['id', 'name', 'location', 'isOpen', 'staticQrToken']
+});
+
 
     if (!cafeteria) {
       return res.status(404).json({
