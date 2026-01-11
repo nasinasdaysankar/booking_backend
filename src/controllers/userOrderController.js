@@ -11,15 +11,25 @@ const { Order, OrderItem } = models;
 export const scanStaticCafeteriaQR = async (req, res) => {
   try {
     const { qrToken } = req.body;
-    const userId = req.userId;
+    
+    // Try different possible property names from auth middleware
+    const userId = req.userId || req.user?.id || req.user?.userId || req.id;
 
     console.log("📡 QR Token:", qrToken);
     console.log("👤 User ID:", userId);
+    console.log("📋 Full req.user:", req.user);
 
     if (!qrToken) {
       return res.status(400).json({
         success: false,
         message: "QR token is required",
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
       });
     }
 
