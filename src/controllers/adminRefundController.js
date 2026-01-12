@@ -306,7 +306,8 @@
 // Admin-specific refund management functions
 // ===================================================================
 
-import { Payment, Order, sequelize } from "../models/index.js";
+import { Payment, Order, sequelize } from "../models/index.js"; // ✅ Import sequelize from models
+
 // ===================================================================
 // ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
 // ===================================================================
@@ -461,7 +462,6 @@ export const refundOrder = async (req, res) => {
         headers: {
           "x-api-version": "2023-08-01",
           "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          // ✅ FIX: Changed from "x-secret-key" to "x-client-secret"
           "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
           "Content-Type": "application/json",
         },
@@ -471,7 +471,7 @@ export const refundOrder = async (req, res) => {
 
     console.log("💸 Cashfree Raw Response:", refundResponse.data);
 
-const refund = refundResponse.data; 
+    const refund = refundResponse.data;
     if (!refund || !refund.refund_id) {
       return res.status(500).json({
         success: false,
@@ -482,15 +482,14 @@ const refund = refundResponse.data;
 
     // 5️⃣ Save refund in DB
     await Payment.update(
-  {
-    status: refund.refund_status,   // ← "PENDING"
-    refundId: refund.refund_id,
-    refundedAt: new Date(),
-    refundAmount: refund.refund_amount,
-  },
-  { where: { id: payment.id } }
-);
-
+      {
+        status: refund.refund_status,
+        refundId: refund.refund_id,
+        refundedAt: new Date(),
+        refundAmount: refund.refund_amount,
+      },
+      { where: { id: payment.id } }
+    );
 
     await order.update({
       status: "REFUND_INITIATED",
@@ -518,6 +517,7 @@ const refund = refundResponse.data;
     });
   }
 };
+
 // ===================================================================
 // ✅ CHECK REFUND STATUS
 // ===================================================================
@@ -567,7 +567,7 @@ export const checkRefundStatus = async (req, res) => {
     console.log(`🔍 [CHECK REFUND] Refund ID: ${payment.refundId}`);
 
     // ====================================
-    // ✅ FIX: FETCH EXISTING REFUND STATUS
+    // ✅ FETCH EXISTING REFUND STATUS
     // ====================================
     const axios = (await import("axios")).default;
 
@@ -577,7 +577,6 @@ export const checkRefundStatus = async (req, res) => {
         headers: {
           "x-api-version": "2023-08-01",
           "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          // ✅ FIX: Use correct header name
           "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
         },
         timeout: 15000,
@@ -593,27 +592,27 @@ export const checkRefundStatus = async (req, res) => {
     // UPDATE LOCAL DB BASED ON STATUS
     // ====================================
     if (refundStatus === "SUCCESS") {
-    await Payment.update(
-  { status: refundStatus },
-  { where: { id: payment.id } }
-);
+      await Payment.update(
+        { status: refundStatus },
+        { where: { id: payment.id } }
+      );
 
-     await Order.update(
-  { status: refundStatus === "SUCCESS" ? "REFUND_SUCCESS" : "REFUND_FAILED" },
-  { where: { id: orderId } }
-);
+      await Order.update(
+        { status: "REFUND_SUCCESS" },
+        { where: { id: orderId } }
+      );
 
       console.log(`✅ [REFUND SUCCESS] Updated in DB`);
     } else if (refundStatus === "FAILED") {
-     await Payment.update(
-  { status: refundStatus },
-  { where: { id: payment.id } }
-);
+      await Payment.update(
+        { status: refundStatus },
+        { where: { id: payment.id } }
+      );
 
-     await Order.update(
-  { status: refundStatus === "SUCCESS" ? "REFUND_SUCCESS" : "REFUND_FAILED" },
-  { where: { id: orderId } }
-);
+      await Order.update(
+        { status: "REFUND_FAILED" },
+        { where: { id: orderId } }
+      );
 
       console.log(`❌ [REFUND FAILED] Updated in DB`);
     }
@@ -639,16 +638,17 @@ export const checkRefundStatus = async (req, res) => {
     });
   }
 };
-// ===================================================================
-// ✅ GET REFUND HISTORY
-// ===================================================================
 
+// ===================================================================
+// ✅ GET REFUND HISTORY (FIXED)
+// ===================================================================
 export const getRefundHistory = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
 
     console.log(`📋 [REFUND HISTORY] Fetching for cafeteria: ${cafeteriaId}`);
 
+    // ✅ Use sequelize imported from models/index.js
     const refunds = await sequelize.query(
       `
       SELECT 
