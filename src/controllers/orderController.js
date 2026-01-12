@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto'; // ✅ Import crypto for random string generation
 import { Order, OrderItem, MenuItem } from '../models/index.js';
 

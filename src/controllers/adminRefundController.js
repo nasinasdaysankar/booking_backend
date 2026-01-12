@@ -483,14 +483,15 @@ const refund = refundResponse.data;
 
     // 5️⃣ Save refund in DB
     await Payment.update(
-      {
-        status: "REFUND_INITIATED",
-        refundId: refund.refund_id,
-        refundedAt: new Date(),
-        refundAmount: refund.refund_amount,
-      },
-      { where: { id: payment.id } }
-    );
+  {
+    status: refund.refund_status,   // ← "PENDING"
+    refundId: refund.refund_id,
+    refundedAt: new Date(),
+    refundAmount: refund.refund_amount,
+  },
+  { where: { id: payment.id } }
+);
+
 
     await order.update({
       status: "REFUND_INITIATED",
@@ -593,27 +594,27 @@ export const checkRefundStatus = async (req, res) => {
     // UPDATE LOCAL DB BASED ON STATUS
     // ====================================
     if (refundStatus === "SUCCESS") {
-      await Payment.update(
-        { status: "REFUND_SUCCESS" },
-        { where: { id: payment.id } }
-      );
+    await Payment.update(
+  { status: refundStatus },
+  { where: { id: payment.id } }
+);
 
-      await Order.update(
-        { status: "REFUND_SUCCESS" },
-        { where: { id: orderId } }
-      );
+     await Order.update(
+  { status: refundStatus === "SUCCESS" ? "REFUND_SUCCESS" : "REFUND_FAILED" },
+  { where: { id: orderId } }
+);
 
       console.log(`✅ [REFUND SUCCESS] Updated in DB`);
     } else if (refundStatus === "FAILED") {
-      await Payment.update(
-        { status: "REFUND_FAILED" },
-        { where: { id: payment.id } }
-      );
+     await Payment.update(
+  { status: refundStatus },
+  { where: { id: payment.id } }
+);
 
-      await Order.update(
-        { status: "REFUND_FAILED" },
-        { where: { id: orderId } }
-      );
+     await Order.update(
+  { status: refundStatus === "SUCCESS" ? "REFUND_SUCCESS" : "REFUND_FAILED" },
+  { where: { id: orderId } }
+);
 
       console.log(`❌ [REFUND FAILED] Updated in DB`);
     }
@@ -652,10 +653,10 @@ export const getRefundHistory = async (req, res) => {
     let whereClause = { cafeteriaId };
 
     if (status) {
-      whereClause.status = status;
-    } else {
-      whereClause.status = ["REFUND_INITIATED", "REFUND_SUCCESS", "REFUND_FAILED"];
-    }
+  whereClause.status = status;
+} else {
+  whereClause.status = ["PENDING", "SUCCESS", "FAILED"];
+}
 
     const refunds = await Payment.findAll({
       where: whereClause,
@@ -687,3 +688,5 @@ export const getRefundHistory = async (req, res) => {
     });
   }
 };
+
+
