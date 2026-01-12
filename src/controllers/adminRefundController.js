@@ -306,8 +306,7 @@
 // Admin-specific refund management functions
 // ===================================================================
 
-import { Payment, Order } from "../models/index.js";
-
+import { Payment, Order, sequelize } from "../models/index.js";
 // ===================================================================
 // ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
 // ===================================================================
@@ -648,6 +647,8 @@ export const getRefundHistory = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
 
+    console.log(`📋 [REFUND HISTORY] Fetching for cafeteria: ${cafeteriaId}`);
+
     const refunds = await sequelize.query(
       `
       SELECT 
@@ -660,9 +661,9 @@ export const getRefundHistory = async (req, res) => {
         o."totalAmount",
         o."status" as "orderStatus",
         o."createdAt"
-      FROM "payments" p
-      JOIN "orders" o 
-        ON p."transactionId" = o."transactionId"
+      FROM "Payments" p
+      JOIN "Orders" o 
+        ON p."orderId" = o."id"
       WHERE 
         o."cafeteriaId" = :cafeteriaId
         AND p."refundId" IS NOT NULL
@@ -673,6 +674,8 @@ export const getRefundHistory = async (req, res) => {
         type: sequelize.QueryTypes.SELECT,
       }
     );
+
+    console.log(`✅ Found ${refunds.length} refunds`);
 
     return res.json({
       success: true,
