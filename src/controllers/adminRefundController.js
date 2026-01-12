@@ -645,21 +645,12 @@ export const checkRefundStatus = async (req, res) => {
 // ===================================================================
 export const getRefundHistory = async (req, res) => {
   try {
-    const { status } = req.query;
     const cafeteriaId = req.user.cafeteriaId;
 
-    console.log(`📊 [REFUND HISTORY] Cafeteria: ${cafeteriaId}, Status: ${status || "all"}`);
-
-    let whereClause = { cafeteriaId };
-
-    if (status) {
-  whereClause.status = status;
-} else {
-  whereClause.status = ["PENDING", "SUCCESS", "FAILED"];
-}
-
     const refunds = await Payment.findAll({
-      where: whereClause,
+      where: {
+        status: ["PENDING", "SUCCESS", "FAILED"],
+      },
       include: [
         {
           model: Order,
@@ -668,15 +659,11 @@ export const getRefundHistory = async (req, res) => {
         },
       ],
       order: [["refundedAt", "DESC"]],
-      limit: 50,
     });
-
-    console.log(`✅ [REFUND HISTORY] Found ${refunds.length} refunds`);
 
     return res.json({
       success: true,
       count: refunds.length,
-      cafeteriaId,
       data: refunds,
     });
   } catch (error) {
@@ -688,5 +675,3 @@ export const getRefundHistory = async (req, res) => {
     });
   }
 };
-
-
