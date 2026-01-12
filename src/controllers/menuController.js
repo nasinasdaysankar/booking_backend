@@ -256,11 +256,6 @@
 
 
 
-
-
-
-
-
 import { MenuItem, sequelize } from "../models/index.js";
 import { Op } from "sequelize";
 
@@ -358,7 +353,8 @@ export const getDeletedMenuItems = async (req, res) => {
 };
 
 
-
+/* ================== GET BY CAFETERIA ================== */
+import { Cafeteria } from "../models/index.js";
 
 export const getMenuByCafeteria = async (req, res) => {
   try {
