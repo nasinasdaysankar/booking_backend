@@ -13,6 +13,8 @@ import menuRoutes from "./routes/menuRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
+
 
 
 
@@ -78,6 +80,8 @@ const start = async () => {
     app.use("/api/notify", notificationRoutes);
     app.use("/api/user", userRoutes);
     app.use("/api/admin", adminRoutes);
+    app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
+
 
 
 

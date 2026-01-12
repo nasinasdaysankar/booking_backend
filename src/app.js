@@ -15,6 +15,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 
 
+
 import "./models/index.js";
 
 // Swagger
@@ -59,6 +60,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);
+app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
+
 
 console.log("🔔 Notification routes mounted");
 
