@@ -654,6 +654,7 @@ export const getRefundHistory = async (req, res) => {
       include: [
         {
           model: Order,
+          as: "Order",            // 👈 must match association
           where: { cafeteriaId },
           attributes: ["id", "billId", "totalAmount", "status", "createdAt"],
         },
