@@ -643,24 +643,36 @@ export const checkRefundStatus = async (req, res) => {
 // ===================================================================
 // ✅ GET REFUND HISTORY
 // ===================================================================
+
 export const getRefundHistory = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
 
-    const refunds = await Payment.findAll({
-      where: {
-        status: ["PENDING", "SUCCESS", "FAILED"],
-      },
-      include: [
-        {
-          model: Order,
-          as: "Order",            // 👈 must match association
-          where: { cafeteriaId },
-          attributes: ["id", "billId", "totalAmount", "status", "createdAt"],
-        },
-      ],
-      order: [["refundedAt", "DESC"]],
-    });
+    const refunds = await sequelize.query(
+      `
+      SELECT 
+        p."refundId",
+        p."refundAmount",
+        p."status" as "refundStatus",
+        p."refundedAt",
+        o."id" as "orderId",
+        o."billId",
+        o."totalAmount",
+        o."status" as "orderStatus",
+        o."createdAt"
+      FROM "payments" p
+      JOIN "orders" o 
+        ON p."transactionId" = o."transactionId"
+      WHERE 
+        o."cafeteriaId" = :cafeteriaId
+        AND p."refundId" IS NOT NULL
+      ORDER BY p."refundedAt" DESC
+      `,
+      {
+        replacements: { cafeteriaId },
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
 
     return res.json({
       success: true,
