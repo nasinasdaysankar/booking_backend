@@ -648,23 +648,23 @@ export const getRefundHistory = async (req, res) => {
 
     console.log(`📋 [REFUND HISTORY] Fetching for cafeteria: ${cafeteriaId}`);
 
-    // ✅ Use sequelize imported from models/index.js
-    // Note: Try lowercase table names first (payments, orders)
+    // ✅ Use exact column names from database
     const refunds = await sequelize.query(
       `
       SELECT 
+        p.id as "paymentId",
         p."refundId",
         p."refundAmount",
-        p."status" as "refundStatus",
+        p.status as "refundStatus",
         p."refundedAt",
-        o."id" as "orderId",
+        o.id as "orderId",
         o."billId",
         o."totalAmount",
-        o."status" as "orderStatus",
+        o.status as "orderStatus",
         o."createdAt"
       FROM payments p
       JOIN orders o 
-        ON p."orderId" = o."id"
+        ON p."orderId" = o.id
       WHERE 
         o."cafeteriaId" = :cafeteriaId
         AND p."refundId" IS NOT NULL
