@@ -159,6 +159,10 @@ router.get(
 
 router.put("/cafeteria/:id", auth, requireRole(['admin']), updateCafeteria);
 
+
+
+
+
 // ============================================
 // QR CODE VERIFICATION
 // ============================================

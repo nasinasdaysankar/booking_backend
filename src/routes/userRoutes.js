@@ -6,6 +6,7 @@ import {
 } from "../controllers/userOrderController.js";
 import { getUserStreak } from "../controllers/userStreakController.js";
 import { updateProfile } from "../controllers/userProfileController.js";
+import { getUserRefundHistory } from "../controllers/adminRefundController.js"; // 🔥 ADD THIS
 
 const router = express.Router();
 
@@ -13,13 +14,15 @@ const router = express.Router();
 router.post("/orders/scan-qr", auth, scanStaticCafeteriaQR);
 router.post("/orders/confirm-pickup", auth, confirmOrderPickup);
 
-// 🔥 STREAK ROUTE (THIS IS THE KEY)
+// STREAK
 router.get("/streak/:cafeteriaId", auth, getUserStreak);
 
-router.put(
-  "/profile",
-  auth,
-  updateProfile
-);
+// PROFILE
+router.put("/profile", auth, updateProfile);
+
+// ================================
+// 🔥 USER REFUND HISTORY
+// ================================
+router.get("/refunds/history", auth, getUserRefundHistory);
 
 export default router;
