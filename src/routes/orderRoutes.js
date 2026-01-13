@@ -1,3 +1,4 @@
+
 import express from "express";
 const router = express.Router();
 
@@ -7,6 +8,7 @@ import {
   createOrder,
   getMyOrders,
   getOrderById,
+  getOrderByBillId, // ✅ ADDED
 } from "../controllers/orderController.js";
 
 import {
@@ -20,6 +22,9 @@ import { getActiveOrders } from "../controllers/orderStatusController.js";
 
 // 🔥 ACTIVE ORDER MUST COME BEFORE :id
 router.get("/active", auth, getActiveOrders);
+
+// 🔥 GET ORDER BY BILL ID (MUST BE ABOVE :id)
+router.get("/by-bill/:billId", auth, getOrderByBillId);
 
 // Place order
 router.post("/", auth, createOrder);
