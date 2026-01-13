@@ -391,13 +391,14 @@ export const getRefundHistory = async (req, res) => {
 // ======================================================
 export const getUserRefundHistory = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id;   // this is studentId
 
-    console.log(`📋 [USER REFUNDS] Fetching for user: ${userId}`);
+    console.log("📋 [USER REFUNDS] Fetching for user:", userId);
 
     const refunds = await sequelize.query(
       `
       SELECT 
+        p.id AS "paymentId",
         p."refundId",
         p."refundAmount",
         p.status AS "refundStatus",
@@ -410,7 +411,7 @@ export const getUserRefundHistory = async (req, res) => {
       FROM payments p
       JOIN orders o ON p."orderId" = o.id
       WHERE 
-        o."userId" = :userId
+        o."studentId" = :userId
         AND p."refundId" IS NOT NULL
       ORDER BY p."refundedAt" DESC
       `,
@@ -420,7 +421,7 @@ export const getUserRefundHistory = async (req, res) => {
       }
     );
 
-    console.log(`✅ USER refunds found: ${refunds.length}`);
+    console.log("✅ User refund rows:", refunds.length);
 
     return res.json({
       success: true,
@@ -428,7 +429,7 @@ export const getUserRefundHistory = async (req, res) => {
       data: refunds,
     });
   } catch (error) {
-    console.error("❌ USER REFUND HISTORY ERROR", error.message);
+    console.error("❌ USER REFUND HISTORY ERROR:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch refund history",
