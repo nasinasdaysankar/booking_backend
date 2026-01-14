@@ -240,7 +240,6 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 1️⃣ Validate QR
     const cafeteriaQr = await CafeteriaQr.findOne({
       where: { qrToken: qrToken?.trim() },
     });
@@ -252,7 +251,6 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 2️⃣ Fetch THAT order only
     const order = await Order.findOne({
       where: {
         id: orderId,
@@ -267,7 +265,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
             {
               model: MenuItem,
               as: "menuItem",
-              attributes: ["name", "price"],
+              attributes: ["name", "price", "imageUrl"], // ✅ FIX
             },
           ],
         },
@@ -281,7 +279,6 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 3️⃣ Validate status
     if (order.status === "CANCELLED") {
       return res.status(400).json({
         success: false,
@@ -289,7 +286,6 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       });
     }
 
-    // 4️⃣ Respond
     return res.json({
       success: true,
       orders: [
@@ -303,6 +299,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
             name: i.menuItem?.name ?? "",
             quantity: i.quantity,
             priceAtOrder: i.menuItem?.price ?? 0,
+            imageUrl: i.menuItem?.imageUrl ?? "", // ✅ FIX
           })),
         },
       ],
