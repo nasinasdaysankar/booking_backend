@@ -1,9 +1,9 @@
 // models/Cafeteria.js
-import { DataTypes } from 'sequelize';
+import { DataTypes } from "sequelize";
 
 export default (sequelize) => {
   const Cafeteria = sequelize.define(
-    'Cafeteria',
+    "Cafeteria",
     {
       id: {
         type: DataTypes.INTEGER,
@@ -32,6 +32,14 @@ export default (sequelize) => {
         defaultValue: true,
       },
 
+      // 🔥 THIS IS THE KEY FIX
+      isUserVisible: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "isUserVisible", // maps to DB column
+      },
+
       staticQrToken: {
         type: DataTypes.STRING(255),
         allowNull: false,
@@ -39,19 +47,20 @@ export default (sequelize) => {
         comment: "Static QR token used for cafeteria identification",
       },
 
-      // 🔥 THIS IS THE MISSING PIECE
+      // Owner
       ownerId: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        field: "ownerid", // ✅ maps JS ownerId → DB ownerid
+        field: "ownerid", // maps JS ownerId → DB ownerid
       },
     },
     {
-      tableName: 'cafeterias',
+      tableName: "cafeterias",
       timestamps: true,
       indexes: [
-        { fields: ['staticQrToken'] },
-        { fields: ['ownerid'] }, // optional but good
+        { fields: ["staticQrToken"] },
+        { fields: ["ownerid"] },
+        { fields: ["isUserVisible"] }, // 🔥 helps filtering
       ],
     }
   );
