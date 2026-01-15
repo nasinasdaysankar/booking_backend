@@ -26,7 +26,14 @@ import { Cafeteria, MenuItem } from '../models/index.js';
 export const getCafeterias = async (req, res) => {
   try {
     const cafes = await Cafeteria.findAll({
-      attributes: ['id', 'name', 'location', 'isOpen', 'staticQrToken'],
+      attributes: [
+        'id',
+        'name',
+        'location',
+        'isOpen',
+        'staticQrToken',
+        'isUserVisible'   // 🔥 THIS WAS MISSING
+      ],
       order: [['id', 'ASC']]
     });
     
@@ -42,6 +49,7 @@ export const getCafeterias = async (req, res) => {
     });
   }
 };
+
 
 export const getCafeteriaMenu = async (req, res) => {
   try {
