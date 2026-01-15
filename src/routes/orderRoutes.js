@@ -14,6 +14,7 @@ import {
 import {
   scanStaticCafeteriaQR,
   confirmOrderPickup,
+  submitOrderFeedback
 } from "../controllers/userOrderController.js";
 
 import { getActiveOrders } from "../controllers/orderStatusController.js";
@@ -38,5 +39,8 @@ router.get("/:id", auth, getOrderById);
 // QR flow
 router.post("/scan-qr", auth, scanStaticCafeteriaQR);
 router.post("/confirm-pickup", auth, confirmOrderPickup);
+
+router.post("/feedback", auth, submitOrderFeedback);
+
 
 export default router;

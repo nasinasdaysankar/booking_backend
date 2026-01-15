@@ -14,6 +14,8 @@ import CafeteriaQrModel from "./cafeteriaQr.js";
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
+import OrderFeedbackModel from "./OrderFeedback.js";
+
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);
@@ -31,6 +33,9 @@ const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
 
 const UserStreak = UserStreakModel(sequelize);
+
+// ⭐ FEEDBACK MODEL
+const OrderFeedback = OrderFeedbackModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -55,6 +60,22 @@ OrderItem.belongsTo(Order, { foreignKey: "orderId", as: "order" });
 MenuItem.hasMany(OrderItem, { foreignKey: "menuItemId" });
 OrderItem.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
 
+
+// ================= FEEDBACK RELATIONS =================
+
+// Order → Feedback
+Order.hasOne(OrderFeedback, { foreignKey: "orderId" });
+OrderFeedback.belongsTo(Order, { foreignKey: "orderId" });
+
+// User → Feedback
+User.hasMany(OrderFeedback, { foreignKey: "studentId" });
+OrderFeedback.belongsTo(User, { foreignKey: "studentId" });
+
+// Cafeteria → Feedback
+Cafeteria.hasMany(OrderFeedback, { foreignKey: "cafeteriaId" });
+OrderFeedback.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+
+
 // ================= FCM RELATIONS =================
 
 // Admin → AdminFcmToken
@@ -65,12 +86,14 @@ AdminFcmToken.belongsTo(Admin, { foreignKey: "adminId" });
 User.hasMany(UserFcmToken, { foreignKey: "userId" });
 UserFcmToken.belongsTo(User, { foreignKey: "userId" });
 
-
+// User → Streak
 User.hasMany(UserStreak, { foreignKey: "userId" });
 UserStreak.belongsTo(User, { foreignKey: "userId" });
 
+// Cafeteria → Streak
 Cafeteria.hasMany(UserStreak, { foreignKey: "cafeteriaId" });
 UserStreak.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+
 
 // ================= EXPORT =================
 export {
@@ -88,4 +111,5 @@ export {
   AdminFcmToken,
   UserFcmToken,
   UserStreak,
+  OrderFeedback,   // ⭐ IMPORTANT
 };
