@@ -102,18 +102,16 @@ export const getMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = req.params.id;
 
-    // 1️⃣ Check cafeteria open/closed
+    // Only check cafeteria exists
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
-    if (!cafeteria || cafeteria.isOpen === false) {
-      return res.json({
-        success: true,
-        closed: true,
-        message: "Cafeteria is currently closed",
-        data: [],
+    if (!cafeteria) {
+      return res.status(404).json({
+        success: false,
+        message: "Cafeteria not found",
       });
     }
 
-    // 2️⃣ Clean expired specials
+    // 🔥 Clean expired specials
     const today = new Date().toISOString().split("T")[0];
     await MenuItem.update(
       { isTodaySpecial: false, specialDate: null },
@@ -125,7 +123,7 @@ export const getMenuByCafeteria = async (req, res) => {
       }
     );
 
-    // 3️⃣ Fetch menu
+    // 🔥 ALWAYS return menu (even if cafeteria closed)
     const items = await MenuItem.findAll({
       where: {
         cafeteriaId,
@@ -140,10 +138,11 @@ export const getMenuByCafeteria = async (req, res) => {
 
     res.json({
       success: true,
-      closed: false,
+      cafeteriaOpen: cafeteria.isOpen, // frontend may show status
       count: items.length,
       data: items,
     });
+
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -375,11 +374,19 @@ export const getTodaySpecials = async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
 
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
-    if (!cafeteria || cafeteria.isOpen === false) {
+    if (!cafeteria) {
+      return res.status(404).json({
+        success: false,
+        message: "Cafeteria not found",
+      });
+    }
+
+    // 🔥 BLOCK today special when cafeteria is closed
+    if (!cafeteria.isOpen) {
       return res.json({
         success: true,
-        closed: true,
-        data: [],
+        cafeteriaOpen: false,
+        data: [],   // hide today special
       });
     }
 
@@ -395,13 +402,15 @@ export const getTodaySpecials = async (req, res) => {
 
     res.json({
       success: true,
-      closed: false,
+      cafeteriaOpen: true,
       data: items,
     });
+
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
 
 
 export const restoreMenuItem = async (req, res) => {
