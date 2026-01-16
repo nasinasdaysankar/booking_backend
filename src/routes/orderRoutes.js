@@ -1,4 +1,3 @@
-
 import express from "express";
 const router = express.Router();
 
@@ -14,7 +13,8 @@ import {
 import {
   scanStaticCafeteriaQR,
   confirmOrderPickup,
-  submitOrderFeedback
+  submitOrderFeedback,
+  checkFeedbackStatus,  // ✅ ADD THIS IMPORT
 } from "../controllers/userOrderController.js";
 
 import { getActiveOrders } from "../controllers/orderStatusController.js";
@@ -33,14 +33,15 @@ router.post("/", auth, createOrder);
 // Get my orders
 router.get("/", auth, getMyOrders);
 
-// Get order by ID (KEEP THIS LAST)
-router.get("/:id", auth, getOrderById);
-
 // QR flow
 router.post("/scan-qr", auth, scanStaticCafeteriaQR);
 router.post("/confirm-pickup", auth, confirmOrderPickup);
 
+// Feedback routes
 router.post("/feedback", auth, submitOrderFeedback);
+router.get("/:orderId/feedback-status", auth, checkFeedbackStatus);  // ✅ ADD THIS ROUTE
 
+// Get order by ID (KEEP THIS LAST - catches all remaining /:id patterns)
+router.get("/:id", auth, getOrderById);
 
 export default router;

@@ -9,18 +9,19 @@ export const getActiveOrders = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // ✅ Query for UNPAID or PENDING orders
     const order = await Order.findOne({
       where: {
         studentId: userId,
         [Op.or]: [
-          // ✅ ACTIVE ORDERS (no feedback needed yet)
+          // Active orders (no feedback needed)
           {
             status: {
               [Op.in]: ["PAID", "PREPARING", "READY"],
             },
             isRated: false,
           },
-          // ✅ PICKED_UP but NOT RATED (needs feedback)
+          // Picked up but needs feedback
           {
             status: "PICKED_UP",
             isRated: false,
@@ -31,18 +32,29 @@ export const getActiveOrders = async (req, res) => {
         {
           model: OrderItem,
           as: "items",
+          attributes: ["quantity"],
         },
         {
           model: Cafeteria,
-          attributes: ["name"],
+          attributes: ["name", "location"],
         },
       ],
       order: [["createdAt", "DESC"]],
     });
 
     if (!order) {
+      debugPrint("✅ No active orders for user:", userId);
       return res.status(200).json({ data: null });
     }
+
+    debugPrint(
+      "✅ Found active order:",
+      order.id,
+      "Status:",
+      order.status,
+      "isRated:",
+      order.isRated
+    );
 
     return res.status(200).json({
       data: {
@@ -50,16 +62,17 @@ export const getActiveOrders = async (req, res) => {
         billId: order.billId,
         status: order.status,
         totalAmount: order.totalAmount,
-        isRated: order.isRated, // ✅ KEY: This must be FALSE if feedback is needed
+        isRated: order.isRated,
         cafeteriaId: order.cafeteriaId,
         cafeteriaName: order.Cafeteria?.name ?? "",
         items: order.items,
       },
     });
   } catch (err) {
-    console.error("❌ ACTIVE ORDER ERROR:", err);
+    console.error("❌ getActiveOrders ERROR:", err);
     return res.status(500).json({
-      message: "Error fetching order",
+      success: false,
+      message: "Error fetching orders",
     });
   }
 };
