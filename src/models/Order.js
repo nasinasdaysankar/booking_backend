@@ -60,14 +60,20 @@ export default (sequelize) => {
         allowNull: true,
       },
 
-      // ✅ ADD THIS FIELD (CRITICAL FIX)
       kotNumber: {
         type: DataTypes.STRING,
         allowNull: true,
       },
+
+      // 🔥🔥 CRITICAL FIX — FEEDBACK FLAG
+      isRated: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
-      tableName: "orders",
+      tableName: "orders", // ⚠️ MUST match DB table name
       timestamps: true,
     }
   );
