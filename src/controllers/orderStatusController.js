@@ -9,13 +9,21 @@ export const getActiveOrders = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // We must include PICKED_UP also so feedback can be triggered
     const order = await Order.findOne({
       where: {
         studentId: userId,
-        status: {
-          [Op.in]: ["PAID", "PREPARING", "READY", "PICKED_UP"],
-        },
+        [Op.or]: [
+          // Active flow (no feedback yet)
+          {
+            status: {
+              [Op.in]: ["PAID", "PREPARING", "READY"],
+            },
+          },
+          {
+            status: "PICKED_UP",
+            isRated: false, // 🔥 CRITICAL FIX
+          },
+        ],
       },
       include: [
         {
@@ -30,19 +38,17 @@ export const getActiveOrders = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    // Flutter expects null if no active order
     if (!order) {
       return res.status(200).json({ data: null });
     }
 
-    // Send only what frontend needs
     return res.status(200).json({
       data: {
         id: order.id,
         billId: order.billId,
         status: order.status,
         totalAmount: order.totalAmount,
-        isRated: order.isRated, // ⭐ THIS IS CRITICAL
+        isRated: order.isRated,
         cafeteriaId: order.cafeteriaId,
         cafeteriaName: order.Cafeteria?.name ?? "",
         items: order.items,
