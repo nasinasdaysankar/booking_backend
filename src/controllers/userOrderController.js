@@ -153,6 +153,8 @@ export const confirmOrderPickup = async (req, res) => {
       success: true,
       message: "🎉 Picked up successfully!",
       invoice,
+      showFeedback: true,   // ✅ ADD THIS
+  orderId: order.id,
     });
   } catch (error) {
     console.error("❌ confirmOrderPickup error:", error);
@@ -168,6 +170,7 @@ export const submitOrderFeedback = async (req, res) => {
     const { orderId, rating, comment } = req.body;
     const studentId = req.user.id;
 
+    // 1️⃣ Validate order ownership + status
     const order = await Order.findOne({
       where: {
         id: orderId,
@@ -183,13 +186,33 @@ export const submitOrderFeedback = async (req, res) => {
       });
     }
 
-    if (order.isRated) {
-      return res.json({
-        success: true,
-        message: "Already rated",
+    // 2️⃣ HARD BLOCK — already rated flag
+    if (order.isRated === true) {
+      return res.status(409).json({
+        success: false,
+        message: "Feedback already submitted for this order",
       });
     }
 
+    // 3️⃣ HARD BLOCK — DB check (prevents duplicates even if isRated fails)
+    const existingFeedback = await OrderFeedback.findOne({
+      where: {
+        orderId,
+        studentId,
+      },
+    });
+
+    if (existingFeedback) {
+      // Safety sync (in case flag was missed earlier)
+      await order.update({ isRated: true });
+
+      return res.status(409).json({
+        success: false,
+        message: "Feedback already submitted for this order",
+      });
+    }
+
+    // 4️⃣ Create feedback
     await OrderFeedback.create({
       orderId,
       studentId,
@@ -198,6 +221,7 @@ export const submitOrderFeedback = async (req, res) => {
       comment,
     });
 
+    // 5️⃣ Mark order as rated (single source of truth)
     await order.update({ isRated: true });
 
     return res.json({
@@ -205,8 +229,8 @@ export const submitOrderFeedback = async (req, res) => {
       message: "Thank you for your feedback!",
     });
   } catch (error) {
-    console.error("❌ submitOrderFeedback error:", error);
-    res.status(500).json({
+    console.error("❌ submitOrderFeedback error:", error.message);
+    return res.status(500).json({
       success: false,
       message: "Feedback failed",
     });
