@@ -3,7 +3,7 @@ import { Op } from "sequelize";
 
 /**
  * GET ACTIVE ORDER FOR LOGGED-IN USER
- * URL: GET /api/orders/active
+ * FIXED: Only returns orders that NEED FEEDBACK
  */
 export const getActiveOrders = async (req, res) => {
   try {
@@ -13,15 +13,17 @@ export const getActiveOrders = async (req, res) => {
       where: {
         studentId: userId,
         [Op.or]: [
-          // Active flow (no feedback yet)
+          // ✅ ACTIVE ORDERS (no feedback needed yet)
           {
             status: {
               [Op.in]: ["PAID", "PREPARING", "READY"],
             },
+            isRated: false,
           },
+          // ✅ PICKED_UP but NOT RATED (needs feedback)
           {
             status: "PICKED_UP",
-            isRated: false, // 🔥 CRITICAL FIX
+            isRated: false,
           },
         ],
       },
@@ -48,7 +50,7 @@ export const getActiveOrders = async (req, res) => {
         billId: order.billId,
         status: order.status,
         totalAmount: order.totalAmount,
-        isRated: order.isRated,
+        isRated: order.isRated, // ✅ KEY: This must be FALSE if feedback is needed
         cafeteriaId: order.cafeteriaId,
         cafeteriaName: order.Cafeteria?.name ?? "",
         items: order.items,

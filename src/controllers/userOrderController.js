@@ -165,12 +165,13 @@ export const confirmOrderPickup = async (req, res) => {
   }
 };
 
+ 
 export const submitOrderFeedback = async (req, res) => {
   try {
     const { orderId, rating, comment } = req.body;
     const studentId = req.user.id;
 
-    // 1️⃣ Validate order ownership + status
+    // ✅ 1. Fetch order (must be PICKED_UP and NOT rated)
     const order = await Order.findOne({
       where: {
         id: orderId,
@@ -186,15 +187,15 @@ export const submitOrderFeedback = async (req, res) => {
       });
     }
 
-    // 2️⃣ HARD BLOCK — already rated flag
+    // ✅ 2. HARD BLOCK — Already rated?
     if (order.isRated === true) {
       return res.status(409).json({
         success: false,
-        message: "Feedback already submitted for this order",
+        message: "Feedback already submitted",
       });
     }
 
-    // 3️⃣ HARD BLOCK — DB check (prevents duplicates even if isRated fails)
+    // ✅ 3. Check for duplicate feedback in DB
     const existingFeedback = await OrderFeedback.findOne({
       where: {
         orderId,
@@ -203,16 +204,16 @@ export const submitOrderFeedback = async (req, res) => {
     });
 
     if (existingFeedback) {
-      // Safety sync (in case flag was missed earlier)
+      // Safety: Mark as rated if feedback exists but flag wasn't set
       await order.update({ isRated: true });
 
       return res.status(409).json({
         success: false,
-        message: "Feedback already submitted for this order",
+        message: "Feedback already submitted",
       });
     }
 
-    // 4️⃣ Create feedback
+    // ✅ 4. Create feedback record
     await OrderFeedback.create({
       orderId,
       studentId,
@@ -221,7 +222,7 @@ export const submitOrderFeedback = async (req, res) => {
       comment,
     });
 
-    // 5️⃣ Mark order as rated (single source of truth)
+    // ✅ 5. CRITICAL: Update isRated = true BEFORE responding
     await order.update({ isRated: true });
 
     return res.json({
