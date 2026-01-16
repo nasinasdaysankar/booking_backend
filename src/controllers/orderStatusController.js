@@ -4,10 +4,13 @@ import { Op } from "sequelize";
 /**
  * GET ACTIVE ORDER FOR LOGGED-IN USER
  * FIXED: Only returns orders that NEED FEEDBACK
+ * ✅ Changed debugPrint to console.log (Node.js only)
  */
 export const getActiveOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    console.log("🔍 Fetching active orders for user:", userId);
 
     // ✅ Query for UNPAID or PENDING orders
     const order = await Order.findOne({
@@ -43,12 +46,12 @@ export const getActiveOrders = async (req, res) => {
     });
 
     if (!order) {
-      debugPrint("✅ No active orders for user:", userId);
+      console.log("✅ No active orders for user:", userId);
       return res.status(200).json({ data: null });
     }
 
-    debugPrint(
-      "✅ Found active order:",
+    console.log(
+      "✅ Found active order - ID:",
       order.id,
       "Status:",
       order.status,

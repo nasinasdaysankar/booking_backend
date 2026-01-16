@@ -46,7 +46,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
             {
               model: MenuItem,
               as: "menuItem",
-              attributes: ["name", "price", "imageUrl"], // ✅ FIX
+              attributes: ["name", "price", "imageUrl"],
             },
           ],
         },
@@ -80,7 +80,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
             name: i.menuItem?.name ?? "",
             quantity: i.quantity,
             priceAtOrder: i.menuItem?.price ?? 0,
-            imageUrl: i.menuItem?.imageUrl ?? "", // ✅ FIX
+            imageUrl: i.menuItem?.imageUrl ?? "",
           })),
         },
       ],
@@ -100,6 +100,8 @@ export const confirmOrderPickup = async (req, res) => {
     const { orderId } = req.body;
     const studentId = req.user.id;
 
+    console.log("📦 Confirming pickup for order:", orderId);
+
     const order = await Order.findOne({
       where: {
         id: orderId,
@@ -113,11 +115,11 @@ export const confirmOrderPickup = async (req, res) => {
         },
         {
           model: OrderItem,
-          as: "items", // ✅ MATCHES MODEL
+          as: "items",
           include: [
             {
               model: MenuItem,
-              as: "menuItem", // ✅ MATCHES MODEL
+              as: "menuItem",
               attributes: ["name", "price"],
             },
           ],
@@ -126,12 +128,14 @@ export const confirmOrderPickup = async (req, res) => {
     });
 
     if (!order) {
+      console.log("❌ Order not found or not ready");
       return res.status(400).json({
         success: false,
         message: "Order not ready or not yours",
       });
     }
 
+    console.log("✅ Order found, updating status to PICKED_UP");
     await order.update({ status: "PICKED_UP" });
 
     const invoice = {
@@ -149,12 +153,14 @@ export const confirmOrderPickup = async (req, res) => {
       pickedAt: new Date(),
     };
 
+    console.log("🎉 Pickup confirmed successfully");
+
     return res.json({
       success: true,
       message: "🎉 Picked up successfully!",
       invoice,
-      showFeedback: true,   // ✅ ADD THIS
-  orderId: order.id,
+      showFeedback: true,
+      orderId: order.id,
     });
   } catch (error) {
     console.error("❌ confirmOrderPickup error:", error);
@@ -165,11 +171,17 @@ export const confirmOrderPickup = async (req, res) => {
   }
 };
 
- 
+// ================= SUBMIT FEEDBACK =================
 export const submitOrderFeedback = async (req, res) => {
   try {
     const { orderId, rating, comment } = req.body;
     const studentId = req.user.id;
+
+    console.log("📝 FEEDBACK REQUEST RECEIVED:");
+    console.log("  Order ID:", orderId);
+    console.log("  Rating:", rating);
+    console.log("  Student ID:", studentId);
+    console.log("  Comment:", comment);
 
     // ✅ VALIDATION
     if (!orderId || !rating) {
@@ -192,14 +204,28 @@ export const submitOrderFeedback = async (req, res) => {
     });
 
     if (!order) {
+      console.log("❌ Order not found:", orderId);
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
 
+    console.log(
+      "✅ Order found - Status:",
+      order.status,
+      "isRated:",
+      order.isRated
+    );
+
     // ✅ 2. VERIFY OWNERSHIP
     if (order.studentId !== studentId) {
+      console.log(
+        "❌ Order ownership mismatch - Order belongs to:",
+        order.studentId,
+        "Requesting user:",
+        studentId
+      );
       return res.status(403).json({
         success: false,
         message: "Order does not belong to you",
@@ -208,6 +234,10 @@ export const submitOrderFeedback = async (req, res) => {
 
     // ✅ 3. VERIFY STATUS (must be PICKED_UP)
     if (order.status !== "PICKED_UP") {
+      console.log(
+        "❌ Order status not PICKED_UP, actual status:",
+        order.status
+      );
       return res.status(400).json({
         success: false,
         message: `Cannot submit feedback for order with status: ${order.status}`,
@@ -216,6 +246,7 @@ export const submitOrderFeedback = async (req, res) => {
 
     // ✅ 4. CHECK IF ALREADY RATED
     if (order.isRated === true) {
+      console.log("⚠️  Order already rated");
       return res.status(409).json({
         success: false,
         message: "Feedback already submitted for this order",
@@ -231,6 +262,7 @@ export const submitOrderFeedback = async (req, res) => {
     });
 
     if (existingFeedback) {
+      console.log("⚠️  Feedback already exists for this order");
       // Sync the flag if missing
       await order.update({ isRated: true });
       return res.status(409).json({
@@ -252,9 +284,11 @@ export const submitOrderFeedback = async (req, res) => {
       throw new Error("Failed to create feedback record");
     }
 
-    debugPrint("✅ Feedback created:", feedback.id);
+    console.log("✅ Feedback created with ID:", feedback.id);
 
     // ✅ 7. UPDATE isRated FLAG (THIS IS CRITICAL)
+    console.log("🔄 Updating isRated to true for order:", orderId);
+
     const updateResult = await Order.update(
       { isRated: true },
       {
@@ -265,21 +299,33 @@ export const submitOrderFeedback = async (req, res) => {
       }
     );
 
-    debugPrint("✅ Update result:", updateResult);
+    console.log("📊 Update result (affected rows):", updateResult);
 
     // ✅ 8. VERIFY THE UPDATE
     const updatedOrder = await Order.findByPk(orderId, {
-      attributes: ["id", "isRated"],
+      attributes: ["id", "status", "isRated"],
     });
 
-    debugPrint("✅ Verified isRated after update:", updatedOrder.isRated);
+    console.log(
+      "✅ Verified after update - ID:",
+      updatedOrder.id,
+      "isRated:",
+      updatedOrder.isRated
+    );
 
     if (updatedOrder.isRated !== true) {
       console.error(
-        "❌ CRITICAL: isRated was NOT updated! Checking database..."
+        "❌ CRITICAL: isRated was NOT updated after first attempt!"
       );
-      // Retry once
+      console.error("Database value is still:", updatedOrder.isRated);
+
+      // ⚠️ RETRY with direct instance update
+      console.log("🔄 Retrying with direct instance update...");
+      await order.reload(); // Reload from DB
       await order.update({ isRated: true });
+
+      const recheck = await Order.findByPk(orderId);
+      console.log("🔁 After retry - isRated:", recheck.isRated);
     }
 
     // ✅ 9. RESPOND WITH SUCCESS
@@ -290,11 +336,13 @@ export const submitOrderFeedback = async (req, res) => {
         feedbackId: feedback.id,
         orderId: orderId,
         isRated: true,
+        status: "PICKED_UP",
       },
     });
   } catch (error) {
     console.error("❌ submitOrderFeedback ERROR:", error.message);
-    console.error("Stack:", error.stack);
+    console.error("Full error:", error);
+    console.error("Stack trace:", error.stack);
 
     return res.status(500).json({
       success: false,
@@ -304,10 +352,13 @@ export const submitOrderFeedback = async (req, res) => {
   }
 };
 
+// ================= CHECK FEEDBACK STATUS =================
 export const checkFeedbackStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const studentId = req.user.id;
+
+    console.log("🔍 Checking feedback status for order:", orderId);
 
     const order = await Order.findOne({
       where: {
@@ -318,6 +369,7 @@ export const checkFeedbackStatus = async (req, res) => {
     });
 
     if (!order) {
+      console.log("❌ Order not found:", orderId);
       return res.status(404).json({
         success: false,
         message: "Order not found",
@@ -331,6 +383,8 @@ export const checkFeedbackStatus = async (req, res) => {
       },
       attributes: ["id", "rating", "comment"],
     });
+
+    console.log("✅ Feedback status - isRated:", order.isRated, "hasRecord:", !!feedback);
 
     return res.status(200).json({
       success: true,
