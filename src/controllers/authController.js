@@ -2,6 +2,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { User } from "../models/index.js";
+import admin from "../config/firebaseAdmin.js";
+
 
 dotenv.config();
 
@@ -12,6 +14,54 @@ const signToken = (user) => {
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
+};
+
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ message: "ID token missing" });
+    }
+
+    // 🔐 Verify Firebase ID Token
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    const email = decoded.email;
+    const name = decoded.name || "Google User";
+
+    // 🔎 Determine role
+    let role = "student";
+    if (email.endsWith("@alliance.edu.in")) role = "faculty";
+
+    // 🔎 Find or create user
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        role,
+        passwordHash: null,
+      });
+    }
+
+    const token = signToken(user);
+
+    res.json({
+      message: "Google login successful 🎉",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("Google auth error:", err);
+    res.status(401).json({ message: "Google authentication failed" });
+  }
 };
 
 /* ===========================================================

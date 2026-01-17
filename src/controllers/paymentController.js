@@ -5,7 +5,7 @@
 
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
 import { emitNewOrder } from "../socket.js";
-import admin from "../firebase.js";
+import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken } from "../models/index.js";
 import { UserStreak } from "../models/index.js";
 import dayjs from "dayjs";
