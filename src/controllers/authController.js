@@ -20,6 +20,7 @@ const signToken = (user) => {
 export const googleLogin = async (req, res) => {
   try {
     const { idToken } = req.body;
+
     if (!idToken) {
       return res.status(400).json({ message: "ID token missing" });
     }
@@ -30,9 +31,8 @@ export const googleLogin = async (req, res) => {
     const email = decoded.email;
     const name = decoded.name || "Google User";
 
-    // 🔎 Determine role
-    let role = "student";
-    if (email.endsWith("@alliance.edu.in")) role = "faculty";
+    // ✅ ONLY GOOGLE USERS — DEFAULT ROLE
+    const role = "student";
 
     // 🔎 Find or create user
     let user = await User.findOne({ where: { email } });
@@ -41,14 +41,14 @@ export const googleLogin = async (req, res) => {
       user = await User.create({
         name,
         email,
-        role,
-        passwordHash: null,
+        role,               // ✅ ENUM SAFE
+        passwordHash: null, // Google users don’t need password
       });
     }
 
     const token = signToken(user);
 
-    res.json({
+    return res.json({
       message: "Google login successful 🎉",
       token,
       user: {
@@ -58,9 +58,12 @@ export const googleLogin = async (req, res) => {
         role: user.role,
       },
     });
+
   } catch (err) {
-    console.error("Google auth error:", err);
-    res.status(401).json({ message: "Google authentication failed" });
+    console.error("❌ Google auth error:", err);
+    return res.status(401).json({
+      message: "Google authentication failed",
+    });
   }
 };
 
