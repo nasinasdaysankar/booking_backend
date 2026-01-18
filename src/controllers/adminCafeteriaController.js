@@ -1,56 +1,72 @@
-// controllers/adminCafeteriaController.js
 import { Cafeteria } from "../models/index.js";
 
+/**
+ * 🔐 GET LOGGED-IN ADMIN'S CAFETERIA DETAILS
+ * Used in Admin Dashboard (single cafeteria view)
+ */
 export const getCafeteriaDetails = async (req, res) => {
   try {
-    const cafeteriaId = parseInt(req.params.id);
+    const cafeteriaId = Number(req.params.id);
 
+    // 🔒 Admin can access only their cafeteria
     if (req.user.cafeteriaId !== cafeteriaId) {
       return res.status(403).json({
         success: false,
-        message: "Access denied"
+        message: "Access denied",
       });
     }
 
     const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-      attributes: ["id", "name", "location", "isOpen", "staticQrToken"]
+      attributes: [
+        "id",
+        "name",
+        "location",
+        "latitude",
+        "longitude",
+        "isOpen",
+        "staticQrToken",
+      ],
     });
 
     if (!cafeteria) {
       return res.status(404).json({
         success: false,
-        message: "Cafeteria not found"
+        message: "Cafeteria not found",
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
-      data: {
-        id: cafeteria.id,
-        name: cafeteria.name,
-        location: cafeteria.location,
-        isOpen: cafeteria.isOpen,
-        staticQrToken: cafeteria.staticQrToken
-      }
+      data: cafeteria,
     });
-
   } catch (error) {
-    console.error("Get cafeteria error:", error);
-    res.status(500).json({
+    console.error("❌ Get cafeteria error:", error);
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch cafeteria"
+      message: "Failed to fetch cafeteria",
     });
   }
 };
 
-
+/**
+ * 🏪 GET ALL CAFETERIAS OWNED BY LOGGED-IN ADMIN
+ * Used for dropdown / switching cafeterias
+ */
 export const getMyCafeterias = async (req, res) => {
   try {
-    const ownerId = req.user.id; // ADMIN ID
+    const ownerId = req.user.id;
 
     const cafeterias = await Cafeteria.findAll({
       where: { ownerId },
-      attributes: ["id", "name", "location", "staticQrToken", "isOpen"],
+      attributes: [
+        "id",
+        "name",
+        "location",
+        "latitude",
+        "longitude",
+        "staticQrToken",
+        "isOpen",
+      ],
       order: [["createdAt", "ASC"]],
     });
 
@@ -60,53 +76,76 @@ export const getMyCafeterias = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Fetch cafeterias error:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch cafeterias",
     });
   }
 };
 
+/**
+ * ✏️ UPDATE CAFETERIA (ADMIN ONLY)
+ * Supports name, location, latitude, longitude, isOpen
+ */
 export const updateCafeteria = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, location, isOpen } = req.body;
+    const cafeteriaId = Number(req.params.id);
     const adminCafeteriaId = req.user.cafeteriaId;
 
-    // Verify admin can only update their own cafeteria
-    if (parseInt(id) !== adminCafeteriaId) {
-      return res.status(403).json({ 
-        message: "You can only update your own cafeteria" 
+    const {
+      name,
+      location,
+      latitude,
+      longitude,
+      isOpen,
+    } = req.body;
+
+    // 🔒 Admin can update only their cafeteria
+    if (cafeteriaId !== adminCafeteriaId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only update your own cafeteria",
       });
     }
 
-    const cafeteria = await Cafeteria.findByPk(id);
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
 
     if (!cafeteria) {
-      return res.status(404).json({ message: "Cafeteria not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Cafeteria not found",
+      });
     }
 
-    // Update only provided fields
+    // ✅ Update only provided fields
     if (name !== undefined) cafeteria.name = name;
     if (location !== undefined) cafeteria.location = location;
+    if (latitude !== undefined) cafeteria.latitude = latitude;
+    if (longitude !== undefined) cafeteria.longitude = longitude;
     if (isOpen !== undefined) cafeteria.isOpen = isOpen;
 
     await cafeteria.save();
 
-    console.log(`✅ Cafeteria ${id} updated by admin ${req.user.id}`);
+    console.log(`✅ Cafeteria ${cafeteriaId} updated by admin ${req.user.id}`);
 
     return res.json({
+      success: true,
       message: "Cafeteria updated successfully",
       data: {
         id: cafeteria.id,
         name: cafeteria.name,
         location: cafeteria.location,
+        latitude: cafeteria.latitude,
+        longitude: cafeteria.longitude,
         isOpen: cafeteria.isOpen,
         staticQrToken: cafeteria.staticQrToken,
       },
     });
   } catch (err) {
-    console.error("UPDATE CAFETERIA ERROR:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("❌ UPDATE CAFETERIA ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
