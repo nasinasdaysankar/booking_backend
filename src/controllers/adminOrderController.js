@@ -18,21 +18,20 @@ export const getAdminOrders = async (req, res) => {
     const cafeteriaId = req.user.cafeteriaId;
 
     const orders = await sequelize.query(
-      `SELECT *,
-       "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
-FROM orders
-WHERE status = :status
-AND "cafeteriaId" = :cafeteriaId
-ORDER BY "createdAt" DESC`,
-      //  `SELECT * FROM orders 
-      //  WHERE status = :status 
-      //  AND "cafeteriaId" = :cafeteriaId 
-      //  ORDER BY "createdAt" ASC`,
+      `
+      SELECT *,
+             "createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc"
+      FROM orders
+      WHERE status = :status
+      AND "cafeteriaId" = :cafeteriaId
+      ORDER BY "createdAtUtc" DESC
+      `,
       {
         replacements: { status: status || "PAID", cafeteriaId },
         type: QueryTypes.SELECT,
       }
     );
+    
 
     if (orders.length === 0) return res.json([]);
 
@@ -57,7 +56,6 @@ ORDER BY "createdAt" DESC`,
     return res.status(500).json({ message: "Error fetching orders" });
   }
 };
-
 /**
  * ===============================
  * UPDATE ORDER STATUS
