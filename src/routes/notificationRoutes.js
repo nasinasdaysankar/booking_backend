@@ -118,25 +118,50 @@ router.post("/save-user-token", auth, async (req, res) => {
 });
 
 
-router.post('/api/notify/geofence-event', auth, async (req, res) => {
+router.post("/api/notify/geofence-event", auth, async (req, res) => {
   try {
     const { cafeteriaId, cafeteriaName, eventType } = req.body;
     const userId = req.user.id;
 
-    console.log(
-      `📍 Geofence event: User ${userId} ${eventType} geofence for ${cafeteriaName}`
-    );
+    console.log(`📍 User ${userId} ${eventType} ${cafeteriaName}`);
 
-    res.json({
-      success: true,
-      message: 'Geofence event recorded',
+    // 🔍 Get user's FCM token
+    const tokenRecord = await UserFcmToken.findOne({
+      where: { userId },
     });
+
+    if (!tokenRecord) {
+      return res.json({ success: true, message: "No FCM token found" });
+    }
+
+    const message = {
+      token: tokenRecord.fcmToken,
+      notification: {
+        title: `🍽 ${cafeteriaName} Nearby!`,
+        body: `You're close to ${cafeteriaName}. Order now!`,
+      },
+      data: {
+        cafeteriaId: cafeteriaId.toString(),
+        cafeteriaName,
+        type: "GEOFENCE",
+      },
+      android: {
+        priority: "high",
+        notification: {
+          sound: "default",
+          channelId: "cafeteria_alerts",
+        },
+      },
+    };
+
+    await admin.messaging().send(message);
+
+    console.log("✅ FCM push sent");
+
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error recording geofence event:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error recording geofence event',
-    });
+    console.error("❌ FCM error:", error);
+    res.status(500).json({ success: false });
   }
 });
 
