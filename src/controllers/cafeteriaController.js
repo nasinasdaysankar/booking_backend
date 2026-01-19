@@ -23,6 +23,7 @@
 
 import { Cafeteria, MenuItem } from '../models/index.js';
 
+// ✅ FIXED: Added latitude and longitude to attributes
 export const getCafeterias = async (req, res) => {
   try {
     const cafes = await Cafeteria.findAll({
@@ -32,10 +33,21 @@ export const getCafeterias = async (req, res) => {
         'location',
         'isOpen',
         'staticQrToken',
-        'isUserVisible'   // 🔥 THIS WAS MISSING
+        'isUserVisible',
+        'latitude',      // 🔥 ADDED THIS
+        'longitude'      // 🔥 ADDED THIS
       ],
       order: [['id', 'ASC']]
     });
+    
+    // 🔍 DEBUG: Log the response
+    console.log('📍 Cafeterias fetched with coordinates:', 
+      cafes.map(c => ({
+        name: c.name,
+        latitude: c.latitude,
+        longitude: c.longitude
+      }))
+    );
     
     res.json({
       success: true,
@@ -56,7 +68,9 @@ export const getCafeteriaMenu = async (req, res) => {
     const { id } = req.params;
     
     // Check if cafeteria exists
-    const cafeteria = await Cafeteria.findByPk(id);
+    const cafeteria = await Cafeteria.findByPk(id, {
+      attributes: ['id', 'name', 'isOpen'] // ✅ Optional: be explicit
+    });
     
     if (!cafeteria) {
       return res.status(404).json({ 
@@ -75,7 +89,7 @@ export const getCafeteriaMenu = async (req, res) => {
     
     res.json({
       success: true,
-      closed: !cafeteria.isOpen,
+      cafeteriaOpen: cafeteria.isOpen,  // 🔥 Changed 'closed' to 'cafeteriaOpen'
       data: items
     });
   } catch (err) {
@@ -86,5 +100,3 @@ export const getCafeteriaMenu = async (req, res) => {
     });
   }
 };
-
-
