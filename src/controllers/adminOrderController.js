@@ -18,10 +18,16 @@ export const getAdminOrders = async (req, res) => {
     const cafeteriaId = req.user.cafeteriaId;
 
     const orders = await sequelize.query(
-      `SELECT * FROM orders 
-       WHERE status = :status 
-       AND "cafeteriaId" = :cafeteriaId 
-       ORDER BY "createdAt" ASC`,
+      `SELECT *,
+       "createdAt" AT TIME ZONE 'UTC' AS "createdAt"
+FROM orders
+WHERE status = :status
+AND "cafeteriaId" = :cafeteriaId
+ORDER BY "createdAt" DESC`,
+      //  `SELECT * FROM orders 
+      //  WHERE status = :status 
+      //  AND "cafeteriaId" = :cafeteriaId 
+      //  ORDER BY "createdAt" ASC`,
       {
         replacements: { status: status || "PAID", cafeteriaId },
         type: QueryTypes.SELECT,
