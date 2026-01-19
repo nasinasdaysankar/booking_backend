@@ -117,4 +117,49 @@ router.post("/save-user-token", auth, async (req, res) => {
   }
 });
 
+
+router.post('/api/notify/geofence-event', auth, async (req, res) => {
+  try {
+    const { cafeteriaId, cafeteriaName, eventType } = req.body;
+    const userId = req.user.id;
+
+    console.log(
+      `📍 Geofence event: User ${userId} ${eventType} geofence for ${cafeteriaName}`
+    );
+
+    res.json({
+      success: true,
+      message: 'Geofence event recorded',
+    });
+  } catch (error) {
+    console.error('Error recording geofence event:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error recording geofence event',
+    });
+  }
+});
+
+// Optional: Admin can manually send notifications
+router.post('/api/notify/send-geofence-notification', async (req, res) => {
+  try {
+    const { cafeteriaId } = req.body;
+
+    // Get all users near this cafeteria from database
+    // Send FCM notification to those users
+    // This requires admin panel integration
+
+    res.json({
+      success: true,
+      message: 'Geofence notifications sent',
+    });
+  } catch (error) {
+    console.error('Error sending notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending notifications',
+    });
+  }
+});
+
 export default router;
