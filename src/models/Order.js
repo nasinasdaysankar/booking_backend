@@ -16,6 +16,19 @@ export default (sequelize) => {
         unique: true,
       },
 
+      parcelAmount: {
+  type: DataTypes.DECIMAL(10, 2),
+  allowNull: false,
+  defaultValue: 0,
+},
+
+isParcel: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: false,
+},
+
+
       billId: {
         type: DataTypes.STRING,
         allowNull: false,

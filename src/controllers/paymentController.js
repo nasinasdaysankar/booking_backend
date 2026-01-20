@@ -88,7 +88,8 @@ export const confirmPayment = async (req, res) => {
       transactionId,
       amount,
       items,
-      isParcel,
+       isParcel,
+  parcelAmount,
     } = req.body;
 
     const authenticatedStudentId = req.user.id;
@@ -132,7 +133,8 @@ export const confirmPayment = async (req, res) => {
           status: "PAID",
           paymentStatus: "SUCCESS",
           kotNumber,
-          isParcel: isParcel || false,
+           isParcel: Boolean(isParcel),
+    parcelAmount: Number(parcelAmount) || 0,
         },
         { transaction: t }
       );
@@ -144,6 +146,8 @@ export const confirmPayment = async (req, res) => {
         {
           status: "PAID",
           paymentStatus: "SUCCESS",
+           isParcel: Boolean(isParcel),
+    parcelAmount: Number(parcelAmount) || 0,
         },
         { transaction: t }
       );
