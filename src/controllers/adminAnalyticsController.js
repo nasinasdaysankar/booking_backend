@@ -278,45 +278,45 @@ export const getTrendData = async (req, res) => {
 
     // 🔴 DAILY → Hourly breakdown (0-23) in IST
     if (range === "daily") {
-      dateExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT`;
-      groupByExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT`;
-      orderByExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT`;
-      whereDate = `AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = CURRENT_DATE AT TIME ZONE 'Asia/Kolkata'`;
+      // Use COALESCE to handle null timezone
+      dateExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
+      groupByExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
+      orderByExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
+      whereDate = `AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) = CURRENT_DATE`;
     } 
     // 🟡 WEEKLY → Date-wise (last 7 days) in IST
     else if (range === "weekly") {
-      dateExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      groupByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      orderByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      whereDate = `AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= (CURRENT_DATE AT TIME ZONE 'Asia/Kolkata') - INTERVAL '7 days'`;
+      dateExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      groupByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      orderByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      whereDate = `AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= CURRENT_DATE - INTERVAL '7 days'`;
     } 
     // 🟢 MONTHLY → Date-wise (current month) in IST
     else if (range === "monthly") {
-      dateExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      groupByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      orderByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      whereDate = `AND DATE_TRUNC('month', "createdAt" AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')`;
+      dateExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      groupByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      orderByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      whereDate = `AND DATE_TRUNC('month', COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt")) = DATE_TRUNC('month', CURRENT_DATE)`;
     } 
     // 🔵 CUSTOM → Date-wise (user selected range) in IST
     else if (range === "custom") {
-      dateExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      groupByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      orderByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
+      dateExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      groupByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      orderByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
       whereDate = `
         AND (
-          (:from IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= :from::date)
-          AND (:to IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date <= :to::date)
+          (:from IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) <= :to::date)
         )
       `;
     } 
     else {
-      dateExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      groupByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      orderByExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
+      dateExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      groupByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      orderByExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
     }
 
-    const rows = await sequelize.query(
-      `
+    const query = `
       SELECT 
         ${dateExpr} AS date,
         SUM("totalAmount")::FLOAT AS revenue,
@@ -328,16 +328,20 @@ export const getTrendData = async (req, res) => {
         ${whereDate}
       GROUP BY ${groupByExpr}
       ORDER BY ${orderByExpr} ASC
-      `,
-      {
-        replacements: {
-          cafeteriaId,
-          from: from ?? null,
-          to: to ?? null,
-        },
-        type: QueryTypes.SELECT,
-      }
-    );
+    `;
+
+    console.log("🔍 Trend Query:", query);
+
+    const rows = await sequelize.query(query, {
+      replacements: {
+        cafeteriaId,
+        from: from ?? null,
+        to: to ?? null,
+      },
+      type: QueryTypes.SELECT,
+    });
+
+    console.log("📊 Trend Result:", rows);
 
     // 🔴 For DAILY range, ensure we have all 24 hours (fill missing hours with 0)
     if (range === "daily") {
@@ -356,6 +360,7 @@ export const getTrendData = async (req, res) => {
     return res.json(rows);
   } catch (err) {
     console.error("❌ Trend Error:", err.message);
+    console.error("❌ Trend Stack:", err.stack);
     return res.status(500).json({
       message: "Trend fetch failed",
       error: err.message,
@@ -376,22 +381,21 @@ export const getTopItems = async (req, res) => {
     let whereDate = "";
 
     if (range === "daily") {
-      whereDate = `AND ("o"."createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')`;
+      whereDate = `AND CAST(COALESCE(o."createdAt" AT TIME ZONE 'Asia/Kolkata', o."createdAt") AS DATE) = CURRENT_DATE`;
     } else if (range === "weekly") {
-      whereDate = `AND ("o"."createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= ((CURRENT_DATE AT TIME ZONE 'Asia/Kolkata') - INTERVAL '7 days')`;
+      whereDate = `AND CAST(COALESCE(o."createdAt" AT TIME ZONE 'Asia/Kolkata', o."createdAt") AS DATE) >= CURRENT_DATE - INTERVAL '7 days'`;
     } else if (range === "monthly") {
-      whereDate = `AND DATE_TRUNC('month', "o"."createdAt" AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')`;
+      whereDate = `AND DATE_TRUNC('month', COALESCE(o."createdAt" AT TIME ZONE 'Asia/Kolkata', o."createdAt")) = DATE_TRUNC('month', CURRENT_DATE)`;
     } else if (range === "custom") {
       whereDate = `
         AND (
-          (:from IS NULL OR ("o"."createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= :from::date)
-          AND (:to IS NULL OR ("o"."createdAt" AT TIME ZONE 'Asia/Kolkata')::date <= :to::date)
+          (:from IS NULL OR CAST(COALESCE(o."createdAt" AT TIME ZONE 'Asia/Kolkata', o."createdAt") AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(COALESCE(o."createdAt" AT TIME ZONE 'Asia/Kolkata', o."createdAt") AS DATE) <= :to::date)
         )
       `;
     }
 
-    const items = await sequelize.query(
-      `
+    const query = `
       SELECT 
         mi.name AS label,
         SUM(oi.quantity)::INT AS count
@@ -405,12 +409,16 @@ export const getTopItems = async (req, res) => {
       GROUP BY mi.name
       ORDER BY count DESC
       LIMIT 6
-      `,
-      {
-        replacements: { cafeteriaId, from: from ?? null, to: to ?? null },
-        type: QueryTypes.SELECT,
-      }
-    );
+    `;
+
+    console.log("🔍 Top Items Query:", query);
+
+    const items = await sequelize.query(query, {
+      replacements: { cafeteriaId, from: from ?? null, to: to ?? null },
+      type: QueryTypes.SELECT,
+    });
+
+    console.log("📊 Top Items Result:", items);
 
     const total = items.reduce((s, i) => s + i.count, 0);
 
@@ -423,7 +431,8 @@ export const getTopItems = async (req, res) => {
     );
   } catch (err) {
     console.error("❌ Top items error:", err.message);
-    return res.status(500).json({ message: "Failed to fetch top items" });
+    console.error("❌ Top items stack:", err.stack);
+    return res.status(500).json({ message: "Failed to fetch top items", error: err.message });
   }
 };
 
@@ -445,45 +454,44 @@ export const getOrdersOverview = async (req, res) => {
 
     // 🔴 DAILY → Hourly breakdown (0-23) in IST
     if (range === "daily") {
-      groupExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT`;
-      labelExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT || ':00'`;
-      orderExpr = `EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT`;
-      whereDate = `AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')`;
+      groupExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
+      labelExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT || ':00'`;
+      orderExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
+      whereDate = `AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) = CURRENT_DATE`;
     } 
     // 🟡 WEEKLY → Date-wise in IST
     else if (range === "weekly") {
-      groupExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      labelExpr = `TO_CHAR("createdAt" AT TIME ZONE 'Asia/Kolkata', 'DD Mon')`;
-      orderExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      whereDate = `AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= ((CURRENT_DATE AT TIME ZONE 'Asia/Kolkata') - INTERVAL '7 days')`;
+      groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      whereDate = `AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= CURRENT_DATE - INTERVAL '7 days'`;
     } 
     // 🟢 MONTHLY → Date-wise in IST
     else if (range === "monthly") {
-      groupExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      labelExpr = `TO_CHAR("createdAt" AT TIME ZONE 'Asia/Kolkata', 'DD Mon')`;
-      orderExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      whereDate = `AND DATE_TRUNC('month', "createdAt" AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')`;
+      groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      whereDate = `AND DATE_TRUNC('month', COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt")) = DATE_TRUNC('month', CURRENT_DATE)`;
     } 
     // 🔵 CUSTOM → Date-wise in IST
     else if (range === "custom") {
-      groupExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      labelExpr = `TO_CHAR("createdAt" AT TIME ZONE 'Asia/Kolkata', 'DD Mon')`;
-      orderExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
+      groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
       whereDate = `
         AND (
-          (:from IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= :from::date)
-          AND (:to IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date <= :to::date)
+          (:from IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) <= :to::date)
         )
       `;
     } 
     else {
-      groupExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
-      labelExpr = `TO_CHAR("createdAt" AT TIME ZONE 'Asia/Kolkata', 'DD Mon')`;
-      orderExpr = `("createdAt" AT TIME ZONE 'Asia/Kolkata')::date`;
+      groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
+      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
     }
 
-    const rows = await sequelize.query(
-      `
+    const query = `
       SELECT
         ${labelExpr} AS label,
         COUNT(*)::INT AS count
@@ -494,20 +502,25 @@ export const getOrdersOverview = async (req, res) => {
         ${whereDate}
       GROUP BY ${groupExpr}
       ORDER BY ${orderExpr}
-      `,
-      {
-        replacements: {
-          cafeteriaId,
-          from: from ?? null,
-          to: to ?? null,
-        },
-        type: QueryTypes.SELECT,
-      }
-    );
+    `;
+
+    console.log("🔍 Orders Overview Query:", query);
+
+    const rows = await sequelize.query(query, {
+      replacements: {
+        cafeteriaId,
+        from: from ?? null,
+        to: to ?? null,
+      },
+      type: QueryTypes.SELECT,
+    });
+
+    console.log("📊 Orders Overview Result:", rows);
 
     return res.json(rows);
   } catch (err) {
     console.error("❌ Orders overview error:", err.message);
+    console.error("❌ Orders overview stack:", err.stack);
     return res.status(500).json({
       message: "Failed to fetch orders overview",
       error: err.message,
@@ -530,35 +543,34 @@ export const getPeakHours = async (req, res) => {
     // 🔴 DAILY → only today (hourly) in IST
     if (range === "daily") {
       whereDate = `
-        AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date = (CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')
+        AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) = CURRENT_DATE
       `;
     }
     // 🟡 WEEKLY → last 7 days in IST
     else if (range === "weekly") {
       whereDate = `
-        AND ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= ((CURRENT_DATE AT TIME ZONE 'Asia/Kolkata') - INTERVAL '7 days')
+        AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= CURRENT_DATE - INTERVAL '7 days'
       `;
     }
     // 🟢 MONTHLY → current month in IST
     else if (range === "monthly") {
       whereDate = `
-        AND DATE_TRUNC('month', "createdAt" AT TIME ZONE 'Asia/Kolkata') = DATE_TRUNC('month', CURRENT_DATE AT TIME ZONE 'Asia/Kolkata')
+        AND DATE_TRUNC('month', COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt")) = DATE_TRUNC('month', CURRENT_DATE)
       `;
     }
     // 🔵 CUSTOM (calendar) in IST
     else if (range === "custom") {
       whereDate = `
         AND (
-          (:from IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date >= :from::date)
-          AND (:to IS NULL OR ("createdAt" AT TIME ZONE 'Asia/Kolkata')::date <= :to::date)
+          (:from IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) <= :to::date)
         )
       `;
     }
 
-    const rows = await sequelize.query(
-      `
+    const query = `
       SELECT
-        EXTRACT(HOUR FROM "createdAt" AT TIME ZONE 'Asia/Kolkata')::INT AS hour,
+        EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT AS hour,
         COUNT(*)::INT AS orders
       FROM orders
       WHERE
@@ -567,20 +579,25 @@ export const getPeakHours = async (req, res) => {
         ${whereDate}
       GROUP BY hour
       ORDER BY hour ASC
-      `,
-      {
-        replacements: {
-          cafeteriaId,
-          from: from ?? null,
-          to: to ?? null,
-        },
-        type: QueryTypes.SELECT,
-      }
-    );
+    `;
+
+    console.log("🔍 Peak Hours Query:", query);
+
+    const rows = await sequelize.query(query, {
+      replacements: {
+        cafeteriaId,
+        from: from ?? null,
+        to: to ?? null,
+      },
+      type: QueryTypes.SELECT,
+    });
+
+    console.log("📊 Peak Hours Result:", rows);
 
     return res.json(rows);
   } catch (err) {
     console.error("❌ Peak Hours Error:", err.message);
+    console.error("❌ Peak Hours Stack:", err.stack);
     return res.status(500).json({
       message: "Failed to fetch peak hours",
       error: err.message,
