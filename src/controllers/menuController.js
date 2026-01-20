@@ -463,18 +463,24 @@ import { Op } from "sequelize";
 // ==================== ADMIN: GET THEIR OWN CAFETERIA MENU ====================
 export const getMyMenu = async (req, res) => {
   try {
-    // ✅ Admin auth middleware should set req.user.cafeteriaId
+    console.log("🔍 getMyMenu called");
+    console.log("📋 req.user:", req.user);
+
+    // ✅ Get cafeteriaId from authenticated user
     const cafeteriaId = req.user?.cafeteriaId;
 
+    // ✅ VALIDATION 1: Check if cafeteriaId exists
     if (!cafeteriaId) {
-      console.error("❌ Admin not linked to cafeteria");
+      console.error("❌ Admin not linked to cafeteria. req.user:", req.user);
       return res.status(403).json({
         success: false,
-        message: "Admin account not linked to any cafeteria",
+        message: "Admin account not linked to any cafeteria. Contact support.",
       });
     }
 
-    // ✅ Verify cafeteria exists
+    console.log(`✅ CafeteriaId: ${cafeteriaId}`);
+
+    // ✅ VALIDATION 2: Verify cafeteria exists
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
     if (!cafeteria) {
       console.error(`❌ Cafeteria ${cafeteriaId} not found`);
@@ -484,23 +490,29 @@ export const getMyMenu = async (req, res) => {
       });
     }
 
+    console.log(`✅ Cafeteria found: ${cafeteria.name}`);
+
     // 🔥 Clean expired specials
     const today = new Date().toISOString().split("T")[0];
+    console.log(`📅 Today's date: ${today}`);
+
     await MenuItem.update(
       { isTodaySpecial: false, specialDate: null },
       {
         where: {
-          cafeteriaId,
+          cafeteriaId, // ✅ IMPORTANT: Filter by cafeteriaId
           isTodaySpecial: true,
           specialDate: { [Op.ne]: today },
         },
       }
     );
 
-    // ✅ Get admin's cafeteria menu
+    console.log("✅ Expired specials cleaned");
+
+    // ✅ GET ADMIN'S CAFETERIA MENU - WITH PROPER FILTERING
     const items = await MenuItem.findAll({
       where: {
-        cafeteriaId,
+        cafeteriaId, // ✅ THIS IS THE KEY: Filter by admin's cafeteriaId
         isDeleted: false,
         isAvailable: true,
       },
@@ -522,22 +534,31 @@ export const getMyMenu = async (req, res) => {
       ],
     });
 
-    console.log(`✅ Fetched ${items.length} items for admin cafeteria ${cafeteriaId}`);
+    console.log(
+      `✅ Fetched ${items.length} items for cafeteria ${cafeteriaId} (${cafeteria.name})`
+    );
 
+    // ✅ Return response with admin's cafeteria items only
     return res.json({
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
-      cafeteriaName: cafeteria.name, // ✅ Include cafeteria details
+      cafeteriaName: cafeteria.name,
+      cafeteriaId: cafeteriaId, // ✅ Include for confirmation
       count: items.length,
       data: items,
     });
   } catch (err) {
     console.error("❌ getMyMenu error:", err.message);
+    console.error("❌ Full error:", err);
     console.error("❌ Stack:", err.stack);
+
+    const isDevelopment = process.env.NODE_ENV === "development";
+
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu",
-      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+      error: isDevelopment ? err.message : "Internal server error",
+      ...(isDevelopment && { stack: err.stack }),
     });
   }
 };
@@ -546,6 +567,8 @@ export const getMyMenu = async (req, res) => {
 export const getPublicMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = req.params.cafeteriaId;
+
+    console.log(`📡 Getting public menu for cafeteria: ${cafeteriaId}`);
 
     // ✅ Validate cafeteriaId is a number
     if (!cafeteriaId || isNaN(cafeteriaId)) {
@@ -566,6 +589,8 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       });
     }
 
+    console.log(`✅ Cafeteria found: ${cafeteria.name}`);
+
     // 🔥 Clean expired specials
     const today = new Date().toISOString().split("T")[0];
     await MenuItem.update(
@@ -579,10 +604,10 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       }
     );
 
-    // ✅ Get public menu
+    // ✅ Get public menu - FILTERED BY CAFETERIA ID
     const items = await MenuItem.findAll({
       where: {
-        cafeteriaId,
+        cafeteriaId, // ✅ FILTER BY SPECIFIC CAFETERIA
         isDeleted: false,
         isAvailable: true,
       },
@@ -603,13 +628,14 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       ],
     });
 
-    console.log(`✅ Fetched ${items.length} public items for cafeteria ${cafeteriaId}`);
+    console.log(
+      `✅ Fetched ${items.length} public items for cafeteria ${cafeteriaId}`
+    );
 
     return res.json({
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
       cafeteriaName: cafeteria.name,
-      cafeteriaAddress: cafeteria.address, // ✅ Optional: Add location
       count: items.length,
       data: items,
     });
@@ -619,15 +645,19 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu",
-      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+      error:
+        process.env.NODE_ENV === "development" ? err.message : "Internal server error",
     });
   }
 };
+
 
 // ==================== LEGACY: Keep for backwards compatibility ====================
 export const getMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = req.params.id;
+
+    console.log(`📡 Getting menu for cafeteria (legacy): ${cafeteriaId}`);
 
     // ✅ Validate input
     if (!cafeteriaId || isNaN(cafeteriaId)) {
@@ -638,7 +668,7 @@ export const getMenuByCafeteria = async (req, res) => {
       });
     }
 
-    // Redirect to new endpoint
+    // Verify cafeteria exists
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
     if (!cafeteria) {
       return res.status(404).json({
@@ -659,9 +689,10 @@ export const getMenuByCafeteria = async (req, res) => {
       }
     );
 
+    // ✅ FILTER BY CAFETERIA ID
     const items = await MenuItem.findAll({
       where: {
-        cafeteriaId,
+        cafeteriaId, // ✅ MUST HAVE THIS
         isDeleted: false,
         isAvailable: true,
       },
@@ -671,9 +702,14 @@ export const getMenuByCafeteria = async (req, res) => {
       ],
     });
 
+    console.log(
+      `✅ Fetched ${items.length} items for cafeteria ${cafeteriaId} (legacy)`
+    );
+
     return res.json({
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
+      cafeteriaName: cafeteria.name,
       count: items.length,
       data: items,
     });
@@ -682,7 +718,8 @@ export const getMenuByCafeteria = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu",
-      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+      error:
+        process.env.NODE_ENV === "development" ? err.message : "Internal server error",
     });
   }
 };
