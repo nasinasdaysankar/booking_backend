@@ -102,13 +102,7 @@ import { Cafeteria } from "../models/index.js";
 export const getMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = req.params.id;
-    console.log(items.map(i => ({
-  name: i.name,
-  isParcelAvailable: i.isParcelAvailable
-})));
 
-
-    // Only check cafeteria exists
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
     if (!cafeteria) {
       return res.status(404).json({
@@ -117,7 +111,7 @@ export const getMenuByCafeteria = async (req, res) => {
       });
     }
 
-    // 🔥 Clean expired specials
+    // 🔥 Clean expired today specials
     const today = new Date().toISOString().split("T")[0];
     await MenuItem.update(
       { isTodaySpecial: false, specialDate: null },
@@ -129,7 +123,7 @@ export const getMenuByCafeteria = async (req, res) => {
       }
     );
 
-    // 🔥 ALWAYS return menu (even if cafeteria closed)
+    // ✅ FETCH MENU ITEMS FIRST
     const items = await MenuItem.findAll({
       where: {
         cafeteriaId,
@@ -142,17 +136,31 @@ export const getMenuByCafeteria = async (req, res) => {
       ],
     });
 
-    res.json({
+    // ✅ DEBUG LOG (SAFE)
+    items.forEach(item => {
+      console.log(
+        item.name,
+        "parcel:",
+        item.isParcelAvailable
+      );
+    });
+
+    return res.json({
       success: true,
-      cafeteriaOpen: cafeteria.isOpen, // frontend may show status
+      cafeteriaOpen: cafeteria.isOpen,
       count: items.length,
       data: items,
     });
 
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error("getMenuByCafeteria error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 };
+
 
 
 /* ================== SINGLE IMAGE UPDATE ================== */
