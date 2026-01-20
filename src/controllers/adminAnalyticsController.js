@@ -394,7 +394,6 @@ export const getTopItems = async (req, res) => {
       `;
     }
 
-    // ✅ MODIFIED: Now returns COUNT, REVENUE, and calculates PERCENTAGE
     const query = `
       SELECT 
         mi.name AS label,
@@ -421,12 +420,10 @@ export const getTopItems = async (req, res) => {
 
     console.log("📊 Top Items Result:", items);
 
-    // ✅ Calculate total revenue (not quantity)
     const totalRevenue = items.reduce((s, i) => s + (i.revenue || 0), 0);
 
     console.log("💰 Total Revenue:", totalRevenue);
 
-    // ✅ Return with REVENUE-based percentage (not quantity-based)
     return res.json(
       items.map((i) => ({
         label: i.label,
@@ -441,7 +438,6 @@ export const getTopItems = async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch top items", error: err.message });
   }
 };
-
 
 
 export const getOrdersOverview = async (req, res) => {
@@ -497,6 +493,7 @@ export const getOrdersOverview = async (req, res) => {
       orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
     }
 
+    // ✅ FIXED: labelExpr and orderExpr must be in GROUP BY
     const query = `
       SELECT
         ${labelExpr} AS label,
@@ -507,7 +504,7 @@ export const getOrdersOverview = async (req, res) => {
         AND "paymentStatus" = 'SUCCESS'
         ${whereDate}
       GROUP BY ${groupExpr}
-      ORDER BY ${orderExpr}
+      ORDER BY ${orderExpr} ASC
     `;
 
     console.log("🔍 Orders Overview Query:", query);
@@ -583,7 +580,7 @@ export const getPeakHours = async (req, res) => {
         "cafeteriaId" = :cafeteriaId
         AND "paymentStatus" = 'SUCCESS'
         ${whereDate}
-      GROUP BY hour
+      GROUP BY EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT
       ORDER BY hour ASC
     `;
 
