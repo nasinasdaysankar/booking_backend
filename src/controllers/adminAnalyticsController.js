@@ -464,21 +464,23 @@ export const getOrdersOverview = async (req, res) => {
     // 🟡 WEEKLY → Date-wise in IST
     else if (range === "weekly") {
       groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
-      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      // ✅ FIX: Cast the formatted string so SQL knows it's part of the group
+      labelExpr = `TO_CHAR(CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE), 'DD Mon')`;
       orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
       whereDate = `AND CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE) >= CURRENT_DATE - INTERVAL '7 days'`;
     } 
     // 🟢 MONTHLY → Date-wise in IST
     else if (range === "monthly") {
       groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
-      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      // ✅ FIX: Same fix for monthly
+      labelExpr = `TO_CHAR(CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE), 'DD Mon')`;
       orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
       whereDate = `AND DATE_TRUNC('month', COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt")) = DATE_TRUNC('month', CURRENT_DATE)`;
     } 
     // 🔵 CUSTOM → Date-wise in IST
     else if (range === "custom") {
       groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
-      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      labelExpr = `TO_CHAR(CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE), 'DD Mon')`;
       orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
       whereDate = `
         AND (
@@ -489,11 +491,11 @@ export const getOrdersOverview = async (req, res) => {
     } 
     else {
       groupExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
-      labelExpr = `TO_CHAR(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"), 'DD Mon')`;
+      labelExpr = `TO_CHAR(CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE), 'DD Mon')`;
       orderExpr = `CAST(COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt") AS DATE)`;
     }
 
-    // ✅ FIXED: labelExpr and orderExpr must be in GROUP BY
+    // ✅ FIXED: Use groupExpr for GROUP BY (not labelExpr)
     const query = `
       SELECT
         ${labelExpr} AS label,
