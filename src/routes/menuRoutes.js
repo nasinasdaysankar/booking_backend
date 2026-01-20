@@ -63,53 +63,53 @@ import {
   getTodaySpecials,
   getMostLovedItems,
 } from "../controllers/menuController.js";
-import { authMiddleware, adminOnly } from "../middleware/auth.js"; // Your auth middleware
-import multer from "multer";
+import { auth, requireRole } from "../middleware/auth.js"; // ✅ Correct imports
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
 
-// ==================== PUBLIC ROUTES ====================
-
-// 🟢 ADMIN: Get their own cafeteria menu (requires auth)
-router.get("/my-menu", authMiddleware, adminOnly, getMyMenu);
+// ==================== PUBLIC ROUTES (No Auth Required) ====================
 
 // 🔵 USER: Get public menu for specific cafeteria (no auth needed)
 router.get("/public/:cafeteriaId", getPublicMenuByCafeteria);
 
-// 🟡 Get today's specials for specific cafeteria
+// 🟡 Get today's specials for specific cafeteria (no auth needed)
 router.get("/today-specials/:id", getTodaySpecials);
 
-// 🟡 Get most loved items for specific cafeteria
-router.get("/most-loved", getMostLovedItems);
-
-// 🟡 Search by category
-router.get("/category/:category", getBeveragesMenu);
-
-// 🔴 LEGACY (keep for backwards compatibility)
-router.get("/cafeteria/:id", getMenuByCafeteria);
-
-// 🟠 Get all menu items (generic)
+// 🟠 Get all menu items (generic) - no auth needed
 router.get("/", getAllMenuItems);
 
-// ==================== ADMIN WRITE ROUTES (require auth) ====================
+// ==================== PROTECTED ROUTES (Auth Required) ====================
 
-// Add single item
-router.post("/add", authMiddleware, adminOnly, addMenuItem);
+// 🟢 ADMIN: Get their own cafeteria menu (requires auth + admin role)
+router.get("/my-menu", auth, requireRole(["admin"]), getMyMenu);
 
-// Add bulk items
-router.post("/add/bulk", authMiddleware, adminOnly, addBulkMenuItems);
+// 🟡 Get most loved items for specific cafeteria (requires auth)
+router.get("/most-loved", auth, getMostLovedItems);
 
-// Update item
-router.put("/update/:id", authMiddleware, adminOnly, updateMenuItem);
+// 🟡 Search by category (requires auth)
+router.get("/category/:category", auth, getBeveragesMenu);
 
-// Soft delete item
-router.delete("/delete/:id", authMiddleware, adminOnly, deleteMenuItem);
+// 🔴 LEGACY (keep for backwards compatibility - requires auth)
+router.get("/cafeteria/:id", auth, getMenuByCafeteria);
 
-// Restore deleted item
-router.put("/restore/:id", authMiddleware, adminOnly, restoreMenuItem);
+// ==================== ADMIN WRITE ROUTES (Require Auth + Admin Role) ====================
 
-// Get deleted items (for admin to see what was deleted)
-router.get("/deleted", authMiddleware, adminOnly, getDeletedMenuItems);
+// ✅ Add single item
+router.post("/add", auth, requireRole(["admin"]), addMenuItem);
+
+// ✅ Add bulk items
+router.post("/add/bulk", auth, requireRole(["admin"]), addBulkMenuItems);
+
+// ✅ Update item
+router.put("/update/:id", auth, requireRole(["admin"]), updateMenuItem);
+
+// ✅ Soft delete item
+router.delete("/delete/:id", auth, requireRole(["admin"]), deleteMenuItem);
+
+// ✅ Restore deleted item
+router.put("/restore/:id", auth, requireRole(["admin"]), restoreMenuItem);
+
+// ✅ Get deleted items (for admin to see what was deleted)
+router.get("/deleted", auth, requireRole(["admin"]), getDeletedMenuItems);
 
 export default router;
