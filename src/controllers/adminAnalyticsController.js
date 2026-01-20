@@ -278,7 +278,6 @@ export const getTrendData = async (req, res) => {
 
     // 🔴 DAILY → Hourly breakdown (0-23) in IST
     if (range === "daily") {
-      // Use COALESCE to handle null timezone
       dateExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
       groupByExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
       orderByExpr = `EXTRACT(HOUR FROM COALESCE("createdAt" AT TIME ZONE 'Asia/Kolkata', "createdAt"))::INT`;
@@ -395,10 +394,12 @@ export const getTopItems = async (req, res) => {
       `;
     }
 
+    // ✅ MODIFIED: Now returns COUNT, REVENUE, and calculates PERCENTAGE
     const query = `
       SELECT 
         mi.name AS label,
-        SUM(oi.quantity)::INT AS count
+        SUM(oi.quantity)::INT AS count,
+        SUM(oi.quantity * mi.price)::FLOAT AS revenue
       FROM order_items oi
       JOIN orders o ON o.id = oi."orderId"
       JOIN menu_items mi ON mi.id = oi."menuItemId"
@@ -407,7 +408,7 @@ export const getTopItems = async (req, res) => {
         AND o."paymentStatus" = 'SUCCESS'
         ${whereDate}
       GROUP BY mi.name
-      ORDER BY count DESC
+      ORDER BY revenue DESC
       LIMIT 6
     `;
 
@@ -420,13 +421,18 @@ export const getTopItems = async (req, res) => {
 
     console.log("📊 Top Items Result:", items);
 
-    const total = items.reduce((s, i) => s + i.count, 0);
+    // ✅ Calculate total revenue (not quantity)
+    const totalRevenue = items.reduce((s, i) => s + (i.revenue || 0), 0);
 
+    console.log("💰 Total Revenue:", totalRevenue);
+
+    // ✅ Return with REVENUE-based percentage (not quantity-based)
     return res.json(
       items.map((i) => ({
         label: i.label,
         count: i.count,
-        percentage: total ? Math.round((i.count / total) * 100) : 0,
+        revenue: i.revenue,
+        percentage: totalRevenue > 0 ? Math.round((i.revenue / totalRevenue) * 100) : 0,
       }))
     );
   } catch (err) {

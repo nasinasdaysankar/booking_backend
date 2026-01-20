@@ -123,7 +123,11 @@ export default (sequelize) => {
         allowNull: false,
         defaultValue: false,
       },
-
+isParcelAvailable: {
+  type: DataTypes.BOOLEAN,
+  allowNull: false,
+  defaultValue: true,
+},
       // 📅 Which date it is special for (YYYY-MM-DD)
       specialDate: {
         type: DataTypes.DATEONLY,
