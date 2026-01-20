@@ -19,6 +19,7 @@ export const addMenuItem = async (req, res) => {
       imageUrl,
       category,
       isTodaySpecial: isTodaySpecial === true,
+
       specialDate: isTodaySpecial ? today : null,
     });
 
@@ -101,6 +102,11 @@ import { Cafeteria } from "../models/index.js";
 export const getMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = req.params.id;
+    console.log(items.map(i => ({
+  name: i.name,
+  isParcelAvailable: i.isParcelAvailable
+})));
+
 
     // Only check cafeteria exists
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
