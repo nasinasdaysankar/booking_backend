@@ -149,22 +149,19 @@ export const login = async (req, res) => {
 
 
 export const sendOtp = async (req, res) => {
-  console.log("📥 /send-otp HIT");
+  console.log("📥 SEND OTP API HIT");
   console.log("📦 Body:", req.body);
 
   try {
     const { email } = req.body;
 
     if (!email) {
-      console.log("❌ Email missing");
       return res.status(400).json({ message: "Email required" });
     }
 
     let user = await User.findOne({ where: { email } });
-    console.log("👤 Existing user:", user ? user.email : "NOT FOUND");
 
     if (!user) {
-      console.log("🆕 Creating new user");
       user = await User.create({
         email,
         role: "student",
@@ -172,16 +169,25 @@ export const sendOtp = async (req, res) => {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("🔐 Generated OTP:", otp);
 
     user.otpCode = otp;
     user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
     await user.save();
 
-    console.log("✅ OTP saved in DB");
+    // ✅ SEND EMAIL
+    await transporter.sendMail({
+      from: `"Velish App" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Your OTP for Velish Login",
+      html: `
+        <h2>Velish Login OTP</h2>
+        <p>Your OTP is:</p>
+        <h1 style="letter-spacing: 5px;">${otp}</h1>
+        <p>This OTP will expire in 5 minutes.</p>
+      `,
+    });
 
-    // ⚠️ TEMPORARY: NO EMAIL, JUST LOG
-    console.log("📧 OTP SENT (DEV MODE):", otp);
+    console.log("📧 OTP EMAIL SENT TO:", email);
 
     return res.status(200).json({
       message: "OTP sent successfully",
@@ -192,7 +198,6 @@ export const sendOtp = async (req, res) => {
     return res.status(500).json({ message: "OTP send failed" });
   }
 };
-
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
