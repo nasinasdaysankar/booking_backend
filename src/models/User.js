@@ -12,6 +12,14 @@ export default (sequelize) => {
     allowNull: true,
   },
   
+
+  otpCode: {
+  type: DataTypes.STRING,
+},
+otpExpiry: {
+  type: DataTypes.DATE,
+},
+
     role: { // 'student' or 'staff'
       type: DataTypes.ENUM('student', 'staff', 'admin'),
       allowNull: false,

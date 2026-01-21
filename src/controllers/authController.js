@@ -146,3 +146,74 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Login error ❌" });
   }
 };
+
+
+export const sendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        role: "student", // default
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    user.otpCode = otp;
+    user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    await user.save();
+
+    console.log("📧 OTP (DEV ONLY):", otp);
+
+    // TODO: Send via email service
+    return res.json({ message: "OTP sent successfully" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "OTP send failed" });
+  }
+};
+
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    if (
+      user.otpCode !== otp ||
+      !user.otpExpiry ||
+      new Date() > user.otpExpiry
+    ) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    user.otpCode = null;
+    user.otpExpiry = null;
+    await user.save();
+
+    const token = signToken(user);
+
+    res.json({
+      message: "Login successful 🎉",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "OTP verification failed" });
+  }
+};
