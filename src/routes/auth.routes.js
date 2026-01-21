@@ -1,8 +1,8 @@
 import express from "express";
 import {
-  register,
-  login,
-  googleLogin,
+  //register,
+  //login,
+  //googleLogin,
   sendOtp,
   verifyOtp
 } from "../controllers/authController.js";
@@ -10,9 +10,9 @@ import {
 const router = express.Router();
 
 // PUBLIC AUTH ROUTES
-router.post("/register", register);
-router.post("/login", login);
-router.post("/google", googleLogin);
+// router.post("/register", register);
+// router.post("/login", login);
+// router.post("/google", googleLogin);
 
 // ✅ OTP ROUTES (FIXED)
 router.post("/send-otp", sendOtp);

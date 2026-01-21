@@ -20,6 +20,12 @@ otpExpiry: {
   type: DataTypes.DATE,
 },
 
+fcmToken: {
+  type: DataTypes.STRING,
+  allowNull: true,
+},
+
+
     role: { // 'student' or 'staff'
       type: DataTypes.ENUM('student', 'staff', 'admin'),
       allowNull: false,
