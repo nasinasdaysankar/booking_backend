@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { User } from "../models/index.js";
+import transporter from "../utils/mailer.js"; // ✅ ADD THIS
 import admin from "../config/firebaseAdmin.js";
 
 
