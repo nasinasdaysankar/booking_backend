@@ -4,7 +4,8 @@ import {
   //login,
   //googleLogin,
   sendOtp,
-  verifyOtp
+  verifyOtp,
+  saveFcmForOtp
 } from "../controllers/authController.js";
 
 const router = express.Router();
@@ -17,5 +18,7 @@ const router = express.Router();
 // ✅ OTP ROUTES (FIXED)
 router.post("/send-otp", sendOtp);
 router.post("/verify-otp", verifyOtp);
+router.post("/save-fcm", saveFcmForOtp);
+
 
 export default router;

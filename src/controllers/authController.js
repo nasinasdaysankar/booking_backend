@@ -345,3 +345,22 @@ export const verifyOtp = async (req, res) => {
     return res.status(500).json({ message: "OTP verification failed" });
   }
 };
+// POST /api/auth/save-fcm
+export const saveFcmForOtp = async (req, res) => {
+  const { email, fcmToken } = req.body;
+
+  if (!email || !fcmToken) {
+    return res.status(400).json({ message: "Email and FCM required" });
+  }
+
+  let user = await User.findOne({ where: { email } });
+
+  if (!user) {
+    user = await User.create({ email, role: "student" });
+  }
+
+  user.fcmToken = fcmToken;
+  await user.save();
+
+  return res.json({ message: "FCM token registered" });
+};
