@@ -462,35 +462,46 @@ export const confirmPayment = async (req, res) => {
       transaction: t,
     });
 
-    if (!existingItem && Array.isArray(items) && items.length > 0) {
-      const itemsToCreate = items.map((item) => ({
-        orderId: order.id,
-        menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
-        name: item.name,
-        quantity: item.quantity || item.qty,
-        priceAtOrder: item.price,
-        imageUrl: item.imageUrl || item.img || null,
-        isParcel: item.isParcelSelected || false, // 🧺 NEW: Track parcel per item
-      }));
+    
+if (!existingItem && Array.isArray(items) && items.length > 0) {
+  console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2)); // DEBUG LOG
+  
+  const itemsToCreate = items.map((item) => {
+    const isParcelForThisItem = Boolean(item.isParcelSelected);
+    
+    console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`); // DEBUG LOG
+    
+    return {
+      orderId: order.id,
+      menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
+      name: item.name,
+      quantity: item.quantity || item.qty,
+      priceAtOrder: item.price,
+      imageUrl: item.imageUrl || item.img || null,
+      isParcel: isParcelForThisItem, // 🧺 CRITICAL: Must be explicit boolean
+    };
+  });
 
-      const hasInvalidItem = itemsToCreate.some(
-        (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
-      );
+  const hasInvalidItem = itemsToCreate.some(
+    (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
+  );
 
-      if (hasInvalidItem) {
-        throw new Error("One or more items are missing a valid quantity.");
-      }
+  if (hasInvalidItem) {
+    throw new Error("One or more items are missing a valid quantity.");
+  }
 
-      await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
-      
-      console.log(`✅ Created ${itemsToCreate.length} order items`);
-      
-      // 🧺 Log which items have parcel
-      const parcelItems = itemsToCreate.filter(i => i.isParcel);
-      if (parcelItems.length > 0) {
-        console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
-      }
-    }
+  await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+  
+  console.log(`✅ Created ${itemsToCreate.length} order items`);
+  
+  // 🧺 Log which items have parcel
+  const parcelItems = itemsToCreate.filter(i => i.isParcel);
+  if (parcelItems.length > 0) {
+    console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
+  } else {
+    console.log(`📦 No items have parcel packaging`);
+  }
+}
 
     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
     await t.commit();
