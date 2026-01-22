@@ -77,6 +77,243 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 // ✅ CONFIRM PAYMENT (FROM FLUTTER APP)
 // ===================================================================
+// export const confirmPayment = async (req, res) => {
+//   const t = await sequelize.transaction();
+
+//   try {
+//     const {
+//       orderId: cashfreeOrderId,
+//       billId,
+//       cafeteriaId,
+//       transactionId,
+//       amount,
+//       items,
+//        isParcel,
+//   parcelAmount,
+//     } = req.body;
+
+//     const authenticatedStudentId = req.user.id;
+
+//     console.log("💳 Payment confirmation request:", {
+//       cashfreeOrderId,
+//       billId,
+//       cafeteriaId,
+//       amount,
+//       studentId: authenticatedStudentId,
+//     });
+
+//     if (!cashfreeOrderId || !billId || !cafeteriaId || !amount || !transactionId) {
+//       await t.rollback();
+//       return res.status(400).json({
+//         success: false,
+//         message: "Missing required payment fields.",
+//       });
+//     }
+
+//     // Create order first
+//     let order = await Order.findOne({
+//       where: { cashfreeOrderId },
+//       transaction: t,
+//       lock: t.LOCK.UPDATE,
+//     });
+
+//     let kotNumber = null;
+
+//     if (!order) {
+//       kotNumber = await generateKotNumber(cafeteriaId, t);
+//       console.log("📝 Creating new order with KOT:", kotNumber);
+
+//       order = await Order.create(
+//         {
+//           cashfreeOrderId,
+//           billId,
+//           studentId: authenticatedStudentId,
+//           cafeteriaId,
+//           totalAmount: amount,
+//           status: "PAID",
+//           paymentStatus: "SUCCESS",
+//           kotNumber,
+//            isParcel: Boolean(isParcel),
+//     parcelAmount: Number(parcelAmount) || 0,
+//         },
+//         { transaction: t }
+//       );
+
+//       console.log("✅ Order created:", order.id);
+//     } else {
+//       kotNumber = order.kotNumber;
+//       await order.update(
+//         {
+//           status: "PAID",
+//           paymentStatus: "SUCCESS",
+//            isParcel: Boolean(isParcel),
+//     parcelAmount: Number(parcelAmount) || 0,
+//         },
+//         { transaction: t }
+//       );
+//       console.log("✅ Order updated:", order.id);
+//     }
+
+
+   
+
+//     // Create payment record
+//     const existingPayment = await Payment.findOne({
+//       where: { cashfreeOrderId },
+//       transaction: t,
+//     });
+
+//     if (!existingPayment) {
+//       console.log("💳 Creating payment record");
+
+//       await Payment.create(
+//         {
+//           orderId: order.id,
+//           billId,
+//           cafeteriaId,
+//           paymentGateway: "CASHFREE",
+//           cashfreeOrderId,
+//           transactionId,
+//           amount,
+//           status: "SUCCESS",
+//           paidAt: new Date(),
+//           // paymentId will be added by webhook
+//         },
+//         { transaction: t }
+//       );
+
+//       console.log("✅ Payment record created (webhook will add paymentId)");
+//     } else {
+//       console.log("ℹ️ Payment already exists:", existingPayment.id);
+//     }
+
+
+// // 🔗 LINK WEBHOOK PAYMENT ID (if webhook arrived earlier)
+// const [pending] = await sequelize.query(`
+//   SELECT payment_id FROM pending_webhooks
+//   WHERE cashfree_order_id = :orderId
+// `, {
+//   replacements: { orderId: cashfreeOrderId },
+//   transaction: t
+// });
+
+// if (pending.length > 0) {
+//   console.log("🔗 Linking stored webhook paymentId:", pending[0].payment_id);
+
+//   await Payment.update(
+//     { paymentId: pending[0].payment_id },
+//     { where: { cashfreeOrderId }, transaction: t }
+//   );
+
+//   await sequelize.query(`
+//     DELETE FROM pending_webhooks WHERE cashfree_order_id = :orderId
+//   `, {
+//     replacements: { orderId: cashfreeOrderId },
+//     transaction: t
+//   });
+// }
+
+
+//     // Create order items
+//     const existingItem = await OrderItem.findOne({
+//       where: { orderId: order.id },
+//       transaction: t,
+//     });
+
+//     if (!existingItem && Array.isArray(items) && items.length > 0) {
+//       const itemsToCreate = items.map((item) => ({
+//         orderId: order.id,
+//         menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
+//         name: item.name,
+//         quantity: item.quantity || item.qty,
+//         priceAtOrder: item.price,
+//         imageUrl: item.imageUrl || item.img || null,
+//       }));
+
+//       const hasInvalidItem = itemsToCreate.some(
+//         (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
+//       );
+
+//       if (hasInvalidItem) {
+//         throw new Error("One or more items are missing a valid quantity.");
+//       }
+
+//       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+//       console.log(`✅ Created ${itemsToCreate.length} order items`);
+//     }
+
+//     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
+//     await t.commit();
+    
+//     console.log("✅ Transaction committed successfully");
+
+//     // Send notifications
+//     try {
+//       emitNewOrder(cafeteriaId, {
+//         orderId: order.id,
+//         billId: order.billId,
+//         kotNumber: order.kotNumber,
+//         totalAmount: order.totalAmount,
+//         status: order.status,
+//         createdAt: order.createdAt,
+//       });
+
+//       const adminTokens = await AdminFcmToken.findAll({
+//         where: { cafeteriaId },
+//       });
+
+//       if (adminTokens.length > 0) {
+//         await admin.messaging().sendEachForMulticast({
+//           tokens: adminTokens.map((t) => t.fcmToken),
+//           notification: {
+//             title: "🍽 New Order Received",
+//             body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+//           },
+//           android: {
+//             priority: "high",
+//             notification: {
+//               channelId: "high_importance_channel",
+//             },
+//           },
+//         });
+
+//         console.log("🔔 FCM notification sent to admins");
+//       }
+//     } catch (notifyErr) {
+//       console.error("⚠️ Notification error (ignored):", notifyErr);
+//     }
+
+//     return res.json({
+//       success: true,
+//       dbOrderId: order.id,
+//       billId: order.billId,
+//       kotNumber,
+//       message: "Payment confirmed successfully. Order sent to cafeteria.",
+//     });
+    
+//   } catch (err) {
+//     if (!t.finished) {
+//       await t.rollback();
+//     }
+
+//     console.error("❌ CONFIRM PAYMENT ERROR:", err);
+
+//     if (err.name === "SequelizeUniqueConstraintError") {
+//       return res.status(400).json({
+//         success: false,
+//         error: "This transaction has already been processed.",
+//       });
+//     }
+
+//     return res.status(500).json({
+//       success: false,
+//       error: err.message,
+//     });
+//   }
+// };
+// ===================================================================
+// ✅ CONFIRM PAYMENT (FROM FLUTTER APP) - UPDATED WITH PARCEL TRACKING
+// ===================================================================
 export const confirmPayment = async (req, res) => {
   const t = await sequelize.transaction();
 
@@ -88,8 +325,8 @@ export const confirmPayment = async (req, res) => {
       transactionId,
       amount,
       items,
-       isParcel,
-  parcelAmount,
+      isParcel,
+      parcelAmount,
     } = req.body;
 
     const authenticatedStudentId = req.user.id;
@@ -100,6 +337,8 @@ export const confirmPayment = async (req, res) => {
       cafeteriaId,
       amount,
       studentId: authenticatedStudentId,
+      isParcel,
+      parcelAmount,
     });
 
     if (!cashfreeOrderId || !billId || !cafeteriaId || !amount || !transactionId) {
@@ -133,8 +372,8 @@ export const confirmPayment = async (req, res) => {
           status: "PAID",
           paymentStatus: "SUCCESS",
           kotNumber,
-           isParcel: Boolean(isParcel),
-    parcelAmount: Number(parcelAmount) || 0,
+          isParcel: Boolean(isParcel),
+          parcelAmount: Number(parcelAmount) || 0,
         },
         { transaction: t }
       );
@@ -146,16 +385,13 @@ export const confirmPayment = async (req, res) => {
         {
           status: "PAID",
           paymentStatus: "SUCCESS",
-           isParcel: Boolean(isParcel),
-    parcelAmount: Number(parcelAmount) || 0,
+          isParcel: Boolean(isParcel),
+          parcelAmount: Number(parcelAmount) || 0,
         },
         { transaction: t }
       );
       console.log("✅ Order updated:", order.id);
     }
-
-
-   
 
     // Create payment record
     const existingPayment = await Payment.findOne({
@@ -187,34 +423,40 @@ export const confirmPayment = async (req, res) => {
       console.log("ℹ️ Payment already exists:", existingPayment.id);
     }
 
+    // 🔗 LINK WEBHOOK PAYMENT ID (if webhook arrived earlier)
+    const [pending] = await sequelize.query(
+      `
+      SELECT payment_id FROM pending_webhooks
+      WHERE cashfree_order_id = :orderId
+    `,
+      {
+        replacements: { orderId: cashfreeOrderId },
+        transaction: t,
+      }
+    );
 
-// 🔗 LINK WEBHOOK PAYMENT ID (if webhook arrived earlier)
-const [pending] = await sequelize.query(`
-  SELECT payment_id FROM pending_webhooks
-  WHERE cashfree_order_id = :orderId
-`, {
-  replacements: { orderId: cashfreeOrderId },
-  transaction: t
-});
+    if (pending.length > 0) {
+      console.log("🔗 Linking stored webhook paymentId:", pending[0].payment_id);
 
-if (pending.length > 0) {
-  console.log("🔗 Linking stored webhook paymentId:", pending[0].payment_id);
+      await Payment.update(
+        { paymentId: pending[0].payment_id },
+        { where: { cashfreeOrderId }, transaction: t }
+      );
 
-  await Payment.update(
-    { paymentId: pending[0].payment_id },
-    { where: { cashfreeOrderId }, transaction: t }
-  );
+      await sequelize.query(
+        `
+        DELETE FROM pending_webhooks WHERE cashfree_order_id = :orderId
+      `,
+        {
+          replacements: { orderId: cashfreeOrderId },
+          transaction: t,
+        }
+      );
+    }
 
-  await sequelize.query(`
-    DELETE FROM pending_webhooks WHERE cashfree_order_id = :orderId
-  `, {
-    replacements: { orderId: cashfreeOrderId },
-    transaction: t
-  });
-}
-
-
-    // Create order items
+    // ===================================================================
+    // 🧺 CREATE ORDER ITEMS (WITH PARCEL TRACKING PER ITEM)
+    // ===================================================================
     const existingItem = await OrderItem.findOne({
       where: { orderId: order.id },
       transaction: t,
@@ -228,6 +470,7 @@ if (pending.length > 0) {
         quantity: item.quantity || item.qty,
         priceAtOrder: item.price,
         imageUrl: item.imageUrl || item.img || null,
+        isParcel: item.isParcelSelected || false, // 🧺 NEW: Track parcel per item
       }));
 
       const hasInvalidItem = itemsToCreate.some(
@@ -239,12 +482,19 @@ if (pending.length > 0) {
       }
 
       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+      
       console.log(`✅ Created ${itemsToCreate.length} order items`);
+      
+      // 🧺 Log which items have parcel
+      const parcelItems = itemsToCreate.filter(i => i.isParcel);
+      if (parcelItems.length > 0) {
+        console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
+      }
     }
 
     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
     await t.commit();
-    
+
     console.log("✅ Transaction committed successfully");
 
     // Send notifications
@@ -290,7 +540,6 @@ if (pending.length > 0) {
       kotNumber,
       message: "Payment confirmed successfully. Order sent to cafeteria.",
     });
-    
   } catch (err) {
     if (!t.finished) {
       await t.rollback();
