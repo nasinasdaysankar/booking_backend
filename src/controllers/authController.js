@@ -17,56 +17,92 @@ const signToken = (user) => {
 };
 
 
+// export const googleLogin = async (req, res) => {
+//   try {
+//     const { idToken } = req.body;
+
+//     if (!idToken) {
+//       return res.status(400).json({ message: "ID token missing" });
+//     }
+
+//     // 🔐 Verify Firebase ID Token
+//     const decoded = await admin.auth().verifyIdToken(idToken);
+
+//     const email = decoded.email;
+//     const name = decoded.name || "Google User";
+
+//     // ✅ ONLY GOOGLE USERS — DEFAULT ROLE
+//     const role = "student";
+
+//     // 🔎 Find or create user
+//     let user = await User.findOne({ where: { email } });
+
+//     if (!user) {
+//       user = await User.create({
+//         name,
+//         email,
+//         role,               // ✅ ENUM SAFE
+//         passwordHash: null, // Google users don’t need password
+//       });
+//     }
+
+//     const token = signToken(user);
+
+//     return res.json({
+//       message: "Google login successful 🎉",
+//       token,
+//       user: {
+//         id: user.id,
+//         name: user.name,
+//         email: user.email,
+//         role: user.role,
+//       },
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Google auth error:", err);
+//     return res.status(401).json({
+//       message: "Google authentication failed",
+//     });
+//   }
+// };
 export const googleLogin = async (req, res) => {
   try {
     const { idToken } = req.body;
+    
+    // Verify Firebase token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const { email, name, picture } = decodedToken;
 
-    if (!idToken) {
-      return res.status(400).json({ message: "ID token missing" });
-    }
-
-    // 🔐 Verify Firebase ID Token
-    const decoded = await admin.auth().verifyIdToken(idToken);
-
-    const email = decoded.email;
-    const name = decoded.name || "Google User";
-
-    // ✅ ONLY GOOGLE USERS — DEFAULT ROLE
-    const role = "student";
-
-    // 🔎 Find or create user
     let user = await User.findOne({ where: { email } });
 
     if (!user) {
       user = await User.create({
-        name,
         email,
-        role,               // ✅ ENUM SAFE
-        passwordHash: null, // Google users don’t need password
+        name,
+        role: "student",
+        // phone will be null initially
       });
     }
 
     const token = signToken(user);
 
     return res.json({
-      message: "Google login successful 🎉",
+      message: "Google login successful",
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,  // ✅ MAKE SURE THIS IS INCLUDED
         role: user.role,
       },
     });
-
   } catch (err) {
-    console.error("❌ Google auth error:", err);
-    return res.status(401).json({
-      message: "Google authentication failed",
-    });
+    console.error("Google login error:", err);
+    return res.status(500).json({ message: "Google login failed" });
   }
 };
-
 /* ===========================================================
    📌 REGISTER ONLY UNIVERSITY EMAILS
    - alliance.edu.in → FACULTY
