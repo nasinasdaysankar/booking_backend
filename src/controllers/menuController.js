@@ -469,13 +469,25 @@ export const restoreMenuItem = async (req, res) => {
  * Used by Flutter users
  * URL: /api/menu/public/:cafeteriaId
  */
+/**
+ * 🚀 PUBLIC MENU (FAST, CACHED, LIGHT)
+ * URL: /api/menu/public/:cafeteriaId
+ */
 export const getPublicMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = Number(req.params.cafeteriaId);
 
-    const cacheKey = `menu_public_${cafeteriaId}`;
-    const cached = menuCache.get(cacheKey);
+    if (!cafeteriaId) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid cafeteria id",
+      });
+    }
 
+    const cacheKey = `menu_public_${cafeteriaId}`;
+
+    // ✅ CACHE HIT
+    const cached = menuCache.get(cacheKey);
     if (cached) {
       return res.json({
         success: true,
@@ -484,7 +496,48 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       });
     }
 
-    // DB fetch...
+    // ✅ CHECK CAFETERIA
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
+      attributes: ["id", "isOpen"],
+    });
+
+    if (!cafeteria) {
+      return res.status(404).json({
+        success: false,
+        message: "Cafeteria not found",
+      });
+    }
+
+    // ✅ FETCH MENU (INDEX-FRIENDLY QUERY)
+    const items = await MenuItem.findAll({
+      where: {
+        cafeteriaId,
+        isAvailable: true,
+        isDeleted: false,
+      },
+      attributes: [
+        "id",
+        "name",
+        "price",
+        "imageUrl",
+        "category",
+        "isTodaySpecial",
+        "isParcelAvailable",
+      ],
+      order: [
+        ["isTodaySpecial", "DESC"],
+        ["name", "ASC"],
+      ],
+    });
+
+    // ✅ BUILD RESPONSE OBJECT
+    const response = {
+      cafeteriaOpen: cafeteria.isOpen,
+      count: items.length,
+      data: items,
+    };
+
+    // ✅ SAVE TO CACHE
     menuCache.set(cacheKey, response);
 
     return res.json({
