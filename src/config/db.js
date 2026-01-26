@@ -9,8 +9,8 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
 
   // 🔥 VERY IMPORTANT FOR LOAD
   pool: {
-    max: 10,        // max DB connections
-    min: 2,         // keep some alive
+    max: 20,        // max DB connections
+    min: 5,         // keep some alive
     acquire: 30000, // max time to get connection
     idle: 10000,    // release idle connections
   },
