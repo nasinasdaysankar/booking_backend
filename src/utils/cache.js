@@ -1,7 +1,6 @@
 import NodeCache from "node-cache";
 
-// 60 seconds cache (you can increase later)
 export const menuCache = new NodeCache({
-  stdTTL: 60,
-  checkperiod: 120,
+  stdTTL: 300,   // 5 minutes instead of 1
+  checkperiod: 600,
 });

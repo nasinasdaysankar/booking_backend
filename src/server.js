@@ -14,6 +14,8 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
+import compression from "compression";
+
 
 
 
@@ -81,6 +83,8 @@ const start = async () => {
     app.use("/api/user", userRoutes);
     app.use("/api/admin", adminRoutes);
     app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
+    app.use(compression());
+
 
 
 
