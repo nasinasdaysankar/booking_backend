@@ -1,5 +1,6 @@
 import { MenuItem, sequelize } from "../models/index.js";
 import { Op } from "sequelize";
+import { menuCache } from "../utils/cache.js";
 
 
 /* ================== ADD SINGLE MENU ITEM ================== */
@@ -472,65 +473,18 @@ export const getPublicMenuByCafeteria = async (req, res) => {
   try {
     const cafeteriaId = Number(req.params.cafeteriaId);
 
-    if (!cafeteriaId) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid cafeteria id",
-      });
-    }
-
     const cacheKey = `menu_public_${cafeteriaId}`;
-    const cachedMenu = menuCache.get(cacheKey);
+    const cached = menuCache.get(cacheKey);
 
-    // ✅ RETURN CACHE IF EXISTS
-    if (cachedMenu) {
+    if (cached) {
       return res.json({
         success: true,
         cached: true,
-        ...cachedMenu,
+        ...cached,
       });
     }
 
-    // ✅ Check cafeteria
-    const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-      attributes: ["id", "name", "isOpen"],
-    });
-
-    if (!cafeteria) {
-      return res.status(404).json({
-        success: false,
-        message: "Cafeteria not found",
-      });
-    }
-
-    // ✅ LIGHT QUERY (IMPORTANT)
-    const items = await MenuItem.findAll({
-      where: {
-        cafeteriaId,
-        isDeleted: false,
-        isAvailable: true,
-      },
-      attributes: [
-        "id",
-        "name",
-        "price",
-        "imageUrl",
-        "isTodaySpecial",
-      ],
-      order: [
-        ["isTodaySpecial", "DESC"],
-        ["name", "ASC"],
-      ],
-      limit: 50, // 🔥 VERY IMPORTANT
-    });
-
-    const response = {
-      cafeteriaOpen: cafeteria.isOpen,
-      count: items.length,
-      data: items,
-    };
-
-    // ✅ SAVE TO CACHE
+    // DB fetch...
     menuCache.set(cacheKey, response);
 
     return res.json({
@@ -538,6 +492,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       cached: false,
       ...response,
     });
+
   } catch (err) {
     console.error("❌ Public menu error:", err);
     return res.status(500).json({
@@ -546,12 +501,3 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     });
   }
 };
-
-
-
-
-
-
-
-
-
