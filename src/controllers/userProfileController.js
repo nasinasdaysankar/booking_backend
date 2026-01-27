@@ -113,9 +113,9 @@ export const deleteAccount = async (req, res) => {
 
     const user = await User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "User not found" 
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
       });
     }
 
@@ -139,13 +139,12 @@ export const deleteAccount = async (req, res) => {
     console.log(`   ✅ Deleted ${deletedStreaks} streak records`);
 
     // ====================================
-    // 3. ANONYMIZE ORDER FEEDBACK
+    // 3. DELETE ORDER FEEDBACK (studentId is NOT NULL)
     // ====================================
-    await OrderFeedback.update(
-      { studentId: null },
-      { where: { studentId: userId } }
-    );
-    console.log(`   ✅ Anonymized order feedback`);
+    const deletedFeedback = await OrderFeedback.destroy({
+      where: { studentId: userId }
+    });
+    console.log(`   ✅ Deleted ${deletedFeedback} order feedback records`);
 
     // ====================================
     // 4. ANONYMIZE USER DATA (GDPR Compliant)
@@ -181,9 +180,9 @@ export const deleteAccount = async (req, res) => {
 
   } catch (err) {
     console.error("❌ deleteAccount error:", err);
-    res.status(500).json({ 
-      success: false, 
-      message: "Account deletion failed: " + err.message 
+    res.status(500).json({
+      success: false,
+      message: "Account deletion failed: " + err.message
     });
   }
 };
