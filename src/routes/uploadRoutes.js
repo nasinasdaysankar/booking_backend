@@ -1,121 +1,95 @@
 import express from "express";
 import multer from "multer";
-import cloudinary from "../config/cloudinary.js";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import s3 from "../config/aws_s3.js";
+import slugify from "slugify";
 
 const router = express.Router();
-/**
- * @swagger
- * tags:
- *   name: Image Upload
- *   description: Cloudinary image upload APIs
- */
 
-/**
- * @swagger
- * /api/upload/upload-image:
- *   post:
- *     summary: Upload a single image to Cloudinary
- *     tags: [Image Upload]
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               image:
- *                 type: string
- *                 format: binary
- *                 description: Choose one image file
- *     responses:
- *       200:
- *         description: Image uploaded successfully
- *         content:
- *           application/json:
- *             example:
- *               imageUrl: "https://res.cloudinary.com/yourcloud/image.png"
- *       500:
- *         description: Upload failed
- */
-
-
-/**
- * @swagger
- * /api/upload/upload-multiple:
- *   post:
- *     summary: Upload multiple images to Cloudinary
- *     tags: [Image Upload]
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: binary
- *                 description: Select multiple files
- *     responses:
- *       200:
- *         description: Images uploaded successfully
- *         content:
- *           application/json:
- *             example:
- *               success: true
- *               count: 3
- *               images:
- *                 - "https://res.cloudinary.com/.../img1.png"
- *                 - "https://res.cloudinary.com/.../img2.png"
- *                 - "https://res.cloudinary.com/.../img3.png"
- *       500:
- *         description: Upload failed
- */
-
-
-// Cloudinary Storage Setup
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "restaurant_images",
-    allowed_formats: ["jpg", "jpeg", "png"],
-  },
-});
-
-const upload = multer({ storage });
+// Multer memory storage (required for S3)
+const upload = multer({ storage: multer.memoryStorage() });
 
 /** ===========================
- *  📍 SINGLE IMAGE UPLOAD
+ *  📍 SINGLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-image
  * ===========================*/
 router.post("/upload-image", upload.single("image"), async (req, res) => {
   try {
-    res.json({ imageUrl: req.file.path });
+    if (!req.file) {
+      return res.status(400).json({ message: "Image file required" });
+    }
+
+    const safeName = slugify(req.file.originalname.split(".")[0], {
+      lower: true,
+    });
+
+    const ext = req.file.mimetype === "image/png" ? "png" : "jpg";
+    const s3Key = `images/uploads/${safeName}-${Date.now()}.${ext}`;
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: s3Key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
+
+    const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+
+    res.json({ imageUrl });
   } catch (err) {
-    res.status(500).json({ message: "Upload failed" });
+    res.status(500).json({
+      message: "Upload failed",
+      error: err.message,
+    });
   }
 });
 
-
 /** ===========================
- *  📍 MULTIPLE IMAGE UPLOAD
+ *  📍 MULTIPLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-multiple
  * ===========================*/
 router.post("/upload-multiple", upload.array("images", 10), async (req, res) => {
   try {
-    const uploadedImages = req.files.map(file => file.path);
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "Images required" });
+    }
+
+    const uploadedImages = [];
+
+    for (const file of req.files) {
+      const safeName = slugify(file.originalname.split(".")[0], {
+        lower: true,
+      });
+      const ext = file.mimetype === "image/png" ? "png" : "jpg";
+      const s3Key = `images/uploads/${safeName}-${Date.now()}.${ext}`;
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: s3Key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        })
+      );
+
+      uploadedImages.push(
+        `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`
+      );
+    }
 
     res.json({
       success: true,
       count: uploadedImages.length,
       images: uploadedImages,
     });
-
   } catch (err) {
-    res.status(500).json({ success: false, message: "Bulk Upload failed", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Bulk upload failed",
+      error: err.message,
+    });
   }
 });
 

@@ -1,6 +1,7 @@
 import { Banner } from "../models/index.js";
-import cloudinary from "../config/cloudinary.js";
-
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import s3 from "../config/aws_s3.js";
+import slugify from "slugify";
 
 // ==================== GET ALL BANNERS ====================
 export const getBanners = async (req, res) => {
@@ -8,48 +9,56 @@ export const getBanners = async (req, res) => {
     const banners = await Banner.findAll();
     res.json(banners);
   } catch (err) {
-    res.status(500).json({ message: "Unable to fetch banners", error: err.message });
+    res.status(500).json({
+      message: "Unable to fetch banners",
+      error: err.message,
+    });
   }
 };
 
-
-// ==================== UPLOAD + SAVE BANNER ====================
+// ==================== UPLOAD + SAVE BANNER (S3) ====================
 export const uploadBanner = async (req, res) => {
   try {
     const { name, cafeteriaId } = req.body;
 
     if (!name) return res.status(400).json({ message: "Banner name required" });
-    if (!cafeteriaId) return res.status(400).json({ message: "cafeteriaId required" });
-    if (!req.file) return res.status(400).json({ message: "Banner image required" });
+    if (!cafeteriaId)
+      return res.status(400).json({ message: "cafeteriaId required" });
+    if (!req.file)
+      return res.status(400).json({ message: "Banner image required" });
 
-    const upload = cloudinary.uploader.upload_stream(
-      { folder: "restaurant_banners" },
-      async (err, result) => {
-        if (err)
-          return res.status(500).json({
-            message: "Cloudinary Upload Failed",
-            error: err.message
-          });
+    const safeName = slugify(name, { lower: true });
+    const ext = req.file.mimetype === "image/png" ? "png" : "jpg";
 
-        const banner = await Banner.create({
-          name,
-          cafeteriaId,      // ✅ SAVE cafeteriaId
-          imageUrl: result.secure_url
-        });
+    const s3Key = `images/banners/${safeName}.${ext}`;
 
-        return res.json({
-          success: true,
-          message: "Banner uploaded successfully 🎉",
-          data: banner
-        });
-      }
+    // Upload to S3
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: s3Key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
     );
 
-    upload.end(req.file.buffer);
+    const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+
+    const banner = await Banner.create({
+      name,
+      cafeteriaId,
+      imageUrl,
+    });
+
+    return res.json({
+      success: true,
+      message: "Banner uploaded successfully 🎉",
+      data: banner,
+    });
   } catch (err) {
     return res.status(500).json({
-      message: "Upload Failed",
-      error: err.message
+      message: "Banner upload failed",
+      error: err.message,
     });
   }
 };
