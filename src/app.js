@@ -24,6 +24,11 @@ import { swaggerUiServe, swaggerUiSetup } from "./swagger.js";
 
 const app = express();
 
+// ============================================
+// 🔥 TRUST PROXY - Required for Railway/Heroku
+// ============================================
+app.set('trust proxy', 1);
+
 // ================= MIDDLEWARE =================
 app.use(cors());
 app.use(express.json());
@@ -33,7 +38,7 @@ app.use(express.json());
 // ============================================
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 200,             // 200 requests per IP per minute
+  max: 1000,            // ✅ Increased to 1000 requests per IP per minute
   message: { success: false, message: "Too many requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -42,7 +47,7 @@ const generalLimiter = rateLimit({
 // Stricter limit for payment endpoints
 const paymentLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 20,              // Only 20 payment requests per minute per IP
+  max: 100,             // ✅ Increased to 100 payment requests per minute per IP
   message: { success: false, message: "Payment rate limit exceeded. Please wait." },
 });
 
