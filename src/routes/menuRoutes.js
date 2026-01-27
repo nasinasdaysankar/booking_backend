@@ -27,7 +27,7 @@ router.post("/add", addMenuItem);
 router.post("/add/bulk", addBulkMenuItems);    
  router.get("/", getAllMenuItems);
 router.get("/category/:category", getBeveragesMenu);
-// router.get("/cafeteria/:id", getMenuByCafeteria);
+router.get("/cafeteria/:id", getMenuByCafeteria);
 router.put("/update-image/:id", updateSingleImage);
 router.put("/update-images", updateMultipleImages);
 router.put("/update-category", updateCategoryBulk);
