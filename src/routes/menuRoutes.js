@@ -25,7 +25,7 @@ const upload = multer({ dest: "uploads/" });
 
 router.post("/add", addMenuItem);              
 router.post("/add/bulk", addBulkMenuItems);    
-// router.get("/", getAllMenuItems);
+ router.get("/", getAllMenuItems);
 router.get("/category/:category", getBeveragesMenu);
 // router.get("/cafeteria/:id", getMenuByCafeteria);
 router.put("/update-image/:id", updateSingleImage);
