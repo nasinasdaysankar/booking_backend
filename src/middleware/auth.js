@@ -1,8 +1,18 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import NodeCache from "node-cache";
 import { User, Admin } from "../models/index.js";
 
 dotenv.config();
+
+// ============================================
+// 🔥 AUTH CACHE - Reduces DB queries per request
+// ============================================
+const authCache = new NodeCache({ 
+  stdTTL: 300,      // 5 minutes cache
+  checkperiod: 60,  // Check for expired keys every 60s
+  useClones: false  // Better performance
+});
 
 // middleware/auth.js
 export const auth = async (req, res, next) => {
@@ -15,6 +25,20 @@ export const auth = async (req, res, next) => {
     const token = header.split(" ")[1];
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
+    // ============================================
+    // ✅ CHECK CACHE FIRST (Skip DB query)
+    // ============================================
+    const cacheKey = `auth_${payload.id}`;
+    const cachedUser = authCache.get(cacheKey);
+    
+    if (cachedUser) {
+      req.user = cachedUser;
+      return next();
+    }
+
+    // ============================================
+    // 🔍 CACHE MISS - Query Database
+    // ============================================
     // Check Admin table first using the ID from the token
     let account = await Admin.findByPk(payload.id);
 
@@ -28,12 +52,18 @@ export const auth = async (req, res, next) => {
     }
 
     // Attach normalized data to the request
-    req.user = {
+    const userData = {
       id: account.id,
       role: account.role, 
       cafeteriaId: account.cafeteriaId || null,
     };
 
+    // ============================================
+    // ✅ CACHE THE USER DATA
+    // ============================================
+    authCache.set(cacheKey, userData);
+    
+    req.user = userData;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: "Invalid or expired token" });
@@ -60,6 +90,13 @@ export const requireRole = (roles = []) => {
 
     next();
   };
+};
+
+// ============================================
+// 🗑️ HELPER: Clear user from cache (on logout/delete)
+// ============================================
+export const clearAuthCache = (userId) => {
+  authCache.del(`auth_${userId}`);
 };
 
 

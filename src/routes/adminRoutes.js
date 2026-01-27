@@ -1,11 +1,11 @@
 import express from 'express';
 import { Op } from 'sequelize';
 import { auth, requireRole } from '../middleware/auth.js';
-import { 
-  getAdminOrders, 
-  updateOrderStatus, 
+import {
+  getAdminOrders,
+  updateOrderStatus,
   getMyCafeteriaQR,
-  getAdminStats 
+  getAdminStats
 } from '../controllers/adminOrderController.js';
 import {
   getTrendData, getTopItems, getOrdersOverview, getPeakHours
@@ -17,6 +17,7 @@ import {
   getRefundHistory,
   checkWebhookStatus
 } from '../controllers/adminRefundController.js';
+import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';  // ✅ ADD THIS
 
 const router = express.Router();
 
@@ -316,6 +317,19 @@ router.post(
  * 
  * QR VERIFICATION:
  *   POST /orders/verify-qr               - Verify QR for order collection
+ * 
+ * ACCOUNT MANAGEMENT:
+ *   DELETE /delete-account               - Delete admin account (App Store/Play Store required)
  */
+
+// ============================================
+// 🗑️ ACCOUNT DELETION (Required by App Store / Play Store)
+// ============================================
+/**
+ * DELETE /api/admin/delete-account
+ * Permanently delete admin account
+ * Required for App Store and Play Store compliance
+ */
+router.delete("/delete-account", auth, requireRole(['admin']), deleteAdminAccount);
 
 export default router;

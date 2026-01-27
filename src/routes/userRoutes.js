@@ -33,9 +33,10 @@ import {
   confirmOrderPickup,
 } from "../controllers/userOrderController.js";
 import { getUserStreak } from "../controllers/userStreakController.js";
-import { 
-  updateProfile, 
-  getProfile  // ✅ ADD THIS
+import {
+  updateProfile,
+  getProfile,
+  deleteAccount  // ✅ ADD THIS
 } from "../controllers/userProfileController.js";
 import { getUserRefundHistory } from "../controllers/adminRefundController.js";
 
@@ -49,8 +50,13 @@ router.post("/orders/confirm-pickup", auth, confirmOrderPickup);
 router.get("/streak/:cafeteriaId", auth, getUserStreak);
 
 // PROFILE
-router.get("/profile", auth, getProfile);      // ✅ ADD THIS
+router.get("/profile", auth, getProfile);
 router.put("/profile", auth, updateProfile);
+
+// ============================================
+// 🗑️ ACCOUNT DELETION (Required by App Store / Play Store)
+// ============================================
+router.delete("/delete-account", auth, deleteAccount);
 
 // REFUND HISTORY
 router.get("/refunds/history", auth, getUserRefundHistory);

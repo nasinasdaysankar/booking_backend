@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 
 import authRoutes from "./routes/auth.routes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
@@ -23,9 +24,38 @@ import { swaggerUiServe, swaggerUiSetup } from "./swagger.js";
 
 const app = express();
 
+// ============================================
+// 🔥 TRUST PROXY - Required for Railway/Heroku
+// ============================================
+app.set('trust proxy', 1);
+
 // ================= MIDDLEWARE =================
 app.use(cors());
 app.use(express.json());
+
+// ============================================
+// 🔥 RATE LIMITING - Protect against abuse
+// ============================================
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 1000,            // ✅ Increased to 1000 requests per IP per minute
+  message: { success: false, message: "Too many requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter limit for payment endpoints
+const paymentLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 100,             // ✅ Increased to 100 payment requests per minute per IP
+  message: { success: false, message: "Payment rate limit exceeded. Please wait." },
+});
+
+// Apply general rate limit to all API routes
+app.use("/api/", generalLimiter);
+
+// Apply stricter limit to payment routes
+app.use("/api/payments", paymentLimiter);
 
 // ================= SWAGGER =================
 app.use("/api-docs", swaggerUiServe, swaggerUiSetup);

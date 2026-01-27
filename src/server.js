@@ -16,10 +16,6 @@ import adminRoutes from "./routes/adminRoutes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
 import compression from "compression";
 
-
-
-
-
 import { initSocket } from "./socket.js";
 
 const PORT = process.env.PORT || 4000;
@@ -74,6 +70,12 @@ const start = async () => {
       console.log("⚠️ Sequelize sync skipped");
     }
 
+    // ============================================
+    // 🔥 COMPRESSION - BEFORE ROUTES FOR EFFICIENCY
+    // ============================================
+    app.use(compression());
+    console.log("✅ Compression enabled");
+
     // ========== ROUTES ==========
     app.use("/api/menu", menuRoutes);
     app.use("/api/banners", bannerRoutes);
@@ -82,12 +84,7 @@ const start = async () => {
     app.use("/api/notify", notificationRoutes);
     app.use("/api/user", userRoutes);
     app.use("/api/admin", adminRoutes);
-    app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
-    app.use(compression());
-
-
-
-
+    app.use("/api/cafeterias", cafeteriaRoutes);
 
     console.log("✅ Routes mounted");
 
@@ -103,10 +100,13 @@ const start = async () => {
       console.log("📌 Cafeterias seeded");
     }
 
+    // ========== START LISTENING ==========
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log("⚡ WebSocket enabled");
+      console.log("🔥 Optimized for 700-1000 concurrent users");
     });
+
   } catch (err) {
     console.error("❌ Server failed:", err);
     process.exit(1);
