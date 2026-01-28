@@ -16,6 +16,22 @@ import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 
+import app from "../app.js";  
+import http from "http";
+import { Server } from "socket.io";
+
+import dotenv from "dotenv";
+
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : process.env.NODE_ENV === "test"
+    ? ".env.test"
+    : ".env.local";
+
+dotenv.config({ path: envFile });
+
+
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);

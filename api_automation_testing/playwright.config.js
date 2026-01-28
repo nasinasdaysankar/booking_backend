@@ -1,17 +1,11 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  workers: 1,               // ✅ Best for API tests
-  timeout: 15000,
-
-  // 📊 REPORTERS (THIS CREATES REPORT)
-  reporter: [
-    ['list'],               // console output (what you already see)
-    ['html', { open: 'never' }], // HTML report
-  ],
+  workers: 1,
+  globalSetup: './auth.setup.js',
 
   use: {
-    baseURL: 'https://bookingbackend-production-2282.up.railway.app',
+    baseURL: process.env.BASE_URL,
     extraHTTPHeaders: {
       'Content-Type': 'application/json',
     },
