@@ -547,40 +547,15 @@ export const googleLogin = async (req, res) => {
     let user = await User.findOne({ where: { email } });
 
     if (!user) {
-      // Create user without googleId first (in case column doesn't exist)
-      const userData = {
+      // Create new user
+      user = await User.create({
         email,
         name: name || "User",
         role: "student",
-      };
-
-      // Try to add googleId, but don't fail if column doesn't exist
-      try {
-        userData.googleId = uid;
-        user = await User.create(userData);
-        console.log(`✅ New Google user created: ${email} (uid: ${uid})`);
-      } catch (createError) {
-        // If googleId column doesn't exist, create without it
-        if (createError.message?.includes('googleId') || createError.name === 'SequelizeDatabaseError') {
-          console.warn(`⚠️ googleId column may not exist, creating user without it`);
-          delete userData.googleId;
-          user = await User.create(userData);
-          console.log(`✅ New Google user created (without googleId): ${email}`);
-        } else {
-          throw createError; // Re-throw if it's a different error
-        }
-      }
+      });
+      console.log(`✅ New Google user created: ${email} (Firebase uid: ${uid})`);
     } else {
-      // ✅ Update googleId if not already set (for existing users migrating to Google login)
-      if (!user.googleId && uid) {
-        try {
-          await user.update({ googleId: uid });
-          console.log(`✅ Updated googleId for existing user: ${email}`);
-        } catch (updateError) {
-          // If googleId column doesn't exist, just log and continue
-          console.warn(`⚠️ Could not update googleId (column may not exist): ${email}`);
-        }
-      }
+      console.log(`✅ Existing user found: ${email}`);
     }
 
     const token = signToken(user);
