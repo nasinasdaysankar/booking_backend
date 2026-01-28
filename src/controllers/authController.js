@@ -69,7 +69,7 @@
 // export const googleLogin = async (req, res) => {
 //   try {
 //     const { idToken } = req.body;
-    
+
 //     // Verify Firebase token
 //     const decodedToken = await admin.auth().verifyIdToken(idToken);
 //     const { email, name, picture } = decodedToken;
@@ -472,11 +472,11 @@ const signToken = (user) => {
 export const googleLogin = async (req, res) => {
   try {
     const { idToken } = req.body;
-    
+
     // ✅ VALIDATION: Check if idToken is provided
     if (!idToken) {
       console.error("❌ Google login: Missing idToken in request body");
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         message: "ID token is required",
         code: "MISSING_TOKEN"
@@ -493,7 +493,7 @@ export const googleLogin = async (req, res) => {
         code: firebaseError.code,
         message: firebaseError.message,
       });
-      
+
       // Handle specific Firebase Auth errors
       if (firebaseError.code === 'auth/id-token-expired') {
         return res.status(401).json({
@@ -523,7 +523,7 @@ export const googleLogin = async (req, res) => {
           code: "INVALID_TOKEN"
         });
       }
-      
+
       // Generic auth failure for other Firebase errors
       return res.status(401).json({
         success: false,
@@ -547,18 +547,39 @@ export const googleLogin = async (req, res) => {
     let user = await User.findOne({ where: { email } });
 
     if (!user) {
-      user = await User.create({
+      // Create user without googleId first (in case column doesn't exist)
+      const userData = {
         email,
         name: name || "User",
         role: "student",
-        googleId: uid, // ✅ Store Firebase UID for user identification
-      });
-      console.log(`✅ New Google user created: ${email} (uid: ${uid})`);
+      };
+
+      // Try to add googleId, but don't fail if column doesn't exist
+      try {
+        userData.googleId = uid;
+        user = await User.create(userData);
+        console.log(`✅ New Google user created: ${email} (uid: ${uid})`);
+      } catch (createError) {
+        // If googleId column doesn't exist, create without it
+        if (createError.message?.includes('googleId') || createError.name === 'SequelizeDatabaseError') {
+          console.warn(`⚠️ googleId column may not exist, creating user without it`);
+          delete userData.googleId;
+          user = await User.create(userData);
+          console.log(`✅ New Google user created (without googleId): ${email}`);
+        } else {
+          throw createError; // Re-throw if it's a different error
+        }
+      }
     } else {
       // ✅ Update googleId if not already set (for existing users migrating to Google login)
       if (!user.googleId && uid) {
-        await user.update({ googleId: uid });
-        console.log(`✅ Updated googleId for existing user: ${email}`);
+        try {
+          await user.update({ googleId: uid });
+          console.log(`✅ Updated googleId for existing user: ${email}`);
+        } catch (updateError) {
+          // If googleId column doesn't exist, just log and continue
+          console.warn(`⚠️ Could not update googleId (column may not exist): ${email}`);
+        }
       }
     }
 
@@ -584,7 +605,7 @@ export const googleLogin = async (req, res) => {
       message: err.message,
       stack: err.stack,
     });
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: "Server error during login. Please try again.",
       code: "SERVER_ERROR"
