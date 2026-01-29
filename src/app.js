@@ -14,6 +14,7 @@ import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
+import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js"; // ✅ NEW
 
 
 
@@ -94,6 +95,7 @@ app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
+app.use("/api/campus-boundary", campusBoundaryRoutes); // ✅ NEW
 
 
 console.log("🔔 Notification routes mounted");
