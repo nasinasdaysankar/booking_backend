@@ -463,10 +463,12 @@ export const confirmPayment = async (req, res) => {
     });
 
 
+    let itemsToCreate = [];
+
     if (!existingItem && Array.isArray(items) && items.length > 0) {
       console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2)); // DEBUG LOG
 
-      const itemsToCreate = items.map((item) => {
+      itemsToCreate = items.map((item) => {
         const isParcelForThisItem = Boolean(item.isParcelSelected);
 
         console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`); // DEBUG LOG
