@@ -125,10 +125,9 @@ import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-<<<<<<< HEAD
 import userNotificationRoutes from "./routes/userNotificationRoutes.js";
-=======
-import userNotificationRoutes from "./routes/userNotificationRoutes.js"
+
+
 import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js"; // ✅ NEW
 
 
@@ -137,7 +136,7 @@ import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js"; // ✅ NEW
 
 
 import "./models/index.js";
->>>>>>> refs/remotes/origin/main
+
 
 // Swagger
 import { swaggerUiServe, swaggerUiSetup } from "./swagger.js";
@@ -180,8 +179,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);
-<<<<<<< HEAD
-=======
+
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
 app.use("/api/campus-boundary", campusBoundaryRoutes); // ✅ NEW
 
@@ -190,7 +188,6 @@ console.log("🔔 Notification routes mounted");
 
 
 
->>>>>>> refs/remotes/origin/main
 
 // ================= FALLBACK =================
 app.use((req, res) => {

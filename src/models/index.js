@@ -17,15 +17,13 @@ import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 
-<<<<<<< HEAD
 // import app from "../app.js";  
 // import http from "http";
 // import { Server } from "socket.io";
-=======
+
 import app from "../app.js";
 import http from "http";
 import { Server } from "socket.io";
->>>>>>> refs/remotes/origin/main
 
 import dotenv from "dotenv";
 
