@@ -1,6 +1,6 @@
 // import { sequelize, Order, CafeteriaQr, UserFcmToken } from "../models/index.js";
 // import { QueryTypes, Op } from "sequelize";
-// import { emitNewOrder, emitOrderStatusToUser } from "../socket.js";
+// import { emitNewOrder, emitAdminOrderUpdate, emitOrderStatusToUser } from "../socket.js";
 // import admin from "../config/firebaseAdmin.js";
 
 // console.log("--------------------------------------------------");
@@ -31,7 +31,7 @@
 //         type: QueryTypes.SELECT,
 //       }
 //     );
-    
+
 
 //     if (orders.length === 0) return res.json([]);
 
@@ -108,7 +108,7 @@
 
 //       if (userTokens.length > 0) {
 //         const tokens = userTokens.map((t) => t.fcmToken);
-        
+
 //         console.log("📤 Sending FCM notification to tokens:", tokens);
 
 //         const response = await admin.messaging().sendEachForMulticast({
@@ -398,13 +398,39 @@ export const updateOrderStatus = async (req, res) => {
     console.log(`📝 Order ${order.id} updated to status: ${status}`);
 
     // 🔔 REALTIME → ADMIN (SOCKET)
-    emitNewOrder(order.cafeteriaId, {
+    // 🧺 Fetch items to include in socket payload for "Instant Injection"
+    const items = await sequelize.query(
+      `SELECT * FROM order_items WHERE "orderId" = :orderId`,
+      {
+        replacements: { orderId: order.id },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    // 🧺 Parse isParcel correctly for items
+    const parsedItems = items.map(item => ({
+      ...item,
+      isParcel: item.isParcel === true || item.isParcel === 1
+    }));
+
+
+    emitAdminOrderUpdate(order.cafeteriaId, {
+      id: order.id,
       orderId: order.id,
       status: order.status,
       etaMinutes: order.etaMinutes,
       updatedAt: new Date(),
+      cafeteriaId: order.cafeteriaId,
+      totalAmount: order.totalAmount,
+      kotNumber: order.kotNumber,
+      billId: order.billId,
+      createdAt: order.createdAt,
+      isParcel: order.isParcel,
+      parcelAmount: order.parcelAmount,
+      items: parsedItems,
+      customerName: "Customer", // Ideally fetch user name if possible, but optional for now
     });
-    console.log("✅ Admin notification sent via socket");
+    console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
     // 🔔 REALTIME → USER (SOCKET)
     emitOrderStatusToUser(order.studentId, {
