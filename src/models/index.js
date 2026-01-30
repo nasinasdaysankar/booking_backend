@@ -10,15 +10,22 @@ import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
+import CampusBoundaryModel from "./CampusBoundary.js"; // ✅ NEW
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 
+<<<<<<< HEAD
 // import app from "../app.js";  
 // import http from "http";
 // import { Server } from "socket.io";
+=======
+import app from "../app.js";
+import http from "http";
+import { Server } from "socket.io";
+>>>>>>> refs/remotes/origin/main
 
 import dotenv from "dotenv";
 
@@ -26,8 +33,8 @@ const envFile =
   process.env.NODE_ENV === "production"
     ? ".env.production"
     : process.env.NODE_ENV === "test"
-    ? ".env.test"
-    : ".env.local";
+      ? ".env.test"
+      : ".env.local";
 
 dotenv.config({ path: envFile });
 
@@ -44,6 +51,7 @@ const Notification = NotificationModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
+const CampusBoundary = CampusBoundaryModel(sequelize); // ✅ NEW
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
@@ -124,6 +132,7 @@ export {
   Banner,
   Payment,
   CafeteriaQr,
+  CampusBoundary, // ✅ NEW
   AdminFcmToken,
   UserFcmToken,
   UserStreak,

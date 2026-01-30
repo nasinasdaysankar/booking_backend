@@ -175,6 +175,7 @@ export const createOrder = async (req, res) => {
         quantity: qty,
         priceAtOrder: price,
         imageUrl: item.img || item.imageUrl || null,
+        isParcel: item.isParcel || item.isParcelSelected || false, // ✅ Capture parcel status
       });
     }
 
@@ -227,7 +228,7 @@ export const getMyOrders = async (req, res) => {
         {
           model: OrderItem,
           as: "items", // MUST MATCH association
-          attributes: ["name", "imageUrl", "quantity", "priceAtOrder"],
+          attributes: ["name", "imageUrl", "quantity", "priceAtOrder", "isParcel"], // ✅ Include isParcel
         },
       ],
     });
@@ -285,7 +286,7 @@ export const getOrderByBillId = async (req, res) => {
         {
           model: OrderItem,
           as: "items", // MUST MATCH association
-          attributes: ["name", "quantity", "priceAtOrder", "imageUrl"],
+          attributes: ["name", "quantity", "priceAtOrder", "imageUrl", "isParcel"], // ✅ Include isParcel
         },
       ],
     });

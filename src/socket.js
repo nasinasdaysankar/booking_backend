@@ -19,6 +19,7 @@ export const emitNewOrder = (cafeteriaId, payload) => {
 };
 
 // ================= USER: ORDER STATUS UPDATE =================
+// ================= USER: ORDER STATUS UPDATE =================
 export const emitOrderStatusToUser = (studentId, payload) => {
   if (!ioInstance) {
     console.log("❌ Socket not initialized");
@@ -27,6 +28,16 @@ export const emitOrderStatusToUser = (studentId, payload) => {
 
   const room = `user_${studentId}`;
   console.log("📢 Emitting ORDER_STATUS_UPDATE to:", room);
+
+  ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
+};
+
+// ================= ADMIN: ORDER STATUS UPDATE =================
+export const emitAdminOrderUpdate = (cafeteriaId, payload) => {
+  if (!ioInstance) return;
+
+  const room = `cafeteria_${cafeteriaId}`;
+  console.log("📢 Emitting ORDER_STATUS_UPDATE (Admin) to:", room);
 
   ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
 };

@@ -11,7 +11,7 @@
 //     type: DataTypes.STRING,
 //     allowNull: true,
 //   },
-  
+
 
 //   otpCode: {
 //   type: DataTypes.STRING,
@@ -51,7 +51,7 @@ export default (sequelize) => {
     name: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     passwordHash: { type: DataTypes.STRING, allowNull: true },
-    googleId: { type: DataTypes.STRING, allowNull: true },  // Firebase UID for Google users
+    // googleId: { type: DataTypes.STRING, allowNull: true },  // TODO: Uncomment after running migration
 
     phone: {                     // ✅ ADD THIS
       type: DataTypes.STRING,

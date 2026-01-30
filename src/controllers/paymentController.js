@@ -155,7 +155,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 //     }
 
 
-   
+
 
 //     // Create payment record
 //     const existingPayment = await Payment.findOne({
@@ -244,7 +244,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 
 //     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
 //     await t.commit();
-    
+
 //     console.log("✅ Transaction committed successfully");
 
 //     // Send notifications
@@ -290,7 +290,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 //       kotNumber,
 //       message: "Payment confirmed successfully. Order sent to cafeteria.",
 //     });
-    
+
 //   } catch (err) {
 //     if (!t.finished) {
 //       await t.rollback();
@@ -462,46 +462,46 @@ export const confirmPayment = async (req, res) => {
       transaction: t,
     });
 
-    
-if (!existingItem && Array.isArray(items) && items.length > 0) {
-  console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2)); // DEBUG LOG
-  
-  const itemsToCreate = items.map((item) => {
-    const isParcelForThisItem = Boolean(item.isParcelSelected);
-    
-    console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`); // DEBUG LOG
-    
-    return {
-      orderId: order.id,
-      menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
-      name: item.name,
-      quantity: item.quantity || item.qty,
-      priceAtOrder: item.price,
-      imageUrl: item.imageUrl || item.img || null,
-      isParcel: isParcelForThisItem, // 🧺 CRITICAL: Must be explicit boolean
-    };
-  });
 
-  const hasInvalidItem = itemsToCreate.some(
-    (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
-  );
+    if (!existingItem && Array.isArray(items) && items.length > 0) {
+      console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2)); // DEBUG LOG
 
-  if (hasInvalidItem) {
-    throw new Error("One or more items are missing a valid quantity.");
-  }
+      const itemsToCreate = items.map((item) => {
+        const isParcelForThisItem = Boolean(item.isParcelSelected);
 
-  await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
-  
-  console.log(`✅ Created ${itemsToCreate.length} order items`);
-  
-  // 🧺 Log which items have parcel
-  const parcelItems = itemsToCreate.filter(i => i.isParcel);
-  if (parcelItems.length > 0) {
-    console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
-  } else {
-    console.log(`📦 No items have parcel packaging`);
-  }
-}
+        console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`); // DEBUG LOG
+
+        return {
+          orderId: order.id,
+          menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
+          name: item.name,
+          quantity: item.quantity || item.qty,
+          priceAtOrder: item.price,
+          imageUrl: item.imageUrl || item.img || null,
+          isParcel: isParcelForThisItem, // 🧺 CRITICAL: Must be explicit boolean
+        };
+      });
+
+      const hasInvalidItem = itemsToCreate.some(
+        (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
+      );
+
+      if (hasInvalidItem) {
+        throw new Error("One or more items are missing a valid quantity.");
+      }
+
+      await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+
+      console.log(`✅ Created ${itemsToCreate.length} order items`);
+
+      // 🧺 Log which items have parcel
+      const parcelItems = itemsToCreate.filter(i => i.isParcel);
+      if (parcelItems.length > 0) {
+        console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
+      } else {
+        console.log(`📦 No items have parcel packaging`);
+      }
+    }
 
     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
     await t.commit();
@@ -512,11 +512,16 @@ if (!existingItem && Array.isArray(items) && items.length > 0) {
     try {
       emitNewOrder(cafeteriaId, {
         orderId: order.id,
+        id: order.id, // For compatibility
         billId: order.billId,
         kotNumber: order.kotNumber,
         totalAmount: order.totalAmount,
         status: order.status,
         createdAt: order.createdAt,
+        isParcel: order.isParcel,
+        parcelAmount: order.parcelAmount,
+        items: itemsToCreate,
+        customerName: req.user.name || "Customer", // Fallback if name not in token
       });
 
       const adminTokens = await AdminFcmToken.findAll({
