@@ -32,13 +32,18 @@ export const initNotificationScheduler = () => {
                 console.log(`⏰ Found ${reminderOrders.length} orders for 10-min reminder`);
                 for (const order of reminderOrders) {
                     try {
-                        const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
-                        if (userTokens.length > 0) {
-                            // ✅ DEDUPLICATE TOKENS
-                            const tokens = [...new Set(userTokens.map((t) => t.fcmToken))];
+                        // 🔥 LIMIT TO 1 LATEST TOKEN to prevent duplicates
+                        const userTokens = await UserFcmToken.findAll({
+                            where: { userId: order.studentId },
+                            order: [['updatedAt', 'DESC']],
+                            limit: 1
+                        });
 
-                            await admin.messaging().sendEachForMulticast({
-                                tokens,
+                        if (userTokens.length > 0) {
+                            const token = userTokens[0].fcmToken;
+
+                            await admin.messaging().send({
+                                token,
                                 notification: {
                                     title: "⏳ 10 Minutes Left!",
                                     body: `Hurry! Order #${order.id} is waiting. Please pick it up soon.`,
@@ -46,7 +51,7 @@ export const initNotificationScheduler = () => {
                                 data: { orderId: String(order.id), status: "READY" },
                                 android: { priority: "high" },
                             });
-                            console.log(`🔔 Sent 10-min reminder for Order #${order.id} to ${tokens.length} devices`);
+                            console.log(`🔔 Sent 10-min reminder for Order #${order.id} to latest device`);
                         }
 
                         // ✅ MARK AS SENT (Use etaMinutes as sentinel)
@@ -74,13 +79,18 @@ export const initNotificationScheduler = () => {
 
                 for (const order of expiredOrders) {
                     // 1. Notify User FIRST
-                    const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
-                    if (userTokens.length > 0) {
-                        // ✅ DEDUPLICATE TOKENS
-                        const tokens = [...new Set(userTokens.map((t) => t.fcmToken))];
+                    // 🔥 LIMIT TO 1 LATEST TOKEN
+                    const userTokens = await UserFcmToken.findAll({
+                        where: { userId: order.studentId },
+                        order: [['updatedAt', 'DESC']],
+                        limit: 1
+                    });
 
-                        await admin.messaging().sendEachForMulticast({
-                            tokens,
+                    if (userTokens.length > 0) {
+                        const token = userTokens[0].fcmToken;
+
+                        await admin.messaging().send({
+                            token,
                             notification: {
                                 title: "⏳ Pickup Window Closed",
                                 body: "You didn't pick up the order within 20 mins. The order is now cancelled and no refund will be issued.",
@@ -92,7 +102,7 @@ export const initNotificationScheduler = () => {
                             },
                             android: { priority: "high" },
                         });
-                        console.log(`🔔 Sent expiration alert for Order #${order.id} to ${tokens.length} devices`);
+                        console.log(`🔔 Sent expiration alert for Order #${order.id} to latest device`);
                     }
 
                     // 2. Update Status to CANCELLED
