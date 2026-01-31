@@ -452,11 +452,16 @@ export const updateOrderStatus = async (req, res) => {
         if (userTokens.length > 0) {
           const tokens = userTokens.map((t) => t.fcmToken);
 
+          let bodyText = `Your order is now ${order.status}`;
+          if (order.status === "READY") {
+            bodyText = `Your order is READY! Please pick it up within 20 minutes.`;
+          }
+
           const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: {
-              title: "📦 Order Update",
-              body: `Your order is now ${order.status}`,
+              title: order.status === "READY" ? "✅ Order Ready!" : "📦 Order Update",
+              body: bodyText,
             },
             data: {
               orderId: String(order.id),

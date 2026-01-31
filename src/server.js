@@ -17,6 +17,7 @@ import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
 import compression from "compression";
 
 import { initSocket } from "./socket.js";
+import { initNotificationScheduler } from "./cron/notificationScheduler.js";
 
 const PORT = process.env.PORT || 4000;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
@@ -105,6 +106,8 @@ const start = async () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log("⚡ WebSocket enabled");
       console.log("🔥 Optimized for 700-1000 concurrent users");
+
+      initNotificationScheduler(); // ⏰ Start Cron
     });
 
   } catch (err) {

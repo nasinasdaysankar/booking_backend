@@ -532,26 +532,50 @@ export const confirmPayment = async (req, res) => {
         });
 
         if (adminTokens.length > 0) {
-          const response = await admin.messaging().sendEachForMulticast({
-            tokens: adminTokens.map((t) => t.fcmToken),
+          const tokens = adminTokens.map((t) => t.fcmToken);
+
+          // 1. Standard New Order Notification
+          const standardNotificationResponse = await admin.messaging().sendEachForMulticast({
+            tokens,
             notification: {
               title: "🍽 New Order Received",
               body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
             },
             android: {
               priority: "high",
-              notification: {
-                channelId: "high_importance_channel",
-              },
+              notification: { channelId: "high_importance_channel" },
             },
           });
 
-          console.log(`🔔 FCM sent to admins. Success: ${response.successCount}, Fail: ${response.failureCount}`);
+          // 2. 🔥 High Traffic Alert (Every 5th pending order after 10)
+          const pendingCount = await Order.count({
+            where: {
+              cafeteriaId,
+              status: { [Op.in]: ['PAID', 'PREPARING'] }
+            }
+          });
+
+          if (pendingCount > 10 && pendingCount % 5 === 0) {
+            await admin.messaging().sendEachForMulticast({
+              tokens,
+              notification: {
+                title: "🔥 High Traffic Alert!",
+                body: `Warning: ${pendingCount} orders are currently pending.`,
+              },
+              android: {
+                priority: "high",
+                notification: { channelId: "high_importance_channel" },
+              },
+            });
+            console.log(`🔥 High Traffic Alert sent (${pendingCount} pending)`);
+          }
+
+          console.log(`🔔 FCM sent to admins.`);
 
           // Clean up invalid tokens
-          if (response.failureCount > 0) {
+          if (standardNotificationResponse.failureCount > 0) {
             const invalidTokens = [];
-            response.responses.forEach((resp, idx) => {
+            standardNotificationResponse.responses.forEach((resp, idx) => {
               if (!resp.success) invalidTokens.push(adminTokens[idx].fcmToken);
             });
             if (invalidTokens.length > 0) {

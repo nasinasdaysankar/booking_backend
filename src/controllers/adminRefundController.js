@@ -1,4 +1,6 @@
-import { Payment, Order, sequelize } from "../models/index.js"; // ✅ Import sequelize from models
+import { Payment, Order, sequelize, UserFcmToken } from "../models/index.js";
+import admin from "../config/firebaseAdmin.js";
+import { emitOrderStatusToUser } from "../socket.js";
 
 // ===================================================================
 // ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
@@ -190,6 +192,32 @@ export const refundOrder = async (req, res) => {
 
     console.log("✅ Refund saved in DB");
 
+    // 🔔 NOTIFY USER OF CANCELLATION
+    (async () => {
+      try {
+        const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+        if (userTokens.length > 0) {
+          const tokens = userTokens.map(t => t.fcmToken);
+          await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: {
+              title: "❌ Order Cancelled",
+              body: `Reason: ${reason || "Unavailable"}. Refund of ₹${order.totalAmount} initiated.`,
+            },
+            data: {
+              orderId: String(order.id),
+              status: "CANCELLED",
+              type: "ORDER_CANCELLED"
+            },
+            android: { priority: "high" }
+          });
+          console.log("🔔 User notified of cancellation");
+        }
+      } catch (e) {
+        console.error("⚠️ Failed to notify user of cancellation:", e.message);
+      }
+    })();
+
     return res.json({
       success: true,
       message: "Refund initiated",
@@ -295,6 +323,29 @@ export const checkRefundStatus = async (req, res) => {
       );
 
       console.log(`✅ [REFUND SUCCESS] Updated in DB`);
+
+      // 🔔 NOTIFY USER OF SUCCESSFUL REFUND
+      (async () => {
+        try {
+          const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+          if (userTokens.length > 0) {
+            const tokens = userTokens.map(t => t.fcmToken);
+            await admin.messaging().sendEachForMulticast({
+              tokens,
+              notification: {
+                title: "💰 Refund Processed",
+                body: `Your refund of ₹${refundAmount} for Order #${orderId} is successful.`,
+              },
+              data: {
+                orderId: String(orderId),
+                status: "REFUND_SUCCESS",
+                type: "REFUND_UPDATE"
+              }
+            });
+            console.log("🔔 User notified of refund success");
+          }
+        } catch (e) { console.error("⚠️ Failed to notify user of refund:", e.message); }
+      })();
     } else if (refundStatus === "FAILED") {
       await Payment.update(
         { status: refundStatus },
