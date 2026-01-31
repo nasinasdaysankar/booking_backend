@@ -34,8 +34,11 @@ export const initNotificationScheduler = () => {
                     try {
                         const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
                         if (userTokens.length > 0) {
+                            // ✅ DEDUPLICATE TOKENS
+                            const tokens = [...new Set(userTokens.map((t) => t.fcmToken))];
+
                             await admin.messaging().sendEachForMulticast({
-                                tokens: userTokens.map((t) => t.fcmToken),
+                                tokens,
                                 notification: {
                                     title: "⏳ 10 Minutes Left!",
                                     body: `Hurry! Order #${order.id} is waiting. Please pick it up soon.`,
@@ -43,7 +46,7 @@ export const initNotificationScheduler = () => {
                                 data: { orderId: String(order.id), status: "READY" },
                                 android: { priority: "high" },
                             });
-                            console.log(`🔔 Sent 10-min reminder for Order #${order.id}`);
+                            console.log(`🔔 Sent 10-min reminder for Order #${order.id} to ${tokens.length} devices`);
                         }
 
                         // ✅ MARK AS SENT (Use etaMinutes as sentinel)
@@ -73,8 +76,11 @@ export const initNotificationScheduler = () => {
                     // 1. Notify User FIRST
                     const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
                     if (userTokens.length > 0) {
+                        // ✅ DEDUPLICATE TOKENS
+                        const tokens = [...new Set(userTokens.map((t) => t.fcmToken))];
+
                         await admin.messaging().sendEachForMulticast({
-                            tokens: userTokens.map((t) => t.fcmToken),
+                            tokens,
                             notification: {
                                 title: "⏳ Pickup Window Closed",
                                 body: "You didn't pick up the order within 20 mins. The order is now cancelled and no refund will be issued.",
@@ -86,7 +92,7 @@ export const initNotificationScheduler = () => {
                             },
                             android: { priority: "high" },
                         });
-                        console.log(`🔔 Sent expiration alert for Order #${order.id}`);
+                        console.log(`🔔 Sent expiration alert for Order #${order.id} to ${tokens.length} devices`);
                     }
 
                     // 2. Update Status to CANCELLED
