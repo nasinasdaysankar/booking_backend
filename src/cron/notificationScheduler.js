@@ -7,8 +7,9 @@ import { Op, Transaction } from "sequelize";
 export const initNotificationScheduler = () => {
     console.log("⏰ Notification Scheduler Initialized (Cron)");
 
-    // Run every minute
-    cron.schedule("* * * * *", async () => {
+    // Run every 15 seconds for faster notification delivery
+    // Format: second minute hour day month weekday
+    cron.schedule("*/15 * * * * *", async () => {
         try {
             const now = Date.now();
             const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
