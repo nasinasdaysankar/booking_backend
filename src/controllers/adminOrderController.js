@@ -442,59 +442,52 @@ export const updateOrderStatus = async (req, res) => {
     console.log("✅ User socket notification sent");
 
     // 🔔 FCM → USER (BACKGROUND NOTIFICATION)
-    try {
-      const userTokens = await UserFcmToken.findAll({
-        where: { userId: order.studentId },
-      });
-
-      console.log(`🔍 Found ${userTokens.length} FCM tokens for user ${order.studentId}`);
-
-      if (userTokens.length > 0) {
-        const tokens = userTokens.map((t) => t.fcmToken);
-
-        console.log("📤 Sending FCM notification to tokens:", tokens);
-
-        const response = await admin.messaging().sendEachForMulticast({
-          tokens,
-          notification: {
-            title: "📦 Order Update",
-            body: `Your order is now ${order.status}`,
-          },
-          data: {
-            orderId: String(order.id),
-            status: order.status,
-            etaMinutes: String(order.etaMinutes || 0),
-          },
-          android: {
-            priority: "high",
-            notification: {
-              channelId: "high_importance_channel",
-            },
-          },
+    // 🔔 FCM → USER (BACKGROUND - FIRE & FORGET)
+    (async () => {
+      try {
+        const userTokens = await UserFcmToken.findAll({
+          where: { userId: order.studentId },
         });
 
-        console.log(`✅ FCM sent successfully. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+        if (userTokens.length > 0) {
+          const tokens = userTokens.map((t) => t.fcmToken);
 
-        // Remove invalid tokens
-        if (response.failureCount > 0) {
-          const invalidTokens = response.responses
-            .map((resp, idx) => (!resp.success ? tokens[idx] : null))
-            .filter(Boolean);
+          const response = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: {
+              title: "📦 Order Update",
+              body: `Your order is now ${order.status}`,
+            },
+            data: {
+              orderId: String(order.id),
+              status: order.status,
+              etaMinutes: String(order.etaMinutes || 0),
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "high_importance_channel",
+              },
+            },
+          });
 
-          if (invalidTokens.length > 0) {
-            console.log("🗑️ Removing invalid tokens:", invalidTokens);
-            await UserFcmToken.destroy({
-              where: { fcmToken: invalidTokens },
+          console.log(`✅ FCM sent. Success: ${response.successCount}, Fail: ${response.failureCount}`);
+
+          if (response.failureCount > 0) {
+            const invalidTokens = [];
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success) invalidTokens.push(tokens[idx]);
             });
+            if (invalidTokens.length > 0) {
+              await UserFcmToken.destroy({ where: { fcmToken: invalidTokens } });
+              console.log("Deleted invalid tokens:", invalidTokens.length);
+            }
           }
         }
-      } else {
-        console.log(`⚠️ No FCM tokens found for user: ${order.studentId}`);
+      } catch (fcmError) {
+        console.error("❌ FCM Error (Background):", fcmError.message);
       }
-    } catch (fcmError) {
-      console.error("❌ FCM Error (Non-blocking):", fcmError.message);
-      // Don't fail the entire request if FCM fails
-    }
+    })();
 
     return res.json({
       success: true,

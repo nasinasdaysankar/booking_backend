@@ -510,46 +510,60 @@ export const confirmPayment = async (req, res) => {
 
     console.log("✅ Transaction committed successfully");
 
-    // Send notifications
-    try {
-      emitNewOrder(cafeteriaId, {
-        orderId: order.id,
-        id: order.id, // For compatibility
-        billId: order.billId,
-        kotNumber: order.kotNumber,
-        totalAmount: order.totalAmount,
-        status: order.status,
-        createdAt: order.createdAt,
-        isParcel: order.isParcel,
-        parcelAmount: order.parcelAmount,
-        items: itemsToCreate,
-        customerName: req.user.name || "Customer", // Fallback if name not in token
-      });
-
-      const adminTokens = await AdminFcmToken.findAll({
-        where: { cafeteriaId },
-      });
-
-      if (adminTokens.length > 0) {
-        await admin.messaging().sendEachForMulticast({
-          tokens: adminTokens.map((t) => t.fcmToken),
-          notification: {
-            title: "🍽 New Order Received",
-            body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-          },
-          android: {
-            priority: "high",
-            notification: {
-              channelId: "high_importance_channel",
-            },
-          },
+    // Send notifications (ASYNC - Fire & Forget)
+    (async () => {
+      try {
+        emitNewOrder(cafeteriaId, {
+          orderId: order.id,
+          id: order.id,
+          billId: order.billId,
+          kotNumber: order.kotNumber,
+          totalAmount: order.totalAmount,
+          status: order.status,
+          createdAt: order.createdAt,
+          isParcel: order.isParcel,
+          parcelAmount: order.parcelAmount,
+          items: itemsToCreate,
+          customerName: req.user.name || "Customer",
         });
 
-        console.log("🔔 FCM notification sent to admins");
+        const adminTokens = await AdminFcmToken.findAll({
+          where: { cafeteriaId },
+        });
+
+        if (adminTokens.length > 0) {
+          const response = await admin.messaging().sendEachForMulticast({
+            tokens: adminTokens.map((t) => t.fcmToken),
+            notification: {
+              title: "🍽 New Order Received",
+              body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "high_importance_channel",
+              },
+            },
+          });
+
+          console.log(`🔔 FCM sent to admins. Success: ${response.successCount}, Fail: ${response.failureCount}`);
+
+          // Clean up invalid tokens
+          if (response.failureCount > 0) {
+            const invalidTokens = [];
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success) invalidTokens.push(adminTokens[idx].fcmToken);
+            });
+            if (invalidTokens.length > 0) {
+              await AdminFcmToken.destroy({ where: { fcmToken: invalidTokens } });
+              console.log("Deleted invalid admin tokens:", invalidTokens.length);
+            }
+          }
+        }
+      } catch (notifyErr) {
+        console.error("⚠️ Notification error (background):", notifyErr);
       }
-    } catch (notifyErr) {
-      console.error("⚠️ Notification error (ignored):", notifyErr);
-    }
+    })();
 
     return res.json({
       success: true,
