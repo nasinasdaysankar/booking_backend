@@ -202,7 +202,7 @@ export const refundOrder = async (req, res) => {
             tokens,
             notification: {
               title: "❌ Order Cancelled",
-              body: `Reason: ${reason || "Unavailable"}. Refund of ₹${order.totalAmount} initiated.`,
+              body: `Refund of ₹${order.totalAmount} initiated.`,
             },
             data: {
               orderId: String(order.id),
