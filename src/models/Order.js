@@ -91,6 +91,19 @@ export default (sequelize) => {
         allowNull: false,
         defaultValue: false,
       },
+
+      // 🔔 NOTIFICATION TRACKING FLAGS
+      tenMinReminderSent: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      expirationNotificationSent: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
       tableName: "orders", // ⚠️ MUST match DB table name

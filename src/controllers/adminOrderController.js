@@ -390,10 +390,21 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
 
-    await order.update({
+    // 🔔 Prepare update object
+    const updateData = {
       status,
       etaMinutes,
-    });
+    };
+
+    // ✅ Reset notification flags when order becomes READY
+    // This ensures notifications work correctly for the new READY timestamp
+    if (status === "READY") {
+      updateData.tenMinReminderSent = false;
+      updateData.expirationNotificationSent = false;
+      console.log(`🔔 Resetting notification flags for Order #${id} (status: READY)`);
+    }
+
+    await order.update(updateData);
 
     console.log(`📝 Order ${order.id} updated to status: ${status}`);
 

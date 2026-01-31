@@ -22,9 +22,9 @@ export const initNotificationScheduler = () => {
             const reminderOrders = await Order.findAll({
                 where: {
                     status: "READY",
-                    updatedAt: { [Op.lt]: tenMinutesAgo, [Op.gt]: elevenMinutesAgo },
-                    // Ensure we haven't sent it already (Sentinel: -1)
-                    etaMinutes: { [Op.ne]: -1 },
+                    updatedAt: { [Op.lt]: tenMinutesAgo },
+                    // ✅ Use dedicated flag instead of sentinel value
+                    tenMinReminderSent: false,
                 },
             });
 
@@ -54,9 +54,9 @@ export const initNotificationScheduler = () => {
                             console.log(`🔔 Sent 10-min reminder for Order #${order.id} to latest device`);
                         }
 
-                        // ✅ MARK AS SENT (Use etaMinutes as sentinel)
+                        // ✅ MARK AS SENT using dedicated flag
                         // 🤫 Use silent: true to avoid resetting updatedAt (preserving expiration timer)
-                        await order.update({ etaMinutes: -1 }, { silent: true });
+                        await order.update({ tenMinReminderSent: true }, { silent: true });
 
                     } catch (err) {
                         console.error(`⚠️ Failed to send reminder for #${order.id}:`, err.message);
@@ -71,7 +71,8 @@ export const initNotificationScheduler = () => {
                 where: {
                     status: "READY",
                     updatedAt: { [Op.lt]: twentyMinutesAgo }, // Strictly older than 20 mins
-                    etaMinutes: { [Op.ne]: -2 }, // ✅ Exclude already processed ones
+                    // ✅ Use dedicated flag instead of sentinel value
+                    expirationNotificationSent: false,
                 },
             });
 
@@ -106,9 +107,8 @@ export const initNotificationScheduler = () => {
                         console.log(`🔔 Sent expiration alert for Order #${order.id} to latest device`);
                     }
 
-                    // 2. MARK AS PROCESSED (Don't Cancel)
-                    // Set etaMinutes to -2 to indicate "Expiration Notification Sent"
-                    await order.update({ etaMinutes: -2 }, { silent: true });
+                    // 2. MARK AS PROCESSED using dedicated flag
+                    await order.update({ expirationNotificationSent: true }, { silent: true });
 
                     console.log(`⚠️ Order #${order.id} marked as EXPIRED (Status kept as READY)`);
                 }
