@@ -71,6 +71,7 @@ export const initNotificationScheduler = () => {
                 where: {
                     status: "READY",
                     updatedAt: { [Op.lt]: twentyMinutesAgo }, // Strictly older than 20 mins
+                    etaMinutes: { [Op.ne]: -2 }, // ✅ Exclude already processed ones
                 },
             });
 
@@ -93,11 +94,11 @@ export const initNotificationScheduler = () => {
                             token,
                             notification: {
                                 title: "⏳ Pickup Window Closed",
-                                body: "You didn't pick up the order within 20 mins. The order is now cancelled and no refund will be issued.",
+                                body: "You didn't pick up the order within 20 mins.",
                             },
                             data: {
                                 orderId: String(order.id),
-                                status: "CANCELLED",
+                                status: "READY", // Keep as READY per user request
                                 type: "ORDER_EXPIRED"
                             },
                             android: { priority: "high" },
@@ -105,14 +106,11 @@ export const initNotificationScheduler = () => {
                         console.log(`🔔 Sent expiration alert for Order #${order.id} to latest device`);
                     }
 
-                    // 2. Update Status to CANCELLED
-                    // We set a custom refundReason so we know WHY it was cancelled
-                    await order.update({
-                        status: "CANCELLED",
-                        refundReason: "Pickup window expired (No Refund)"
-                    });
+                    // 2. MARK AS PROCESSED (Don't Cancel)
+                    // Set etaMinutes to -2 to indicate "Expiration Notification Sent"
+                    await order.update({ etaMinutes: -2 }, { silent: true });
 
-                    console.log(`❌ Order #${order.id} marked as CANCELLED (Expired)`);
+                    console.log(`⚠️ Order #${order.id} marked as EXPIRED (Status kept as READY)`);
                 }
             }
 

@@ -17,23 +17,23 @@ export default (sequelize) => {
       },
 
       parcelAmount: {
-  type: DataTypes.DECIMAL(10, 2),
-  allowNull: false,
-  defaultValue: 0,
-},
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
 
-// Add these fields to your Order model definition
-isParcel: {
-  type: DataTypes.BOOLEAN,
-  allowNull: false,
-  defaultValue: false,
-},
+      // Add these fields to your Order model definition
+      isParcel: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
 
-parcelAmount: {
-  type: DataTypes.DECIMAL(10, 2),
-  allowNull: false,
-  defaultValue: 0.00,
-},
+      parcelAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0.00,
+      },
 
 
       billId: {
