@@ -8,7 +8,7 @@ import {
   getAdminStats
 } from '../controllers/adminOrderController.js';
 import {
-  getTrendData, getTopItems, getOrdersOverview, getPeakHours
+  getTrendData, getTopItems, getOrdersOverview, getPeakHours, getCommissionStats // ✅ ADDED THIS
 } from "../controllers/adminAnalyticsController.js";
 import { getCafeteriaDetails, getMyCafeterias, updateCafeteria } from '../controllers/adminCafeteriaController.js';
 import {
@@ -101,6 +101,13 @@ router.get("/orders-overview", auth, requireRole(["admin"]), getOrdersOverview);
  * Response: [{ hour: "12:00", orders: 25 }]
  */
 router.get("/peak-hours", auth, requireRole(["admin"]), getPeakHours);
+
+/**
+ * GET /api/admin/commission-stats
+ * Get platform commission stats
+ * Response: { totalTransactions, totalCommission }
+ */
+router.get("/commission-stats", auth, requireRole(["admin"]), getCommissionStats);
 
 // ============================================
 // PAYMENT & REFUND MANAGEMENT

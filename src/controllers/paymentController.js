@@ -419,6 +419,21 @@ export const confirmPayment = async (req, res) => {
       );
 
       console.log("✅ Payment record created (webhook will add paymentId)");
+
+      // ===================================================================
+      // 🆕 RECORD COMMISSION (PLATFORM FEE)
+      // ===================================================================
+      const { Commission } = await import("../models/index.js");
+      await Commission.create(
+        {
+          orderId: order.id,
+          cafeteriaId,
+          amount: 1.00, // Fixed ₹1 Commission
+        },
+        { transaction: t }
+      );
+      console.log("💰 Commission of ₹1 recorded for Owner");
+
     } else {
       console.log("ℹ️ Payment already exists:", existingPayment.id);
     }

@@ -10,13 +10,14 @@ import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
+import CommissionModel from "./Commission.js"; // [NEW]
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 
-import app from "../app.js";  
+import app from "../app.js";
 import http from "http";
 import { Server } from "socket.io";
 
@@ -26,8 +27,8 @@ const envFile =
   process.env.NODE_ENV === "production"
     ? ".env.production"
     : process.env.NODE_ENV === "test"
-    ? ".env.test"
-    : ".env.local";
+      ? ".env.test"
+      : ".env.local";
 
 dotenv.config({ path: envFile });
 
@@ -44,6 +45,7 @@ const Notification = NotificationModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
+const Commission = CommissionModel(sequelize); // [NEW]
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
@@ -92,6 +94,11 @@ Cafeteria.hasMany(OrderFeedback, { foreignKey: "cafeteriaId" });
 OrderFeedback.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
 
 
+// ================= COMMISSION RELATIONS =================
+Commission.belongsTo(Order, { foreignKey: "orderId" }); // [NEW]
+Commission.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
+
+
 // ================= FCM RELATIONS =================
 
 // Admin → AdminFcmToken
@@ -124,6 +131,7 @@ export {
   Banner,
   Payment,
   CafeteriaQr,
+  Commission, // [NEW]
   AdminFcmToken,
   UserFcmToken,
   UserStreak,
