@@ -1,10 +1,18 @@
 // src/config/s3.js
 import { S3Client } from "@aws-sdk/client-s3";
-import "dotenv/config"; // ✅ FORCE UPDATE ENV
+import "dotenv/config";
 
 console.log("🔹 AWS S3 Config Loaded");
 console.log("🔹 Region:", process.env.AWS_REGION);
-console.log("🔹 Bucket:", process.env.AWS_BUCKET_NAME);
+console.log("🔹 Bucket:", process.env.AWS_S3_BUCKET_NAME);
+
+if (!process.env.AWS_REGION) {
+  throw new Error("❌ AWS_REGION is missing");
+}
+
+if (!process.env.AWS_S3_BUCKET_NAME) {
+  throw new Error("❌ AWS_S3_BUCKET_NAME is missing");
+}
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
@@ -14,4 +22,5 @@ const s3 = new S3Client({
   },
 });
 
+export const S3_BUCKET = process.env.AWS_S3_BUCKET_NAME;
 export default s3;
