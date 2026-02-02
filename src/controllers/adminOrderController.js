@@ -337,7 +337,8 @@ export const getAdminOrders = async (req, res) => {
     const orders = await sequelize.query(
       `
       SELECT *,
-             "createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc"
+             "createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
+             ("totalAmount" - 1) AS "netAmount"
       FROM orders
       WHERE status = :status
       AND "cafeteriaId" = :cafeteriaId
@@ -740,6 +741,9 @@ export const getAdminStats = async (req, res) => {
       0
     );
 
+    // 🔥 DEDUCT COMMISSION (₹1 per order)
+    const netRevenue = totalRevenue - totalOrders;
+
     // 👥 TOTAL CUSTOMERS (UNIQUE STUDENTS)
     const uniqueCustomers = new Set(
       orders.map((order) => order.studentId).filter(Boolean)
@@ -754,7 +758,7 @@ export const getAdminStats = async (req, res) => {
       totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     return res.json({
-      totalRevenue: Number(totalRevenue.toFixed(2)),
+      totalRevenue: Number(netRevenue.toFixed(2)),
       totalOrders,
       totalCustomers,
       pendingOrders,
