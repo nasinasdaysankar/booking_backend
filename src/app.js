@@ -13,7 +13,9 @@ import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
+import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
 
 
 
@@ -97,6 +99,8 @@ app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
 
 
 console.log("🔔 Notification routes mounted");
+
+app.use("/api/upload", uploadRoutes); // ✅ MOUNTED HERE BEFORE 404
 
 
 
