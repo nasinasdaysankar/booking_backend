@@ -336,12 +336,13 @@ export const getAdminOrders = async (req, res) => {
 
     const orders = await sequelize.query(
       `
-      SELECT *,
-             "createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
-             ("totalAmount" - 1) AS "netAmount"
+      SELECT orders.*,
+             orders."createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
+             (orders."totalAmount" - COALESCE(commissions.amount, 0)) AS "netAmount"
       FROM orders
-      WHERE status = :status
-      AND "cafeteriaId" = :cafeteriaId
+      LEFT JOIN commissions ON orders.id = commissions."orderId"
+      WHERE orders.status = :status
+      AND orders."cafeteriaId" = :cafeteriaId
       ORDER BY "createdAtUtc" DESC
       `,
       {
