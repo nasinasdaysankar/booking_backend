@@ -104,7 +104,7 @@ app.use("/api/upload", uploadRoutes); // ✅ MOUNTED HERE BEFORE 404
 
 
 
-
+//uday
 // ================= FALLBACK =================
 app.use((req, res) => {
   res.status(404).json({ message: "API route not found" });
