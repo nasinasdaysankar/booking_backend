@@ -13,7 +13,7 @@ import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
+
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
 
