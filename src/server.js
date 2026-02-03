@@ -1,6 +1,7 @@
-// ⚠️ MUST BE FIRST - Load environment variables before anything else
+// ⚠️ CRITICAL: dotenv MUST be loaded first, before ANY other imports
 import "dotenv/config";
 
+// Now all other imports can use process.env safely
 import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
@@ -21,6 +22,13 @@ import { initNotificationScheduler } from "./cron/notificationScheduler.js";
 
 const PORT = process.env.PORT || 4000;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
+
+// Debug: Check if env vars are loaded
+console.log("🔍 Environment Check:");
+console.log("✅ NODE_ENV:", process.env.NODE_ENV);
+console.log("✅ PORT:", process.env.PORT);
+console.log("✅ AWS_REGION:", process.env.AWS_REGION ? "✅ Loaded" : "❌ Missing");
+console.log("✅ AWS_S3_BUCKET_NAME:", process.env.AWS_S3_BUCKET_NAME ? "✅ Loaded" : "❌ Missing");
 
 // ========== HTTP SERVER ==========
 const server = http.createServer(app);
