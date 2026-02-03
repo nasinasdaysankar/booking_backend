@@ -1,3 +1,4 @@
+// ⚠️ MUST BE FIRST - Load environment variables before anything else
 import "dotenv/config";
 
 import app from "./app.js";
@@ -116,5 +117,3 @@ const start = async () => {
 };
 
 start();
-
-
