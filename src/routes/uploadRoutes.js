@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getS3Client, S3_BUCKET } from "../config/aws_s3.js";
+import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
 
 const router = express.Router();
@@ -16,11 +16,34 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post("/upload-image", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Image file required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Image file required" 
+      });
     }
 
-    // Get S3 client - this will initialize if not already done
-    const s3 = getS3Client();
+    console.log(`📤 Starting upload for: ${req.file.originalname}`);
+
+    // Get S3 client (initializes on first call)
+    let s3;
+    try {
+      s3 = getS3Client();
+    } catch (err) {
+      console.error("❌ S3 initialization failed:", err.message);
+      return res.status(500).json({
+        success: false,
+        message: "S3 not configured. Contact administrator.",
+        error: err.message,
+      });
+    }
+
+    const bucket = getS3Bucket();
+    if (!bucket) {
+      return res.status(500).json({
+        success: false,
+        message: "S3 bucket not configured",
+      });
+    }
 
     const safeName = slugify(req.file.originalname.split(".")[0], {
       lower: true,
@@ -29,24 +52,30 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
     const ext = req.file.mimetype === "image/png" ? "png" : "jpg";
     const s3Key = `images/uploads/${safeName}-${Date.now()}.${ext}`;
 
-    console.log(`📤 Uploading to S3: ${s3Key}`);
+    console.log(`📊 S3 Details:
+      - Bucket: ${bucket}
+      - Region: ${process.env.AWS_REGION}
+      - Key: ${s3Key}
+      - Size: ${req.file.size} bytes
+    `);
 
+    // Upload to S3
     await s3.send(
       new PutObjectCommand({
-        Bucket: S3_BUCKET,
+        Bucket: bucket,
         Key: s3Key,
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
       })
     );
 
-    const imageUrl = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    const imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
 
     console.log(`✅ Upload successful: ${imageUrl}`);
 
-    res.json({ 
+    res.json({
       success: true,
-      imageUrl 
+      imageUrl,
     });
   } catch (err) {
     console.error("❌ Upload error:", err);
@@ -65,11 +94,34 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
 router.post("/upload-multiple", upload.array("images", 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: "Images required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Images required" 
+      });
     }
 
-    // Get S3 client - this will initialize if not already done
-    const s3 = getS3Client();
+    console.log(`📤 Starting bulk upload for ${req.files.length} images`);
+
+    // Get S3 client (initializes on first call)
+    let s3;
+    try {
+      s3 = getS3Client();
+    } catch (err) {
+      console.error("❌ S3 initialization failed:", err.message);
+      return res.status(500).json({
+        success: false,
+        message: "S3 not configured",
+        error: err.message,
+      });
+    }
+
+    const bucket = getS3Bucket();
+    if (!bucket) {
+      return res.status(500).json({
+        success: false,
+        message: "S3 bucket not configured",
+      });
+    }
 
     const uploadedImages = [];
 
@@ -84,18 +136,20 @@ router.post("/upload-multiple", upload.array("images", 10), async (req, res) => 
 
       await s3.send(
         new PutObjectCommand({
-          Bucket: S3_BUCKET,
+          Bucket: bucket,
           Key: s3Key,
           Body: file.buffer,
           ContentType: file.mimetype,
         })
       );
 
-      const imageUrl = `https://${S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+      const imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
       uploadedImages.push(imageUrl);
 
       console.log(`✅ Uploaded: ${imageUrl}`);
     }
+
+    console.log(`✅ Bulk upload complete: ${uploadedImages.length} images`);
 
     res.json({
       success: true,
