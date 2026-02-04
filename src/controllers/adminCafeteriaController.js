@@ -20,7 +20,6 @@ export const getCafeteriaDetails = async (req, res) => {
       attributes: [
         "id",
         "name",
-        "location",
         "latitude",
         "longitude",
         "isOpen",
@@ -61,7 +60,6 @@ export const getMyCafeterias = async (req, res) => {
       attributes: [
         "id",
         "name",
-        "location",
         "latitude",
         "longitude",
         "staticQrToken",
@@ -94,7 +92,6 @@ export const updateCafeteria = async (req, res) => {
 
     const {
       name,
-      location,
       latitude,
       longitude,
       isOpen,
@@ -119,7 +116,6 @@ export const updateCafeteria = async (req, res) => {
 
     // ✅ Update only provided fields
     if (name !== undefined) cafeteria.name = name;
-    if (location !== undefined) cafeteria.location = location;
     if (latitude !== undefined) cafeteria.latitude = latitude;
     if (longitude !== undefined) cafeteria.longitude = longitude;
     if (isOpen !== undefined) cafeteria.isOpen = isOpen;
@@ -134,7 +130,6 @@ export const updateCafeteria = async (req, res) => {
       data: {
         id: cafeteria.id,
         name: cafeteria.name,
-        location: cafeteria.location,
         latitude: cafeteria.latitude,
         longitude: cafeteria.longitude,
         isOpen: cafeteria.isOpen,

@@ -46,7 +46,6 @@ export const getCafeterias = async (req, res) => {
       attributes: [
         'id',
         'name',
-        'location',
         'isOpen',
         'staticQrToken',
         'isUserVisible',

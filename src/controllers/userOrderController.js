@@ -111,7 +111,7 @@ export const confirmOrderPickup = async (req, res) => {
       include: [
         {
           model: Cafeteria,
-          attributes: ["name", "location"],
+          attributes: ["name"],
         },
         {
           model: OrderItem,
@@ -142,7 +142,6 @@ export const confirmOrderPickup = async (req, res) => {
       orderId: order.id,
       billId: order.billId,
       cafeteria: order.Cafeteria?.name ?? "",
-      location: order.Cafeteria?.location ?? "",
       items: order.items.map((i) => ({
         name: i.menuItem?.name ?? "",
         quantity: i.quantity,

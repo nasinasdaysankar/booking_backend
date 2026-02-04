@@ -39,7 +39,7 @@ export const getActiveOrders = async (req, res) => {
         },
         {
           model: Cafeteria,
-          attributes: ["name", "location"],
+          attributes: ["name"],
         },
       ],
       order: [["createdAt", "DESC"]],
