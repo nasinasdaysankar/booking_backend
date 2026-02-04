@@ -66,7 +66,14 @@ export const auth = async (req, res, next) => {
     req.user = userData;
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+    console.error("❌ [AUTH MIDDLEWARE] Error:", err.message);
+    console.error("   Stack:", err.stack);
+    if (!process.env.JWT_SECRET) {
+       console.error("❌ [CRITICAL] JWT_SECRET is NOT defined in environment variables!");
+    } else {
+       console.log("   JWT_SECRET is defined (length: " + process.env.JWT_SECRET.length + ")");
+    }
+    return res.status(401).json({ success: false, message: "Invalid or expired token: " + err.message });
   }
 };
 
