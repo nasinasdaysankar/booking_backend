@@ -6,17 +6,34 @@ export const adminLogin = async (req, res) => {
   try {
     const { staffId, password } = req.body;
 
+    console.log("🔐 [ADMIN LOGIN] Attempt started");
+    console.log("   📋 Staff ID received:", staffId);
+    console.log("   📋 Password received:", password ? "***hidden***" : "EMPTY");
+
     if (!staffId || !password) {
+      console.log("❌ [ADMIN LOGIN] Missing credentials");
       return res.status(400).json({ message: "Missing credentials" });
     }
 
     const admin = await Admin.findOne({ where: { staffId } });
+
     if (!admin) {
+      console.log("❌ [ADMIN LOGIN] Admin not found for Staff ID:", staffId);
       return res.status(401).json({ message: "Invalid Staff ID or Password" });
     }
 
+    console.log("✅ [ADMIN LOGIN] Admin found:");
+    console.log("   📋 Admin ID:", admin.id);
+    console.log("   📋 Staff ID:", admin.staffId);
+    console.log("   📋 Role:", admin.role);
+    console.log("   📋 Cafeteria ID:", admin.cafeteriaId);
+    console.log("   📋 Password hash starts with:", admin.password?.substring(0, 10));
+
     const isMatch = await bcrypt.compare(password, admin.password);
+    console.log("🔍 [ADMIN LOGIN] Password comparison result:", isMatch);
+
     if (!isMatch) {
+      console.log("❌ [ADMIN LOGIN] Password mismatch for Staff ID:", staffId);
       return res.status(401).json({ message: "Invalid Staff ID or Password" });
     }
 
@@ -30,6 +47,8 @@ export const adminLogin = async (req, res) => {
       { expiresIn: "1d" }
     );
 
+    console.log("✅ [ADMIN LOGIN] Login successful for Staff ID:", staffId);
+
     return res.json({
       token,
       user: {
@@ -40,7 +59,7 @@ export const adminLogin = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("ADMIN LOGIN ERROR:", err);
+    console.error("❌ [ADMIN LOGIN] ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -113,5 +132,47 @@ export const deleteAdminAccount = async (req, res) => {
       success: false,
       message: "Account deletion failed: " + err.message
     });
+  }
+};
+
+// ============================================
+// 🔧 TEMPORARY: RESET ADMIN PASSWORD
+// ⚠️ REMOVE THIS ENDPOINT AFTER USE!
+// ============================================
+export const resetAdminPassword = async (req, res) => {
+  try {
+    const { staffId, newPassword, secretKey } = req.body;
+
+    // 🔒 Basic security - use a secret key
+    if (secretKey !== "VELISH_RESET_2024") {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!staffId || !newPassword) {
+      return res.status(400).json({ success: false, message: "Missing staffId or newPassword" });
+    }
+
+    console.log("🔄 [PASSWORD RESET] Attempting reset for:", staffId);
+
+    const admin = await Admin.findOne({ where: { staffId } });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: "Admin not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await admin.update({ password: hashedPassword });
+
+    // Verify it works
+    const testMatch = await bcrypt.compare(newPassword, hashedPassword);
+    console.log("✅ [PASSWORD RESET] Password updated, verification:", testMatch);
+
+    return res.json({
+      success: true,
+      message: `Password reset for ${staffId}`,
+      verified: testMatch
+    });
+  } catch (err) {
+    console.error("❌ [PASSWORD RESET] Error:", err);
+    return res.status(500).json({ success: false, message: "Reset failed" });
   }
 };
