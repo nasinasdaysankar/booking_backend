@@ -23,6 +23,19 @@ export const auth = async (req, res, next) => {
     }
 
     const token = header.split(" ")[1];
+    
+    // 🔥 DEBUG LOGGING
+    if (!token) {
+        console.error("❌ [AUTH] Token extraction failed - Header:", header);
+    } else {
+       // Only log first 20 chars for security, unless it's malformed then we need to see it
+       console.log("🔍 [AUTH] Verifying token:", token.substring(0, 20) + "..."); 
+       console.log("   Token Length:", token.length);
+    }
+    
+    // Check for common issues
+    if (token.includes('"')) console.warn("⚠️ [AUTH] Token contains quotes!");
+
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     // ============================================
