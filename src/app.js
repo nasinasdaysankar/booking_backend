@@ -13,6 +13,7 @@ import adminAuthRoutes from "./routes/adminAuth.routes.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import vendorRoutes from "./routes/vendorRoutes.js"; // [NEW]
 
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
@@ -96,6 +97,7 @@ app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
+app.use("/api/vendors", vendorRoutes); // ✅ VENDOR MANAGEMENT
 
 
 console.log("🔔 Notification routes mounted");

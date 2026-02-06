@@ -421,18 +421,25 @@ export const confirmPayment = async (req, res) => {
       console.log("✅ Payment record created (webhook will add paymentId)");
 
       // ===================================================================
-      // 🆕 RECORD COMMISSION (PLATFORM FEE)
+      // 🆕 RECORD COMMISSION (PLATFORM FEE) WITH SPLIT TRACKING
       // ===================================================================
       const { Commission } = await import("../models/index.js");
+
+      const platformCommission = 1.00; // Fixed ₹1 platform fee
+      const vendorAmount = amount - platformCommission;
+
       await Commission.create(
         {
           orderId: order.id,
           cafeteriaId,
-          amount: 1.00, // Fixed ₹1 Commission
+          amount: platformCommission, // Platform commission (₹1)
+          vendorAmount: vendorAmount, // Amount that goes to vendor
+          totalAmount: amount, // Total order amount
+          splitStatus: 'PENDING', // Will be updated when Cashfree settles
         },
         { transaction: t }
       );
-      console.log("💰 Commission of ₹1 recorded for Owner");
+      console.log(`💰 Commission recorded: Platform ₹${platformCommission}, Vendor ₹${vendorAmount}`);
 
     } else {
       console.log("ℹ️ Payment already exists:", existingPayment.id);

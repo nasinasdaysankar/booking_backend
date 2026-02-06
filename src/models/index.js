@@ -11,6 +11,7 @@ import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
 import CommissionModel from "./Commission.js"; // [NEW]
+import VendorModel from "./Vendor.js"; // [NEW]
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
@@ -46,6 +47,7 @@ const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
 const Commission = CommissionModel(sequelize); // [NEW]
+const Vendor = VendorModel(sequelize); // [NEW]
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
@@ -98,6 +100,10 @@ OrderFeedback.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
 Commission.belongsTo(Order, { foreignKey: "orderId" }); // [NEW]
 Commission.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
 
+// ================= VENDOR RELATIONS =================
+Vendor.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
+Cafeteria.hasOne(Vendor, { foreignKey: "cafeteriaId" }); // [NEW]
+
 
 // ================= FCM RELATIONS =================
 
@@ -132,6 +138,7 @@ export {
   Payment,
   CafeteriaQr,
   Commission, // [NEW]
+  Vendor, // [NEW]
   AdminFcmToken,
   UserFcmToken,
   UserStreak,

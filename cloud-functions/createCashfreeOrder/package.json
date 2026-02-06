@@ -1,0 +1,16 @@
+{
+    "name": "create-cashfree-order",
+    "version": "1.0.0",
+    "description": "Google Cloud Function to create Cashfree orders with vendor split",
+    "main": "index.js",
+    "scripts": {
+        "deploy": "gcloud functions deploy createCashfreeOrder --runtime nodejs20 --trigger-http --allow-unauthenticated --region us-central1"
+    },
+    "dependencies": {
+        "@google-cloud/functions-framework": "^3.3.0",
+        "axios": "^1.6.0",
+        "sequelize": "^6.35.0",
+        "pg": "^8.11.0",
+        "pg-hstore": "^2.3.4"
+    }
+}
