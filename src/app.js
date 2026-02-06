@@ -16,7 +16,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import vendorRoutes from "./routes/vendorRoutes.js"; // [NEW]
 
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
-import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
+import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED newaplit
 
 
 
