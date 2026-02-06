@@ -10,20 +10,20 @@ import {
     getAllVendors,
     updateVendorStatus,
 } from "../controllers/vendorController.js";
-import { authenticateAdmin } from "../middleware/authMiddleware.js";
+import { auth, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // ✅ Register new vendor (Admin only)
-router.post("/register", authenticateAdmin, registerVendor);
+router.post("/register", auth, requireRole(["admin"]), registerVendor);
 
 // ✅ Get vendor by cafeteria ID
-router.get("/cafeteria/:cafeteriaId", authenticateAdmin, getVendorByCafeteria);
+router.get("/cafeteria/:cafeteriaId", auth, requireRole(["admin"]), getVendorByCafeteria);
 
 // ✅ Get all vendors
-router.get("/", authenticateAdmin, getAllVendors);
+router.get("/", auth, requireRole(["admin"]), getAllVendors);
 
 // ✅ Update vendor status (for KYC approval)
-router.put("/:id/status", authenticateAdmin, updateVendorStatus);
+router.put("/:id/status", auth, requireRole(["admin"]), updateVendorStatus);
 
 export default router;
