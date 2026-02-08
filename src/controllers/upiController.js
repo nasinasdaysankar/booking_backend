@@ -102,8 +102,12 @@ export const createUpiPayment = async (req, res) => {
 
         // 3️⃣ Generate VPA (Virtual Payment Address)
         // Format: velish_<transactionRef>@cashfree
-        // TODO: Replace with actual Cashfree Auto Collect VPA once activated
-        const vpa = `7032184785-2@ybl`; // Placeholder - replace with your actual VPA
+        // Get VPA from environment variable (configured in .env)
+        const vpa = process.env.CASHFREE_VPA || `velish.canteen@okaxis`; 
+        
+        if (!process.env.CASHFREE_VPA) {
+            console.warn("⚠️ [UPI] Using placeholder VPA. Set CASHFREE_VPA in .env for production.");
+        }
 
         // 4️⃣ Create Order record
         const order = await Order.create(
