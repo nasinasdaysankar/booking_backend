@@ -12,6 +12,7 @@ import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
 import CommissionModel from "./Commission.js"; // [NEW]
 import VendorModel from "./Vendor.js"; // [NEW]
+import UpiPaymentModel from "./UpiPayment.js"; // [NEW] Auto Collect
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
@@ -48,6 +49,7 @@ const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
 const Commission = CommissionModel(sequelize); // [NEW]
 const Vendor = VendorModel(sequelize); // [NEW]
+const UpiPayment = UpiPaymentModel(sequelize); // [NEW] Auto Collect
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
@@ -104,6 +106,10 @@ Commission.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
 Vendor.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
 Cafeteria.hasOne(Vendor, { foreignKey: "cafeteriaId" }); // [NEW]
 
+// ================= UPI PAYMENT RELATIONS =================
+Order.hasOne(UpiPayment, { foreignKey: "orderId" }); // [NEW]
+UpiPayment.belongsTo(Order, { foreignKey: "orderId" }); // [NEW]
+
 
 // ================= FCM RELATIONS =================
 
@@ -143,4 +149,5 @@ export {
   UserFcmToken,
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
+  UpiPayment, // [NEW] Auto Collect
 };
