@@ -103,8 +103,8 @@ export const createUpiPayment = async (req, res) => {
         // 3️⃣ Generate VPA (Virtual Payment Address)
         // Format: velish_<transactionRef>@cashfree
         // Get VPA from environment variable (configured in .env)
-        const vpa = process.env.CASHFREE_VPA || `velish.canteen@okaxis`; 
-        
+        const vpa = process.env.CASHFREE_VPA || `velish.canteen@okaxis`;
+
         if (!process.env.CASHFREE_VPA) {
             console.warn("⚠️ [UPI] Using placeholder VPA. Set CASHFREE_VPA in .env for production.");
         }
@@ -402,10 +402,17 @@ export const simulatePaymentSuccess = async (req, res) => {
         console.log("🧪 [TEST] Simulating payment success for order:", orderId);
 
         const order = await Order.findByPk(orderId, {
-            include: [{ model: UpiPayment }],
             transaction: t,
             lock: t.LOCK.UPDATE,
         });
+
+        // Fetch associated UPI payment separately to avoid join locking issues
+        if (order) {
+            order.UpiPayment = await UpiPayment.findOne({
+                where: { orderId: order.id },
+                transaction: t
+            });
+        }
 
         if (!order) {
             await t.rollback();
