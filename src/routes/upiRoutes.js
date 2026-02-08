@@ -10,7 +10,7 @@ import {
     verifyPaymentStatus,
     simulatePaymentSuccess,
 } from "../controllers/upiController.js";
-import { auth } from "../middleware/authenticate.js";
+import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
