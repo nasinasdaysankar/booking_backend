@@ -92,7 +92,7 @@ export default (sequelize) => {
         timestamps: true,
         indexes: [
             { fields: ["orderId"] },
-            { fields: ["vpa"], unique: true },
+            { fields: ["vpa"] },  // Not unique - all payments go to same VPA
             { fields: ["transactionRef"], unique: true },
             { fields: ["status"] },
             { fields: ["utrNumber"] },
