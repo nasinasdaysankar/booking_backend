@@ -1,0 +1,730 @@
+import express from 'express';
+import { Op, QueryTypes } from 'sequelize';
+import sequelize from '../config/db.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem } from '../models/index.js';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+const router = express.Router();
+
+// ============================================
+// SUPERADMIN AUTHENTICATION MIDDLEWARE
+// ============================================
+const superadminAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    // Check for superadmin token (starts with 'superadmin_')
+    if (authHeader && authHeader.startsWith('Bearer superadmin_')) {
+        req.isSuperAdmin = true;
+        next();
+    } else {
+        res.status(401).json({ success: false, message: 'Superadmin access required' });
+    }
+};
+
+// ============================================
+// GET ALL CAFETERIAS (SUPERADMIN)
+// ============================================
+router.get('/cafeterias', superadminAuth, async (req, res) => {
+    try {
+        const cafeterias = await Cafeteria.findAll({
+            order: [['id', 'ASC']]
+        });
+
+        res.json({
+            success: true,
+            data: cafeterias
+        });
+    } catch (error) {
+        console.error('Superadmin cafeterias error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch cafeterias' });
+    }
+});
+
+// ============================================
+// CREATE CAFETERIA (SUPERADMIN)
+// ============================================
+router.post('/cafeterias', superadminAuth, async (req, res) => {
+    try {
+        const { name, latitude, longitude, isOpen, isUserVisible, ownerId } = req.body;
+
+        if (!name || !latitude || !longitude || !ownerId) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const staticQrToken = crypto.randomBytes(32).toString('hex');
+
+        const cafeteria = await Cafeteria.create({
+            name,
+            latitude,
+            longitude,
+            isOpen: isOpen !== undefined ? isOpen : true,
+            isUserVisible: isUserVisible !== undefined ? isUserVisible : false,
+            staticQrToken,
+            ownerId
+        });
+
+        res.status(201).json({
+            success: true,
+            data: cafeteria
+        });
+    } catch (error) {
+        console.error('Superadmin create cafeteria error:', error);
+        res.status(500).json({ success: false, message: 'Failed to create cafeteria' });
+    }
+});
+
+// ============================================
+// UPDATE CAFETERIA (SUPERADMIN)
+// ============================================
+router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, isOpen, isUserVisible } = req.body;
+
+        const cafeteria = await Cafeteria.findByPk(id);
+        if (!cafeteria) {
+            return res.status(404).json({ success: false, message: 'Cafeteria not found' });
+        }
+
+        await cafeteria.update({
+            ...(name !== undefined && { name }),
+            ...(isOpen !== undefined && { isOpen }),
+            ...(isUserVisible !== undefined && { isUserVisible }),
+        });
+
+        res.json({
+            success: true,
+            data: cafeteria
+        });
+    } catch (error) {
+        console.error('Superadmin update cafeteria error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update cafeteria' });
+    }
+});
+
+// ============================================
+// GET SUPERADMIN DASHBOARD STATS
+// ============================================
+router.get('/stats', superadminAuth, async (req, res) => {
+    try {
+        const { cafeteriaId, period } = req.query;
+
+        // Get today's date at midnight (IST)
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // Calculate period start date
+        let periodStart = null;
+        if (period === 'daily') {
+            periodStart = startOfDay;
+        } else if (period === 'weekly') {
+            periodStart = new Date(now);
+            periodStart.setDate(periodStart.getDate() - 7);
+        } else if (period === 'monthly') {
+            periodStart = new Date(now);
+            periodStart.setMonth(periodStart.getMonth() - 1);
+        } else if (period === 'yearly') {
+            periodStart = new Date(now);
+            periodStart.setFullYear(periodStart.getFullYear() - 1);
+        }
+
+        // Base where clause
+        const baseWhere = {
+            paymentStatus: 'SUCCESS'
+        };
+
+        // Add cafeteria filter if provided
+        if (cafeteriaId) {
+            baseWhere.cafeteriaId = parseInt(cafeteriaId);
+        }
+
+        // Add period filter if provided
+        if (periodStart) {
+            baseWhere.createdAt = { [Op.gte]: periodStart };
+        }
+
+        // Total orders (filtered by period)
+        const totalOrders = await Order.count({
+            where: baseWhere
+        });
+
+        // Total revenue (filtered by period)
+        const revenueResult = await Order.sum('totalAmount', {
+            where: {
+                ...baseWhere,
+                status: { [Op.in]: ['PAID', 'PREPARING', 'READY', 'PICKED_UP'] }
+            }
+        });
+        const totalRevenue = revenueResult || 0;
+
+        // Pending orders (PAID or PREPARING status — always real-time, not period-filtered)
+        const pendingWhere = { paymentStatus: 'SUCCESS', status: { [Op.in]: ['PAID', 'PREPARING'] } };
+        if (cafeteriaId) pendingWhere.cafeteriaId = parseInt(cafeteriaId);
+        const pendingOrders = await Order.count({ where: pendingWhere });
+
+        // Today's orders
+        const todayWhere = { paymentStatus: 'SUCCESS', createdAt: { [Op.gte]: startOfDay } };
+        if (cafeteriaId) todayWhere.cafeteriaId = parseInt(cafeteriaId);
+        const todayOrders = await Order.count({ where: todayWhere });
+
+        // Today's revenue
+        const todayRevenueResult = await Order.sum('totalAmount', {
+            where: {
+                ...todayWhere,
+                status: { [Op.in]: ['PAID', 'PREPARING', 'READY', 'PICKED_UP'] }
+            }
+        });
+        const todayRevenue = todayRevenueResult || 0;
+
+        // Total customers (global - don't filter by cafeteria)
+        const totalCustomers = await User.count();
+
+        // Active cafeterias
+        const cafeteriaWhere = { isOpen: true };
+        if (cafeteriaId) {
+            cafeteriaWhere.id = parseInt(cafeteriaId);
+        }
+        const activeCafeterias = await Cafeteria.count({
+            where: cafeteriaWhere
+        });
+
+        res.json({
+            success: true,
+            totalOrders,
+            totalRevenue,
+            pendingOrders,
+            todayOrders,
+            todayRevenue,
+            totalCustomers,
+            activeCafeterias
+        });
+    } catch (error) {
+        console.error('Superadmin stats error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch stats' });
+    }
+});
+
+// ============================================
+// GET ALL ORDERS (SUPERADMIN)
+// ============================================
+router.get('/orders', superadminAuth, async (req, res) => {
+    try {
+        const { status, cafeteriaId, limit = 100, offset = 0, days } = req.query;
+
+        const where = {
+            paymentStatus: 'SUCCESS'
+        };
+
+        if (status) {
+            where.status = status;
+        }
+
+        if (cafeteriaId) {
+            where.cafeteriaId = cafeteriaId;
+        }
+
+        // Build date filter for SQL
+        let dateFilter = '';
+        if (days) {
+            dateFilter = `AND orders."createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'`;
+        }
+
+        const orders = await sequelize.query(
+            `
+            SELECT 
+                orders.*,
+                orders."createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
+                cafeterias.name AS "cafeteriaName"
+            FROM orders
+            LEFT JOIN cafeterias ON orders."cafeteriaId" = cafeterias.id
+            WHERE orders."paymentStatus" = 'SUCCESS'
+            ${status ? `AND orders.status = :status` : ''}
+            ${cafeteriaId ? `AND orders."cafeteriaId" = :cafeteriaId` : ''}
+            ${dateFilter}
+            ORDER BY orders."createdAt" DESC
+            LIMIT :limit OFFSET :offset
+            `,
+            {
+                replacements: {
+                    status: status || null,
+                    cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null,
+                    limit: parseInt(limit),
+                    offset: parseInt(offset)
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        // Get order items for each order
+        if (orders.length > 0) {
+            const orderIds = orders.map(o => o.id);
+            const allItems = await sequelize.query(
+                `SELECT * FROM order_items WHERE "orderId" IN (:ids)`,
+                {
+                    replacements: { ids: orderIds },
+                    type: QueryTypes.SELECT
+                }
+            );
+
+            // Combine orders with items
+            const combinedData = orders.map(order => ({
+                ...order,
+                items: allItems
+                    .filter(item => item.orderId === order.id)
+                    .map(item => ({
+                        id: item.id,
+                        itemName: item.name || item.itemName,
+                        quantity: item.quantity,
+                        unitPrice: item.priceAtOrder || item.unitPrice,
+                        totalPrice: item.quantity * (item.priceAtOrder || item.unitPrice),
+                        isParcel: item.isParcel
+                    }))
+            }));
+
+            return res.json({
+                success: true,
+                count: combinedData.length,
+                data: combinedData
+            });
+        }
+
+        res.json({
+            success: true,
+            count: 0,
+            data: []
+        });
+    } catch (error) {
+        console.error('Superadmin orders error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch orders' });
+    }
+});
+
+// ============================================
+// GET MENU ITEMS (SUPERADMIN) - ALL CAFETERIAS
+// ============================================
+router.get('/menu', superadminAuth, async (req, res) => {
+    try {
+        const { cafeteriaId, category, isAvailable } = req.query;
+
+        const where = {
+            isDeleted: false
+        };
+
+        if (cafeteriaId) {
+            where.cafeteriaId = parseInt(cafeteriaId);
+        }
+
+        if (category) {
+            where.category = category;
+        }
+
+        if (isAvailable !== undefined) {
+            where.isAvailable = isAvailable === 'true';
+        }
+
+        const items = await MenuItem.findAll({
+            where,
+            order: [['cafeteriaId', 'ASC'], ['name', 'ASC']]
+        });
+
+        res.json({
+            success: true,
+            count: items.length,
+            data: items
+        });
+    } catch (error) {
+        console.error('Superadmin menu error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch menu' });
+    }
+});
+
+// ============================================
+// CREATE MENU ITEM (SUPERADMIN)
+// ============================================
+router.post('/menu', superadminAuth, async (req, res) => {
+    try {
+        const { cafeteriaId, name, price, estPrepTimeMinutes, category, isAvailable, isParcelAvailable, isTodaySpecial, description, imageUrl } = req.body;
+
+        if (!cafeteriaId || !name || !price) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const menuItem = await MenuItem.create({
+            cafeteriaId,
+            name,
+            price,
+            estPrepTimeMinutes: estPrepTimeMinutes || 15,
+            category,
+            isAvailable: isAvailable !== undefined ? isAvailable : true,
+            isParcelAvailable: isParcelAvailable !== undefined ? isParcelAvailable : true,
+            isTodaySpecial: isTodaySpecial || false,
+            imageUrl
+        });
+
+        res.status(201).json({ success: true, data: menuItem });
+    } catch (error) {
+        console.error('Superadmin create menu item error:', error);
+        res.status(500).json({ success: false, message: 'Failed to create menu item' });
+    }
+});
+
+// ============================================
+// UPDATE MENU ITEM (SUPERADMIN)
+// ============================================
+router.put('/menu/:id', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        const menuItem = await MenuItem.findByPk(id);
+        if (!menuItem) {
+            return res.status(404).json({ success: false, message: 'Menu item not found' });
+        }
+
+        await menuItem.update(updates);
+
+        res.json({ success: true, data: menuItem });
+    } catch (error) {
+        console.error('Superadmin update menu item error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update menu item' });
+    }
+});
+
+// ============================================
+// DELETE MENU ITEM (SUPERADMIN)
+// ============================================
+router.delete('/menu/:id', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const menuItem = await MenuItem.findByPk(id);
+
+        if (!menuItem) {
+            return res.status(404).json({ success: false, message: 'Menu item not found' });
+        }
+
+        // Soft delete
+        await menuItem.update({ isDeleted: true });
+
+        res.json({ success: true, message: 'Menu item deleted successfully' });
+    } catch (error) {
+        console.error('Superadmin delete menu item error:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete menu item' });
+    }
+});
+
+// ============================================
+// GET TREND DATA (SUPERADMIN)
+// ============================================
+router.get('/trend', superadminAuth, async (req, res) => {
+    try {
+        const { days = 7, cafeteriaId } = req.query;
+
+        const trendData = await sequelize.query(
+            `
+            SELECT 
+                DATE("createdAt") as date,
+                COUNT(*) as orders,
+                COALESCE(SUM("totalAmount"), 0) as revenue
+            FROM orders
+            WHERE "paymentStatus" = 'SUCCESS'
+            AND "createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'
+            ${cafeteriaId ? `AND "cafeteriaId" = :cafeteriaId` : ''}
+            GROUP BY DATE("createdAt")
+            ORDER BY date ASC
+            `,
+            {
+                replacements: {
+                    cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        res.json({
+            success: true,
+            data: trendData
+        });
+    } catch (error) {
+        console.error('Superadmin trend error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch trend' });
+    }
+});
+
+// ============================================
+// GET TOP SELLING ITEMS (SUPERADMIN)
+// ============================================
+router.get('/top-items', superadminAuth, async (req, res) => {
+    try {
+        const { limit = 10, days = 30, cafeteriaId } = req.query;
+
+        const topItems = await sequelize.query(
+            `
+            SELECT 
+                oi."name" as "itemName",
+                SUM(oi.quantity) as quantity,
+                SUM(oi.quantity * oi."priceAtOrder") as revenue
+            FROM order_items oi
+            JOIN orders o ON oi."orderId" = o.id
+            WHERE o."paymentStatus" = 'SUCCESS'
+            AND o."createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'
+            ${cafeteriaId ? `AND o."cafeteriaId" = :cafeteriaId` : ''}
+            GROUP BY oi."name"
+            ORDER BY quantity DESC
+            LIMIT :limit
+            `,
+            {
+                replacements: {
+                    limit: parseInt(limit),
+                    cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        res.json({
+            success: true,
+            data: topItems.map(item => ({
+                itemName: item.itemName,
+                quantity: parseInt(item.quantity),
+                revenue: parseFloat(item.revenue)
+            }))
+        });
+    } catch (error) {
+        console.error('Superadmin top-items error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch top items' });
+    }
+});
+
+// ============================================
+// GET ALL CUSTOMERS (SUPERADMIN)
+// ============================================
+router.get('/customers', superadminAuth, async (req, res) => {
+    try {
+        const { limit = 100, offset = 0, search, cafeteriaId } = req.query;
+
+        // If cafeteriaId is provided, get customers who have ordered from that cafeteria
+        if (cafeteriaId) {
+            const customers = await sequelize.query(
+                `
+                SELECT DISTINCT 
+                    u.id,
+                    u.name,
+                    u.email,
+                    u.phone,
+                    u."createdAt",
+                    u."updatedAt",
+                    COUNT(DISTINCT o.id) as "orderCount",
+                    COALESCE(SUM(o."totalAmount"), 0) as "totalSpent"
+                FROM users u
+                INNER JOIN orders o ON u.id = o."studentId"
+                WHERE o."cafeteriaId" = :cafeteriaId
+                AND o."paymentStatus" = 'SUCCESS'
+                ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
+                GROUP BY u.id, u.name, u.email, u.phone, u."createdAt", u."updatedAt"
+                ORDER BY u."createdAt" DESC
+                LIMIT :limit OFFSET :offset
+                `,
+                {
+                    replacements: {
+                        cafeteriaId: parseInt(cafeteriaId),
+                        search: search ? `%${search}%` : null,
+                        limit: parseInt(limit),
+                        offset: parseInt(offset)
+                    },
+                    type: QueryTypes.SELECT
+                }
+            );
+
+            // Get total count for the cafeteria
+            const countResult = await sequelize.query(
+                `
+                SELECT COUNT(DISTINCT u.id) as count
+                FROM users u
+                INNER JOIN orders o ON u.id = o."studentId"
+                WHERE o."cafeteriaId" = :cafeteriaId
+                AND o."paymentStatus" = 'SUCCESS'
+                ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
+                `,
+                {
+                    replacements: {
+                        cafeteriaId: parseInt(cafeteriaId),
+                        search: search ? `%${search}%` : null
+                    },
+                    type: QueryTypes.SELECT
+                }
+            );
+
+            return res.json({
+                success: true,
+                count: parseInt(countResult[0].count),
+                data: customers
+            });
+        }
+
+        // Global mode - get all customers with order stats
+        const customers = await sequelize.query(
+            `
+            SELECT 
+                u.id,
+                u.name,
+                u.email,
+                u.phone,
+                u."createdAt",
+                u."updatedAt",
+                COUNT(DISTINCT o.id) as "orderCount",
+                COALESCE(SUM(CASE WHEN o."paymentStatus" = 'SUCCESS' THEN o."totalAmount" ELSE 0 END), 0) as "totalSpent"
+            FROM users u
+            LEFT JOIN orders o ON u.id = o."studentId" AND o."paymentStatus" = 'SUCCESS'
+            ${search ? `WHERE (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
+            GROUP BY u.id, u.name, u.email, u.phone, u."createdAt", u."updatedAt"
+            ORDER BY u."createdAt" DESC
+            LIMIT :limit OFFSET :offset
+            `,
+            {
+                replacements: {
+                    search: search ? `%${search}%` : null,
+                    limit: parseInt(limit),
+                    offset: parseInt(offset)
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        // Get total count
+        const countResult = await sequelize.query(
+            `
+            SELECT COUNT(*) as count FROM users
+            ${search ? `WHERE (name ILIKE :search OR email ILIKE :search OR phone ILIKE :search)` : ''}
+            `,
+            {
+                replacements: {
+                    search: search ? `%${search}%` : null
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        res.json({
+            success: true,
+            count: parseInt(countResult[0].count),
+            data: customers
+        });
+    } catch (error) {
+        console.error('Superadmin customers error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch customers' });
+    }
+});
+
+// ============================================
+// GET ALL ADMINS (SUPERADMIN)
+// ============================================
+router.get('/admins', superadminAuth, async (req, res) => {
+    try {
+        const admins = await sequelize.query(
+            `
+            SELECT 
+                a.id,
+                a.name,
+                a."staffId",
+                a.role,
+                a."cafeteriaId",
+                a."createdAt",
+                c.name as "cafeteriaName"
+            FROM admins a
+            LEFT JOIN cafeterias c ON a."cafeteriaId" = c.id
+            ORDER BY a.id ASC
+            `,
+            { type: QueryTypes.SELECT }
+        );
+
+        res.json({
+            success: true,
+            data: admins
+        });
+    } catch (error) {
+        console.error('Superadmin admins error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch admins' });
+    }
+});
+
+// ============================================
+// CREATE ADMIN (SUPERADMIN)
+// ============================================
+router.post('/admins', superadminAuth, async (req, res) => {
+    try {
+        const { name, staffId, password, cafeteriaId, role } = req.body;
+
+        if (!name || !staffId || !password || !cafeteriaId) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        // Check if staffId exists
+        const existingAdmin = await Admin.findOne({ where: { staffId } });
+        if (existingAdmin) {
+            return res.status(400).json({ success: false, message: 'Staff ID already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newAdmin = await Admin.create({
+            name,
+            staffId,
+            password: hashedPassword,
+            cafeteriaId,
+            role: role || 'staff'
+        });
+
+        const { password: _, ...adminData } = newAdmin.toJSON();
+
+        res.status(201).json({
+            success: true,
+            data: adminData
+        });
+    } catch (error) {
+        console.error('Superadmin create admin error:', error);
+        res.status(500).json({ success: false, message: 'Failed to create admin' });
+    }
+});
+
+// ============================================
+// PAYMENTS
+// ============================================
+router.get('/payments', superadminAuth, async (req, res) => {
+    try {
+        const { limit = 50, offset = 0, cafeteriaId, status, search } = req.query;
+        const where = {};
+        if (cafeteriaId) where.cafeteriaId = parseInt(cafeteriaId);
+        if (status) where.status = status;
+        if (search) {
+            where[Op.or] = [
+                { transactionId: { [Op.iLike]: `%${search}%` } },
+                { paymentId: { [Op.iLike]: `%${search}%` } },
+                { billId: { [Op.iLike]: `%${search}%` } }
+            ];
+        }
+
+        const payments = await Payment.findAndCountAll({
+            where,
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            order: [['createdAt', 'DESC']],
+            include: [{
+                model: Order,
+                include: [
+                    { model: User, attributes: ['name', 'email'] },
+                    { model: OrderItem, as: 'items', attributes: ['name', 'quantity'] }
+                ]
+            }]
+        });
+
+        res.json({ success: true, ...payments });
+    } catch (error) {
+        console.error('Payments error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch payments' });
+    }
+});
+
+// Routes Removed (Alerts, AuditLogs, Settings)
+
+export default router;

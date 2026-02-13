@@ -10,9 +10,12 @@ import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
-import CommissionModel from "./Commission.js"; // [NEW]
-import VendorModel from "./Vendor.js"; // [NEW]
-import UpiPaymentModel from "./UpiPayment.js"; // [NEW] Auto Collect
+import CommissionModel from "./Commission.js";
+import VendorModel from "./Vendor.js";
+import UpiPaymentModel from "./UpiPayment.js";
+import AuditLogModel from "./AuditLog.js";
+import SystemSettingModel from "./SystemSetting.js";
+import SystemAlertModel from "./SystemAlert.js";
 
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
@@ -47,9 +50,12 @@ const Notification = NotificationModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
-const Commission = CommissionModel(sequelize); // [NEW]
-const Vendor = VendorModel(sequelize); // [NEW]
-const UpiPayment = UpiPaymentModel(sequelize); // [NEW] Auto Collect
+const Commission = CommissionModel(sequelize);
+const Vendor = VendorModel(sequelize);
+const UpiPayment = UpiPaymentModel(sequelize);
+const AuditLog = AuditLogModel(sequelize);
+const SystemSetting = SystemSettingModel(sequelize);
+const SystemAlert = SystemAlertModel(sequelize);
 
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
@@ -129,6 +135,16 @@ UserStreak.belongsTo(User, { foreignKey: "userId" });
 Cafeteria.hasMany(UserStreak, { foreignKey: "cafeteriaId" });
 UserStreak.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
 
+// ================= SYSTEM RELATIONS =================
+SystemAlert.belongsTo(Cafeteria, { foreignKey: "cafeteriaId", as: "Cafeteria" });
+Cafeteria.hasMany(SystemAlert, { foreignKey: "cafeteriaId", as: "alerts" });
+
+AuditLog.belongsTo(Admin, { foreignKey: "adminId" });
+Admin.hasMany(AuditLog, { foreignKey: "adminId" });
+
+Payment.belongsTo(Order, { foreignKey: "orderId" });
+Order.hasMany(Payment, { foreignKey: "orderId" });
+
 
 // ================= EXPORT =================
 export {
@@ -143,8 +159,11 @@ export {
   Banner,
   Payment,
   CafeteriaQr,
-  Commission, // [NEW]
-  Vendor, // [NEW]
+  Commission,
+  Vendor,
+  AuditLog,
+  SystemSetting,
+  SystemAlert,
   AdminFcmToken,
   UserFcmToken,
   UserStreak,
