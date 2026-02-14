@@ -29,6 +29,7 @@ import "./models/index.js";
 
 // Swagger
 import { swaggerUiServe, swaggerUiSetup } from "./swagger.js";
+import logger from "./utils/logger.js"; // ✅ Value Added
 
 const app = express();
 
@@ -103,13 +104,13 @@ app.use("/api/vendors", vendorRoutes); // ✅ VENDOR MANAGEMENT
 app.use("/api/upi", upiRoutes); // ✅ AUTO COLLECT + UPI INTENT
 
 
-console.log("🔔 Notification routes mounted");
+logger.info("🔔 Notification routes mounted");
 
 app.use("/api/upload", uploadRoutes); // ✅ MOUNTED HERE BEFORE 404
 
 // 🔐 SUPERADMIN ROUTES (CROSS-CAFETERIA ACCESS)
 app.use("/api/superadmin", superadminRoutes);
-console.log("✅ Superadmin routes mounted");
+logger.info("✅ Superadmin routes mounted");
 
 
 
