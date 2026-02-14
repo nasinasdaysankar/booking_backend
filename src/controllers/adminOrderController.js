@@ -319,6 +319,7 @@ import { sequelize, Order, CafeteriaQr, UserFcmToken } from "../models/index.js"
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
+import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
 
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
@@ -593,6 +594,9 @@ export const updateOrderStatus = async (req, res) => {
       console.log(`⏰ Scheduled 10-min and 20-min notifications for Order #${orderId}`);
     }
 
+    // 🗑️ INVALIDATE ANALYTICS/STATS CACHE
+    await clearAnalyticsCache(order.cafeteriaId);
+
     return res.json({
       success: true,
       message: `Order status updated to ${status}`,
@@ -657,6 +661,9 @@ export const markOrderPaid = async (req, res) => {
 
     await order.update({ status: "PAID" });
 
+    // 🗑️ INVALIDATE ANALYTICS/STATS CACHE
+    await clearAnalyticsCache(order.cafeteriaId);
+
     return res.json({ success: true, message: "Order marked as PAID" });
   } catch (err) {
     return res
@@ -684,6 +691,11 @@ export const getAdminStats = async (req, res) => {
         avgOrderValue: 0,
       });
     }
+
+    // ✅ CHECK REDIS CACHE
+    const cacheKey = CACHE_KEYS.ADMIN_STATS(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    const cached = await statsCacheGet(cacheKey);
+    if (cached) return res.json(cached);
 
     let dateFilter = {};
 
@@ -758,13 +770,18 @@ export const getAdminStats = async (req, res) => {
     const avgOrderValue =
       totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    return res.json({
+    const statsResult = {
       totalRevenue: Number(netRevenue.toFixed(2)),
       totalOrders,
       totalCustomers,
       pendingOrders,
       avgOrderValue: Number(avgOrderValue.toFixed(2)),
-    });
+    };
+
+    // ✅ SAVE TO REDIS (1 min TTL)
+    await statsCacheSet(cacheKey, statsResult);
+
+    return res.json(statsResult);
   } catch (error) {
     console.error("❌ getAdminStats error:", error);
     return res.json({

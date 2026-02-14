@@ -1,6 +1,8 @@
 
 import { sequelize } from "../models/index.js";
 import { QueryTypes } from "sequelize";
+import { analyticsCacheGet, analyticsCacheSet, CACHE_KEYS } from "../utils/cache.js";
+import { getCache, setCache } from "../config/redis.js";
 
 export const getTrendData = async (req, res) => {
   try {
@@ -10,6 +12,11 @@ export const getTrendData = async (req, res) => {
     if (!cafeteriaId) {
       return res.status(400).json({ message: "Admin not linked to cafeteria" });
     }
+
+    // ✅ CHECK REDIS CACHE
+    const cacheKey = CACHE_KEYS.ANALYTICS_TREND(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    const cached = await analyticsCacheGet(cacheKey);
+    if (cached) return res.json(cached);
 
     let dateExpr;
     let whereDate = "";
@@ -93,9 +100,11 @@ export const getTrendData = async (req, res) => {
           orders: existing?.orders ?? 0
         });
       }
+      await analyticsCacheSet(cacheKey, completeData);
       return res.json(completeData);
     }
 
+    await analyticsCacheSet(cacheKey, rows);
     return res.json(rows);
   } catch (err) {
     console.error("❌ Trend Error:", err.message);
@@ -116,6 +125,11 @@ export const getTopItems = async (req, res) => {
     if (!cafeteriaId) {
       return res.status(400).json({ message: "Cafeteria not linked" });
     }
+
+    // ✅ CHECK REDIS CACHE
+    const cacheKey = CACHE_KEYS.ANALYTICS_TOP(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    const cached = await analyticsCacheGet(cacheKey);
+    if (cached) return res.json(cached);
 
     let whereDate = "";
 
@@ -164,14 +178,17 @@ export const getTopItems = async (req, res) => {
 
     console.log("💰 Total Revenue:", totalRevenue);
 
-    return res.json(
-      items.map((i) => ({
-        label: i.label,
-        count: i.count,
-        revenue: i.revenue,
-        percentage: totalRevenue > 0 ? Math.round((i.revenue / totalRevenue) * 100) : 0,
-      }))
-    );
+    const result = items.map((i) => ({
+      label: i.label,
+      count: i.count,
+      revenue: i.revenue,
+      percentage: totalRevenue > 0 ? Math.round((i.revenue / totalRevenue) * 100) : 0,
+    }));
+
+    // ✅ SAVE TO REDIS
+    await analyticsCacheSet(cacheKey, result);
+
+    return res.json(result);
   } catch (err) {
     console.error("❌ Top items error:", err.message);
     console.error("❌ Top items stack:", err.stack);
@@ -188,6 +205,11 @@ export const getOrdersOverview = async (req, res) => {
     if (!cafeteriaId) {
       return res.status(400).json({ message: "Cafeteria not linked" });
     }
+
+    // ✅ CHECK REDIS CACHE
+    const cacheKey = CACHE_KEYS.ANALYTICS_OVERVIEW(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    const cached = await analyticsCacheGet(cacheKey);
+    if (cached) return res.json(cached);
 
     let groupExpr;
     let labelExpr;
@@ -262,6 +284,9 @@ export const getOrdersOverview = async (req, res) => {
 
     console.log("📊 Orders Overview Result:", rows);
 
+    // ✅ SAVE TO REDIS
+    await analyticsCacheSet(cacheKey, rows);
+
     return res.json(rows);
   } catch (err) {
     console.error("❌ Orders overview error:", err.message);
@@ -282,6 +307,11 @@ export const getPeakHours = async (req, res) => {
     if (!cafeteriaId) {
       return res.status(400).json({ message: "Cafeteria not linked" });
     }
+
+    // ✅ CHECK REDIS CACHE
+    const cacheKey = CACHE_KEYS.ANALYTICS_PEAK(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    const cached = await analyticsCacheGet(cacheKey);
+    if (cached) return res.json(cached);
 
     let whereDate = "";
 
@@ -339,6 +369,9 @@ export const getPeakHours = async (req, res) => {
 
     console.log("📊 Peak Hours Result:", rows);
 
+    // ✅ SAVE TO REDIS
+    await analyticsCacheSet(cacheKey, rows);
+
     return res.json(rows);
   } catch (err) {
     console.error("❌ Peak Hours Error:", err.message);
@@ -360,6 +393,11 @@ export const getCommissionStats = async (req, res) => {
     if (!cafeteriaId) {
       return res.status(400).json({ message: "Cafeteria not linked" });
     }
+
+    // ✅ CHECK REDIS CACHE (5 min TTL for commission)
+    const cacheKey = CACHE_KEYS.ANALYTICS_COMMISSION(cafeteriaId);
+    const cached = await getCache(cacheKey);
+    if (cached) return res.json(cached);
 
     console.log("🔍 Fetching Commission Stats...");
 
@@ -395,10 +433,15 @@ export const getCommissionStats = async (req, res) => {
 
     const stats = result[0] || { totalTransactions: 0, totalCommission: 0 };
 
-    return res.json({
+    const response = {
       success: true,
       data: stats
-    });
+    };
+
+    // ✅ SAVE TO REDIS (5 min TTL)
+    await setCache(cacheKey, response, 300);
+
+    return res.json(response);
 
   } catch (err) {
     console.error("❌ Commission Stats Error:", err.message);

@@ -7,6 +7,7 @@ import http from "http";
 import { Server } from "socket.io";
 
 import { sequelize, Cafeteria } from "./models/index.js";
+import { connectRedis, isRedisReady } from "./config/redis.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import logger from "./utils/logger.js"; // ✅ Value Added
 import foodRoutes from "./routes/foodRoutes.js";
@@ -73,6 +74,13 @@ const start = async () => {
     logger.info("🔗 Connecting to database...");
     await sequelize.authenticate();
     logger.info("✅ Database connected");
+
+    // ============================================
+    // 🔥 REDIS CONNECTION
+    // ============================================
+    console.log("🔗 Connecting to Redis...");
+    await connectRedis();
+    console.log(isRedisReady() ? "✅ Redis connected" : "⚠️ Redis unavailable (running without cache)");
 
     if (SHOULD_SYNC) {
       await sequelize.sync({ alter: false });

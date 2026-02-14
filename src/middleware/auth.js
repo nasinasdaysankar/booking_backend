@@ -1,18 +1,15 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import NodeCache from "node-cache";
 import { User, Admin } from "../models/index.js";
+import { getCache, setCache, delCache } from "../config/redis.js";
+import { CACHE_KEYS } from "../utils/cache.js";
 
 dotenv.config();
 
 // ============================================
-// 🔥 AUTH CACHE - Reduces DB queries per request
+// 🔥 AUTH CACHE TTL (seconds)
 // ============================================
-const authCache = new NodeCache({ 
-  stdTTL: 300,      // 5 minutes cache
-  checkperiod: 60,  // Check for expired keys every 60s
-  useClones: false  // Better performance
-});
+const AUTH_TTL = 300; // 5 minutes cache
 
 // middleware/auth.js
 export const auth = async (req, res, next) => {
@@ -39,10 +36,10 @@ export const auth = async (req, res, next) => {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     // ============================================
-    // ✅ CHECK CACHE FIRST (Skip DB query)
+    // ✅ CHECK REDIS CACHE FIRST (Skip DB query)
     // ============================================
-    const cacheKey = `auth_${payload.id}`;
-    const cachedUser = authCache.get(cacheKey);
+    const cacheKey = CACHE_KEYS.AUTH(payload.id);
+    const cachedUser = await getCache(cacheKey);
     
     if (cachedUser) {
       req.user = cachedUser;
@@ -72,9 +69,9 @@ export const auth = async (req, res, next) => {
     };
 
     // ============================================
-    // ✅ CACHE THE USER DATA
+    // ✅ CACHE THE USER DATA IN REDIS
     // ============================================
-    authCache.set(cacheKey, userData);
+    await setCache(cacheKey, userData, AUTH_TTL);
     
     req.user = userData;
     next();
@@ -115,8 +112,8 @@ export const requireRole = (roles = []) => {
 // ============================================
 // 🗑️ HELPER: Clear user from cache (on logout/delete)
 // ============================================
-export const clearAuthCache = (userId) => {
-  authCache.del(`auth_${userId}`);
+export const clearAuthCache = async (userId) => {
+  await delCache(CACHE_KEYS.AUTH(userId));
 };
 
 

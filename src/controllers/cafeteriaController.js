@@ -1,38 +1,15 @@
-// import { Cafeteria, MenuItem } from '../models/index.js';
-
-// export const getCafeterias = async (req, res) => {
-//   try {
-//     const cafes = await Cafeteria.findAll();
-//     res.json(cafes);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: 'Error fetching cafeterias' });
-//   }
-// };
-
-// export const getCafeteriaMenu = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const items = await MenuItem.findAll({ where: { cafeteriaId: id, isAvailable: true } });
-//     res.json(items);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: 'Error fetching menu' });
-//   }
-// };
-
 import { Cafeteria, MenuItem } from '../models/index.js';
-import { cafeteriaCache } from '../utils/cache.js';
+import { cafeteriaCacheGet, cafeteriaCacheSet, CACHE_KEYS } from '../utils/cache.js';
 
 // ============================================
-// ✅ GET CAFETERIAS (WITH CACHING)
+// ✅ GET CAFETERIAS (WITH REDIS CACHING)
 // ============================================
 export const getCafeterias = async (req, res) => {
   try {
-    const cacheKey = 'cafeterias_all';
+    const cacheKey = CACHE_KEYS.CAFETERIAS_ALL;
 
-    // ✅ CHECK CACHE FIRST
-    const cached = cafeteriaCache.get(cacheKey);
+    // ✅ CHECK REDIS CACHE FIRST
+    const cached = await cafeteriaCacheGet(cacheKey);
     if (cached) {
       return res.json({
         success: true,
@@ -55,8 +32,8 @@ export const getCafeterias = async (req, res) => {
       order: [['id', 'ASC']]
     });
 
-    // ✅ SAVE TO CACHE
-    cafeteriaCache.set(cacheKey, cafes);
+    // ✅ SAVE TO REDIS CACHE
+    await cafeteriaCacheSet(cacheKey, cafes);
 
     res.json({
       success: true,
@@ -79,7 +56,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     // Check if cafeteria exists
     const cafeteria = await Cafeteria.findByPk(id, {
-      attributes: ['id', 'name', 'isOpen'] // ✅ Optional: be explicit
+      attributes: ['id', 'name', 'isOpen']
     });
 
     if (!cafeteria) {
@@ -99,7 +76,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     res.json({
       success: true,
-      cafeteriaOpen: cafeteria.isOpen,  // 🔥 Changed 'closed' to 'cafeteriaOpen'
+      cafeteriaOpen: cafeteria.isOpen,
       data: items
     });
   } catch (err) {

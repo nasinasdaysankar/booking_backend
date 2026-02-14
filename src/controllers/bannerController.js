@@ -2,12 +2,25 @@ import { Banner } from "../models/index.js";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import s3 from "../config/aws_s3.js";
 import slugify from "slugify";
+import { bannerCacheGet, bannerCacheSet, CACHE_KEYS, clearBannerCache } from "../utils/cache.js";
 
-// ==================== GET ALL BANNERS ====================
+// ==================== GET ALL BANNERS (REDIS CACHED) ====================
 export const getBanners = async (req, res) => {
   try {
+    const cacheKey = CACHE_KEYS.BANNERS_ALL;
+
+    // ✅ CHECK REDIS CACHE
+    const cached = await bannerCacheGet(cacheKey);
+    if (cached) {
+      return res.json({ success: true, cached: true, data: cached });
+    }
+
     const banners = await Banner.findAll();
-    res.json(banners);
+
+    // ✅ SAVE TO REDIS
+    await bannerCacheSet(cacheKey, banners);
+
+    res.json({ success: true, cached: false, data: banners });
   } catch (err) {
     res.status(500).json({
       message: "Unable to fetch banners",
@@ -49,6 +62,9 @@ export const uploadBanner = async (req, res) => {
       cafeteriaId,
       imageUrl,
     });
+
+    // 🗑️ INVALIDATE BANNER CACHE
+    await clearBannerCache();
 
     return res.json({
       success: true,

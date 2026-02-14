@@ -1,6 +1,6 @@
 import { MenuItem, sequelize } from "../models/index.js";
 import { Op } from "sequelize";
-import { menuCache } from "../utils/cache.js";
+import { menuCacheGet, menuCacheSet, analyticsCacheGet, analyticsCacheSet, CACHE_KEYS, clearMenuCache } from "../utils/cache.js";
 
 
 /* ================== ADD SINGLE MENU ITEM ================== */
@@ -9,7 +9,7 @@ export const addMenuItem = async (req, res) => {
     const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial } = req.body;
 
     if (!cafeteriaId || !name || !price)
-      return res.status(400).json({ success:false, message:"Missing fields" });
+      return res.status(400).json({ success: false, message: "Missing fields" });
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -24,9 +24,9 @@ export const addMenuItem = async (req, res) => {
       specialDate: isTodaySpecial ? today : null,
     });
 
-    res.json({ success:true, message:"Item Added ✔", data:item });
+    res.json({ success: true, message: "Item Added ✔", data: item });
   } catch (err) {
-    res.status(500).json({ success:false, message:"Insert failed", error:err.message });
+    res.status(500).json({ success: false, message: "Insert failed", error: err.message });
   }
 };
 
@@ -36,22 +36,22 @@ export const addBulkMenuItems = async (req, res) => {
   try {
 
     // FIXED → reads array under items[]
-    const { items } = req.body;  
+    const { items } = req.body;
 
     if (!Array.isArray(items) || items.length === 0)
-      return res.status(400).json({ success:false, message:"Items array required" });
+      return res.status(400).json({ success: false, message: "Items array required" });
 
     const result = await MenuItem.bulkCreate(items);
 
     res.json({
-      success:true,
-      inserted:result.length,
-      message:"Bulk Menu Inserted ✔",
-      data:result
+      success: true,
+      inserted: result.length,
+      message: "Bulk Menu Inserted ✔",
+      data: result
     });
 
   } catch (err) {
-    res.status(500).json({ success:false, message:"Bulk failed", error:err.message });
+    res.status(500).json({ success: false, message: "Bulk failed", error: err.message });
   }
 };
 
@@ -60,9 +60,9 @@ export const addBulkMenuItems = async (req, res) => {
 export const getAllMenuItems = async (req, res) => {
   try {
     const items = await MenuItem.findAll();
-    res.json({ success:true, count:items.length, data:items });
+    res.json({ success: true, count: items.length, data: items });
   } catch (err) {
-    res.status(500).json({ success:false, message:"Fetch failed", error:err.message });
+    res.status(500).json({ success: false, message: "Fetch failed", error: err.message });
   }
 };
 
@@ -71,12 +71,12 @@ export const getAllMenuItems = async (req, res) => {
 export const getBeveragesMenu = async (req, res) => {
   try {
     const category = req.params.category;
-    const items = await MenuItem.findAll({ where:{ category } });
+    const items = await MenuItem.findAll({ where: { category } });
 
-    res.json({ success:true, category, count:items.length, data:items });
+    res.json({ success: true, category, count: items.length, data: items });
 
   } catch (err) {
-    res.status(500).json({ success:false, message:"Category fetch failed", error:err.message });
+    res.status(500).json({ success: false, message: "Category fetch failed", error: err.message });
   }
 };
 export const getDeletedMenuItems = async (req, res) => {
@@ -167,10 +167,10 @@ export const getMenuByCafeteria = async (req, res) => {
 /* ================== SINGLE IMAGE UPDATE ================== */
 export const updateSingleImage = async (req, res) => {
   try {
-    await MenuItem.update({ imageUrl:req.body.imageUrl },{ where:{ id:req.params.id }});
-    res.json({success:true,message:"Image Updated ✔"});
-  } catch(err){
-    res.status(500).json({success:false,error:err.message});
+    await MenuItem.update({ imageUrl: req.body.imageUrl }, { where: { id: req.params.id } });
+    res.json({ success: true, message: "Image Updated ✔" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -206,18 +206,18 @@ export const deleteMenuItem = async (req, res) => {
 
 
 /* ================== BULK IMAGE UPDATE ================== */
-export const updateMultipleImages = async(req,res)=>{
-  try{
+export const updateMultipleImages = async (req, res) => {
+  try {
     const { items } = req.body;
-    if(!items) return res.status(400).json({message:"Items required"});
+    if (!items) return res.status(400).json({ message: "Items required" });
 
-    for(const item of items)
-      if(item.id) await MenuItem.update({imageUrl:item.imageUrl},{where:{id:item.id}});
+    for (const item of items)
+      if (item.id) await MenuItem.update({ imageUrl: item.imageUrl }, { where: { id: item.id } });
 
-    res.json({success:true,message:"Images Updated ✔"});
+    res.json({ success: true, message: "Images Updated ✔" });
 
-  }catch(err){
-    res.status(500).json({success:false,error:err.message});
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -238,14 +238,14 @@ export const updateCategoryBulk = async (req, res) => {
     res.json({ success: true, message: "Categories Updated Successfully ✔" });
 
   } catch (err) {
-    res.status(500).json({ success:false, error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 export const updateImageById = async (req, res) => {
   try {
     const { id, imageUrl } = req.body;
 
-    if (!id || !imageUrl) 
+    if (!id || !imageUrl)
       return res.status(400).json({ success: false, message: "id & imageUrl required" });
 
     await MenuItem.update(
@@ -292,11 +292,11 @@ export const uploadBulkImages = async (req, res) => {
 
       await item.update({ imageUrl: uploadResult.secure_url });
 
-      results.push({ 
-        id: item.id, 
-        name: item.name, 
-        url: uploadResult.secure_url, 
-        status: "UPDATED" 
+      results.push({
+        id: item.id,
+        name: item.name,
+        url: uploadResult.secure_url,
+        status: "UPDATED"
       });
 
       fs.unlinkSync(file.path); // delete temp file
@@ -314,7 +314,7 @@ export const updateMenuItem = async (req, res) => {
     const { name, price, category, isAvailable, isTodaySpecial } = req.body;
 
     const item = await MenuItem.findByPk(id);
-    if (!item) return res.status(404).json({ success:false, message:"Item not found" });
+    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -336,9 +336,9 @@ export const updateMenuItem = async (req, res) => {
 
     await item.save();
 
-    res.json({ success:true, message:"Item Updated ✔", data:item });
+    res.json({ success: true, message: "Item Updated ✔", data: item });
   } catch (err) {
-    res.status(500).json({ success:false, message:"Update failed", error:err.message });
+    res.status(500).json({ success: false, message: "Update failed", error: err.message });
   }
 };
 
@@ -348,6 +348,13 @@ export const updateMenuItem = async (req, res) => {
 export const getMostLovedItems = async (req, res) => {
   try {
     const cafeteriaId = req.query.cafeteriaId;
+    const cacheKey = CACHE_KEYS.MOST_LOVED(cafeteriaId);
+
+    // ✅ CHECK REDIS CACHE
+    const cached = await analyticsCacheGet(cacheKey);
+    if (cached) {
+      return res.json({ success: true, cached: true, data: cached });
+    }
 
     let cafeteriaFilter = "";
     if (cafeteriaId) {
@@ -372,8 +379,12 @@ export const getMostLovedItems = async (req, res) => {
       LIMIT 10
     `);
 
+    // ✅ SAVE TO REDIS (5 min TTL)
+    await analyticsCacheSet(cacheKey, items);
+
     res.json({
       success: true,
+      cached: false,
       data: items,
     });
   } catch (err) {
@@ -386,6 +397,14 @@ export const getMostLovedItems = async (req, res) => {
 export const getTodaySpecials = async (req, res) => {
   try {
     const cafeteriaId = req.params.id;
+    const cacheKey = CACHE_KEYS.TODAY_SPECIAL(cafeteriaId);
+
+    // ✅ CHECK REDIS CACHE
+    const cached = await menuCacheGet(cacheKey);
+    if (cached) {
+      return res.json({ success: true, cached: true, ...cached });
+    }
+
     const today = new Date().toISOString().split("T")[0];
 
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
@@ -401,7 +420,7 @@ export const getTodaySpecials = async (req, res) => {
       return res.json({
         success: true,
         cafeteriaOpen: false,
-        data: [],   // hide today special
+        data: [],
       });
     }
 
@@ -415,10 +434,15 @@ export const getTodaySpecials = async (req, res) => {
       },
     });
 
+    const response = { cafeteriaOpen: true, data: items };
+
+    // ✅ SAVE TO REDIS (2 min TTL)
+    await menuCacheSet(cacheKey, response);
+
     res.json({
       success: true,
-      cafeteriaOpen: true,
-      data: items,
+      cached: false,
+      ...response,
     });
 
   } catch (err) {
@@ -433,9 +457,9 @@ export const restoreMenuItem = async (req, res) => {
     const { id } = req.params;
 
     const [updated] = await MenuItem.update(
-      { 
-        isDeleted: false, 
-        isAvailable: true 
+      {
+        isDeleted: false,
+        isAvailable: true
       },
       { where: { id } }
     );
@@ -484,10 +508,10 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       });
     }
 
-    const cacheKey = `menu_public_${cafeteriaId}`;
+    const cacheKey = CACHE_KEYS.MENU_PUBLIC(cafeteriaId);
 
-    // ✅ CACHE HIT
-    const cached = menuCache.get(cacheKey);
+    // ✅ REDIS CACHE HIT
+    const cached = await menuCacheGet(cacheKey);
     if (cached) {
       return res.json({
         success: true,
@@ -537,8 +561,8 @@ export const getPublicMenuByCafeteria = async (req, res) => {
       data: items,
     };
 
-    // ✅ SAVE TO CACHE
-    menuCache.set(cacheKey, response);
+    // ✅ SAVE TO REDIS CACHE
+    await menuCacheSet(cacheKey, response);
 
     return res.json({
       success: true,
