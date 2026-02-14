@@ -12,7 +12,7 @@ export const getBanners = async (req, res) => {
     // ✅ CHECK REDIS CACHE
     const cached = await bannerCacheGet(cacheKey);
     if (cached) {
-      return res.json({ success: true, cached: true, data: cached });
+      return res.json(cached);  // Return raw array (Flutter expects List<dynamic>)
     }
 
     const banners = await Banner.findAll();
@@ -20,7 +20,7 @@ export const getBanners = async (req, res) => {
     // ✅ SAVE TO REDIS
     await bannerCacheSet(cacheKey, banners);
 
-    res.json({ success: true, cached: false, data: banners });
+    res.json(banners);  // Return raw array (same format as before Redis)
   } catch (err) {
     res.status(500).json({
       message: "Unable to fetch banners",
