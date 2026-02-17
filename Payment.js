@@ -23,6 +23,7 @@ export default (sequelize) => {
     tableName: "payments",
     timestamps: true,
   });
+  //we are doing the payment confirmation in the payment.js file
 
   return Payment;
 };
