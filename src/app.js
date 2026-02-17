@@ -60,11 +60,16 @@ const paymentLimiter = rateLimit({
   message: { success: false, message: "Payment rate limit exceeded. Please wait." },
 });
 
-// Apply general rate limit to all API routes
-app.use("/api/", generalLimiter);
+// Apply rate limiting conditionally
+if (process.env.ENABLE_RATE_LIMIT !== "false") {
+  app.use("/api/", generalLimiter);
+  app.use("/api/payments", paymentLimiter);
+  console.log("🔒 Rate Limiting ENABLED");
+} else {
+  console.log("⚠️ Rate Limiting DISABLED (Load Testing Mode)");
+}
 
-// Apply stricter limit to payment routes
-app.use("/api/payments", paymentLimiter);
+
 
 // ================= SWAGGER =================
 app.use("/api-docs", swaggerUiServe, swaggerUiSetup);
