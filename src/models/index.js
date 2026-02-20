@@ -21,9 +21,23 @@ import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
-import InventoryModel from "./Inventory.js";
-import InventoryLogModel from "./InventoryLog.js";
-import IngredientModel from "./Ingredient.js";
+
+import app from "../app.js";
+import http from "http";
+import { Server } from "socket.io";
+
+import dotenv from "dotenv";
+
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : process.env.NODE_ENV === "test"
+      ? ".env.test"
+      : ".env.local";
+
+dotenv.config({ path: envFile });
+
+
 
 // ================= INIT MODELS =================
 const User = UserModel(sequelize);
@@ -50,13 +64,6 @@ const UserStreak = UserStreakModel(sequelize);
 
 // ⭐ FEEDBACK MODEL
 const OrderFeedback = OrderFeedbackModel(sequelize);
-
-// 📦 INVENTORY MODELS
-const Inventory = InventoryModel(sequelize);
-const InventoryLog = InventoryLogModel(sequelize);
-
-// 🧪 INGREDIENT MODEL
-const Ingredient = IngredientModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -138,20 +145,6 @@ Admin.hasMany(AuditLog, { foreignKey: "adminId" });
 Payment.belongsTo(Order, { foreignKey: "orderId" });
 Order.hasMany(Payment, { foreignKey: "orderId" });
 
-// ================= INVENTORY RELATIONS =================
-MenuItem.hasOne(Inventory, { foreignKey: "menuItemId", as: "inventory" });
-Inventory.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
-
-Cafeteria.hasMany(Inventory, { foreignKey: "cafeteriaId" });
-Inventory.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
-
-MenuItem.hasMany(InventoryLog, { foreignKey: "menuItemId" });
-InventoryLog.belongsTo(MenuItem, { foreignKey: "menuItemId" });
-
-// ================= INGREDIENT RELATIONS =================
-MenuItem.hasMany(Ingredient, { foreignKey: "menuItemId", as: "ingredients" });
-Ingredient.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
-
 
 // ================= EXPORT =================
 export {
@@ -176,7 +169,4 @@ export {
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
   UpiPayment, // [NEW] Auto Collect
-  Inventory, // 📦 Inventory
-  InventoryLog, // 📦 Inventory Log
-  Ingredient, // 🧪 Ingredients
 };
