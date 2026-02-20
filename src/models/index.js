@@ -23,6 +23,7 @@ import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 import InventoryModel from "./Inventory.js";
 import InventoryLogModel from "./InventoryLog.js";
+import IngredientModel from "./Ingredient.js";
 
 import app from "../app.js";
 import http from "http";
@@ -70,6 +71,9 @@ const OrderFeedback = OrderFeedbackModel(sequelize);
 // 📦 INVENTORY MODELS
 const Inventory = InventoryModel(sequelize);
 const InventoryLog = InventoryLogModel(sequelize);
+
+// 🧪 INGREDIENT MODEL
+const Ingredient = IngredientModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -161,6 +165,10 @@ Inventory.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
 MenuItem.hasMany(InventoryLog, { foreignKey: "menuItemId" });
 InventoryLog.belongsTo(MenuItem, { foreignKey: "menuItemId" });
 
+// ================= INGREDIENT RELATIONS =================
+MenuItem.hasMany(Ingredient, { foreignKey: "menuItemId", as: "ingredients" });
+Ingredient.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
+
 
 // ================= EXPORT =================
 export {
@@ -187,4 +195,5 @@ export {
   UpiPayment, // [NEW] Auto Collect
   Inventory, // 📦 Inventory
   InventoryLog, // 📦 Inventory Log
+  Ingredient, // 🧪 Ingredients
 };

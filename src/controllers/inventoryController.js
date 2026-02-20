@@ -1,4 +1,4 @@
-import { Inventory, InventoryLog, MenuItem, Cafeteria } from "../models/index.js";
+import { Inventory, InventoryLog, MenuItem, Cafeteria, Ingredient } from "../models/index.js";
 import { Op } from "sequelize";
 
 // ================= GET ALL INVENTORY FOR A CAFETERIA =================
@@ -324,3 +324,91 @@ export const updateInventorySettings = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
+
+// ================= 🧪 INGREDIENT CRUD =================
+
+// GET all ingredients for a menu item
+export const getIngredients = async (req, res) => {
+    try {
+        const { menuItemId } = req.params;
+
+        const ingredients = await Ingredient.findAll({
+            where: { menuItemId },
+            order: [["name", "ASC"]],
+        });
+
+        res.json({ success: true, data: ingredients });
+    } catch (err) {
+        console.error("❌ getIngredients error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// ADD an ingredient to a menu item
+export const addIngredient = async (req, res) => {
+    try {
+        const { menuItemId } = req.params;
+        const { name, quantity, unit } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ success: false, message: "Ingredient name is required" });
+        }
+
+        const ingredient = await Ingredient.create({
+            menuItemId: parseInt(menuItemId),
+            name,
+            quantity: quantity || 0,
+            unit: unit || "grams",
+        });
+
+        res.status(201).json({ success: true, data: ingredient });
+    } catch (err) {
+        console.error("❌ addIngredient error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// UPDATE an ingredient
+export const updateIngredient = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, quantity, unit } = req.body;
+
+        const ingredient = await Ingredient.findByPk(id);
+        if (!ingredient) {
+            return res.status(404).json({ success: false, message: "Ingredient not found" });
+        }
+
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (quantity !== undefined) updates.quantity = quantity;
+        if (unit !== undefined) updates.unit = unit;
+
+        await ingredient.update(updates);
+
+        res.json({ success: true, data: ingredient });
+    } catch (err) {
+        console.error("❌ updateIngredient error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// DELETE an ingredient
+export const deleteIngredient = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const ingredient = await Ingredient.findByPk(id);
+        if (!ingredient) {
+            return res.status(404).json({ success: false, message: "Ingredient not found" });
+        }
+
+        await ingredient.destroy();
+
+        res.json({ success: true, message: "Ingredient deleted" });
+    } catch (err) {
+        console.error("❌ deleteIngredient error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
