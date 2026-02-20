@@ -15,6 +15,7 @@ import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import vendorRoutes from "./routes/vendorRoutes.js"; // [NEW]
 import upiRoutes from "./routes/upiRoutes.js"; // [NEW] Auto Collect + UPI Intent
+import inventoryRoutes from "./routes/inventoryRoutes.js"; // 📦 Inventory Management
 
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
@@ -107,6 +108,7 @@ app.use("/api/user/notify", userNotificationRoutes);
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
 app.use("/api/vendors", vendorRoutes); // ✅ VENDOR MANAGEMENT
 app.use("/api/upi", upiRoutes); // ✅ AUTO COLLECT + UPI INTENT
+app.use("/api/inventory", inventoryRoutes); // 📦 INVENTORY MANAGEMENT
 
 
 logger.info("🔔 Notification routes mounted");

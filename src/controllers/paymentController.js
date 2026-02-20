@@ -3,11 +3,15 @@
 // Complete refund functions with all fixes
 // ===================================================================
 
-import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
+import {
+  sequelize, Order, OrderItem, Payment, MenuItem, Cafeteria
+} from "../models/index.js";
+import { Op } from "sequelize";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken } from "../models/index.js";
 import { UserStreak } from "../models/index.js";
+import { Inventory, InventoryLog } from "../models/index.js";
 import dayjs from "dayjs";
 
 // --------------------------------------------------
@@ -524,6 +528,55 @@ export const confirmPayment = async (req, res) => {
         console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
       } else {
         console.log(`📦 No items have parcel packaging`);
+      }
+    }
+
+    // ===================================================================
+    // 📦 INVENTORY: DEDUCT STOCK FOR EACH ORDERED ITEM
+    // ===================================================================
+    if (itemsToCreate.length > 0) {
+      for (const item of itemsToCreate) {
+        const menuItemId = item.menuItemId || item.Id;
+        if (!menuItemId) continue;
+
+        const inventory = await Inventory.findOne({
+          where: { menuItemId },
+          transaction: t,
+          lock: t.LOCK.UPDATE,
+        });
+
+        if (inventory && inventory.currentStock > 0) {
+          const previousStock = inventory.currentStock;
+          const deduction = item.quantity || 1;
+          const newStock = Math.max(0, previousStock - deduction);
+
+          await inventory.update({ currentStock: newStock }, { transaction: t });
+
+          // Log the deduction
+          await InventoryLog.create(
+            {
+              menuItemId,
+              cafeteriaId,
+              changeType: "ORDER_DEDUCTION",
+              quantity: -deduction,
+              previousStock,
+              newStock,
+              reason: `Order #${order.id} (KOT: ${kotNumber})`,
+            },
+            { transaction: t }
+          );
+
+          // Auto-disable if stock hits 0
+          if (newStock <= 0 && inventory.autoDisable) {
+            await MenuItem.update(
+              { isAvailable: false },
+              { where: { id: menuItemId }, transaction: t }
+            );
+            console.log(`⚠️ Auto-disabled menu item ${item.name} (stock: 0)`);
+          }
+
+          console.log(`📦 Stock deducted: ${item.name} (${previousStock} → ${newStock})`);
+        }
       }
     }
 

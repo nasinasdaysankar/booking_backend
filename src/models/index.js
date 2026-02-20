@@ -21,6 +21,8 @@ import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
+import InventoryModel from "./Inventory.js";
+import InventoryLogModel from "./InventoryLog.js";
 
 import app from "../app.js";
 import http from "http";
@@ -64,6 +66,10 @@ const UserStreak = UserStreakModel(sequelize);
 
 // ⭐ FEEDBACK MODEL
 const OrderFeedback = OrderFeedbackModel(sequelize);
+
+// 📦 INVENTORY MODELS
+const Inventory = InventoryModel(sequelize);
+const InventoryLog = InventoryLogModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -145,6 +151,16 @@ Admin.hasMany(AuditLog, { foreignKey: "adminId" });
 Payment.belongsTo(Order, { foreignKey: "orderId" });
 Order.hasMany(Payment, { foreignKey: "orderId" });
 
+// ================= INVENTORY RELATIONS =================
+MenuItem.hasOne(Inventory, { foreignKey: "menuItemId", as: "inventory" });
+Inventory.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
+
+Cafeteria.hasMany(Inventory, { foreignKey: "cafeteriaId" });
+Inventory.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+
+MenuItem.hasMany(InventoryLog, { foreignKey: "menuItemId" });
+InventoryLog.belongsTo(MenuItem, { foreignKey: "menuItemId" });
+
 
 // ================= EXPORT =================
 export {
@@ -169,4 +185,6 @@ export {
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
   UpiPayment, // [NEW] Auto Collect
+  Inventory, // 📦 Inventory
+  InventoryLog, // 📦 Inventory Log
 };
