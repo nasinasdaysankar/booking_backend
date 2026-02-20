@@ -11,7 +11,7 @@ export default (sequelize) => {
             type: DataTypes.INTEGER,
             allowNull: false,
             references: {
-                model: "MenuItems",
+                model: "menu_items",
                 key: "id",
             },
         },
