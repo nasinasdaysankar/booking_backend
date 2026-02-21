@@ -21,6 +21,7 @@ import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
+import AppFeedbackModel from "./AppFeedback.js";
 
 import app from "../app.js";
 import http from "http";
@@ -64,6 +65,7 @@ const UserStreak = UserStreakModel(sequelize);
 
 // ⭐ FEEDBACK MODEL
 const OrderFeedback = OrderFeedbackModel(sequelize);
+const AppFeedback = AppFeedbackModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -102,6 +104,10 @@ OrderFeedback.belongsTo(User, { foreignKey: "studentId" });
 // Cafeteria → Feedback
 Cafeteria.hasMany(OrderFeedback, { foreignKey: "cafeteriaId" });
 OrderFeedback.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+
+// User → App Feedback
+User.hasMany(AppFeedback, { foreignKey: "userId" });
+AppFeedback.belongsTo(User, { foreignKey: "userId", as: "user" });
 
 
 // ================= COMMISSION RELATIONS =================
@@ -168,5 +174,6 @@ export {
   UserFcmToken,
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
+  AppFeedback,
   UpiPayment, // [NEW] Auto Collect
 };

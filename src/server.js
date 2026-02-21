@@ -18,6 +18,7 @@ import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
 import superadminRoutes from "./routes/superadminRoutes.js";
+import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
 import compression from "compression";
 
 import { initSocket } from "./socket.js";
@@ -105,6 +106,7 @@ const start = async () => {
     app.use("/api/admin", adminRoutes);
     app.use("/api/superadmin", superadminRoutes);
     app.use("/api/cafeterias", cafeteriaRoutes);
+    app.use("/api/feedback", appFeedbackRoutes);
 
     logger.info("✅ Routes mounted");
 
