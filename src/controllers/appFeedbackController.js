@@ -2,8 +2,10 @@ import { AppFeedback, User } from "../models/index.js";
 
 export const submitAppFeedback = async (req, res) => {
     try {
+        console.log("📥 RECEIVED APP FEEDBACK:", req.body);
         const { rating, comment, platform, appVersion } = req.body;
         const userId = req.user.id;
+        console.log("👤 USER ID:", userId);
 
         const feedback = await AppFeedback.create({
             userId,

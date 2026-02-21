@@ -18,7 +18,6 @@ import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
 import superadminRoutes from "./routes/superadminRoutes.js";
-import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
 import compression from "compression";
 
 import { initSocket } from "./socket.js";
@@ -95,18 +94,6 @@ const start = async () => {
     // ============================================
     app.use(compression());
     logger.info("✅ Compression enabled");
-
-    // ========== ROUTES ==========
-    app.use("/api/menu", menuRoutes);
-    app.use("/api/banners", bannerRoutes);
-    app.use("/api/food", foodRoutes);
-    app.use("/api/upload", uploadRoutes);
-    app.use("/api/notify", notificationRoutes);
-    app.use("/api/user", userRoutes);
-    app.use("/api/admin", adminRoutes);
-    app.use("/api/superadmin", superadminRoutes);
-    app.use("/api/cafeterias", cafeteriaRoutes);
-    app.use("/api/feedback", appFeedbackRoutes);
 
     logger.info("✅ Routes mounted");
 

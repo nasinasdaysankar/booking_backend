@@ -19,6 +19,7 @@ import upiRoutes from "./routes/upiRoutes.js"; // [NEW] Auto Collect + UPI Inten
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
 import superadminRoutes from "./routes/superadminRoutes.js"; // ✅ SUPERADMIN
+import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
 
 
 
@@ -113,9 +114,11 @@ logger.info("🔔 Notification routes mounted");
 
 app.use("/api/upload", uploadRoutes); // ✅ MOUNTED HERE BEFORE 404
 
-// 🔐 SUPERADMIN ROUTES (CROSS-CAFETERIA ACCESS)
 app.use("/api/superadmin", superadminRoutes);
 logger.info("✅ Superadmin routes mounted");
+
+app.use("/api/feedback", appFeedbackRoutes);
+logger.info("✅ App feedback routes mounted");
 
 
 
