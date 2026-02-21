@@ -1,9 +1,10 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken } from '../models/index.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import admin from "../config/firebaseAdmin.js";
 
 const router = express.Router();
 
@@ -725,6 +726,133 @@ router.get('/payments', superadminAuth, async (req, res) => {
     }
 });
 
-// Routes Removed (Alerts, AuditLogs, Settings)
+// ============================================
+// BROADCAST NOTIFICATION (SUPERADMIN)
+// ============================================
+router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
+    try {
+        const { title, body, data } = req.body;
+
+        if (!title || !body) {
+            return res.status(400).json({ success: false, message: 'Title and body are required' });
+        }
+
+        // Fetch all user tokens
+        const userTokens = await UserFcmToken.findAll({
+            attributes: ['fcmToken']
+        });
+
+        if (userTokens.length === 0) {
+            return res.json({ success: true, message: 'No registered users with FCM tokens', sentCount: 0 });
+        }
+
+        const tokens = [...new Set(userTokens.map(t => t.fcmToken))];
+        console.log(`📣 Broadcasting to ${tokens.length} unique tokens`);
+
+        // Multicast notification
+        const response = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: {
+                title,
+                body,
+            },
+            data: data || {
+                type: 'BROADCAST',
+                click_action: 'FLUTTER_NOTIFICATION_CLICK'
+            },
+            android: {
+                priority: "high",
+                notification: {
+                    channelId: "high_importance_channel"
+                }
+            }
+        });
+
+        console.log(`✅ Broadcast successful. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+        // Cleanup invalid tokens if any failures occurred
+        if (response.failureCount > 0) {
+            const invalidTokens = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success && (
+                    resp.error.code === 'messaging/invalid-registration-token' ||
+                    resp.error.code === 'messaging/registration-token-not-registered'
+                )) {
+                    invalidTokens.push(tokens[idx]);
+                }
+            });
+
+            if (invalidTokens.length > 0) {
+                console.log(`🧹 Removing ${invalidTokens.length} invalid tokens`);
+                await UserFcmToken.destroy({
+                    where: { fcmToken: invalidTokens }
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            sentCount: response.successCount,
+            failureCount: response.failureCount
+        });
+    } catch (error) {
+        console.error('Broadcast notification error:', error);
+        res.status(500).json({ success: false, message: 'Failed to send broadcast' });
+    }
+});
+
+// ============================================
+// DAILY QUOTE MANAGEMENT
+// ============================================
+router.get('/settings/quote', superadminAuth, async (req, res) => {
+    try {
+        const setting = await SystemSetting.findOne({
+            where: { key: 'DAILY_QUOTE' }
+        });
+
+        res.json({
+            success: true,
+            data: setting ? setting.value : ''
+        });
+    } catch (error) {
+        console.error('Fetch daily quote error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch daily quote' });
+    }
+});
+
+router.post('/settings/quote', superadminAuth, async (req, res) => {
+    try {
+        const { quote } = req.body;
+
+        if (quote === undefined) {
+            return res.status(400).json({ success: false, message: 'Quote is required' });
+        }
+
+        const [setting, created] = await SystemSetting.findOrCreate({
+            where: { key: 'DAILY_QUOTE' },
+            defaults: {
+                value: quote,
+                type: 'STRING',
+                group: 'GENERAL',
+                isPublic: true,
+                description: 'Engaging quote displayed on the mobile home screen'
+            }
+        });
+
+        if (!created) {
+            setting.value = quote;
+            await setting.save();
+        }
+
+        res.json({
+            success: true,
+            message: 'Daily quote updated successfully',
+            data: quote
+        });
+    } catch (error) {
+        console.error('Update daily quote error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update daily quote' });
+    }
+});
 
 export default router;

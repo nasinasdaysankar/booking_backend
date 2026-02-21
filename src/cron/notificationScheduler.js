@@ -109,7 +109,7 @@ export const initNotificationScheduler = () => {
                             token,
                             notification: {
                                 title: "⏳ Pickup Window Closed",
-                                body: "You didn't pick up the order within 20 mins.",
+                                body: "You didn't pick up the order within 20 mins. As per policy, no refund is provided.",
                             },
                             data: {
                                 orderId: String(order.id),

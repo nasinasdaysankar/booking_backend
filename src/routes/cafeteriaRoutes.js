@@ -90,4 +90,30 @@ router.get('/', getCafeterias);
  */
 router.get('/:id/menu', auth, getCafeteriaMenu);
 
+/**
+ * @swagger
+ * /api/cafeterias/quote:
+ *   get:
+ *     summary: Get the current daily quote
+ *     tags: [Cafeterias]
+ *     responses:
+ *       200: { description: Quote fetched }
+ */
+router.get('/quote', async (req, res) => {
+    try {
+        const { SystemSetting } = await import('../models/index.js');
+        const setting = await SystemSetting.findOne({
+            where: { key: 'DAILY_QUOTE' }
+        });
+
+        res.json({
+            success: true,
+            data: setting ? setting.value : 'Enjoy your meal!'
+        });
+    } catch (error) {
+        console.error('Public fetch daily quote error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch daily quote' });
+    }
+});
+
 export default router;

@@ -468,7 +468,7 @@ export const updateOrderStatus = async (req, res) => {
 
           let bodyText = `Your order is now ${order.status}`;
           if (order.status === "READY") {
-            bodyText = `Your order is READY! Please pick it up within 20 minutes.`;
+            bodyText = `Your order is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
           }
 
           const response = await admin.messaging().sendEachForMulticast({
@@ -575,7 +575,7 @@ export const updateOrderStatus = async (req, res) => {
               token: userTokens[0].fcmToken,
               notification: {
                 title: "⏳ Pickup Window Closed",
-                body: "You didn't pick up the order within 20 mins.",
+                body: "You didn't pick up the order within 20 mins. As per policy, no refund is provided.",
               },
               data: {
                 orderId: String(orderId),

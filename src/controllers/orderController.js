@@ -126,9 +126,8 @@
 //   }
 // };
 
-import { v4 as uuidv4 } from 'uuid';
-import crypto from 'crypto'; // ✅ For random bill ID
-import { Order, OrderItem, MenuItem } from '../models/index.js';
+import crypto from 'crypto';
+import { Order, OrderItem, MenuItem, OrderFeedback } from '../models/index.js';
 
 // --------------------------------------------------
 // HELPER: GENERATE CUSTOM BILL ID
@@ -230,6 +229,10 @@ export const getMyOrders = async (req, res) => {
           as: "items", // MUST MATCH association
           attributes: ["name", "imageUrl", "quantity", "priceAtOrder", "isParcel"], // ✅ Include isParcel
         },
+        {
+          model: OrderFeedback,
+          attributes: ["rating", "comment"],
+        },
       ],
     });
 
@@ -254,6 +257,10 @@ export const getOrderById = async (req, res) => {
         {
           model: OrderItem,
           as: "items",
+        },
+        {
+          model: OrderFeedback,
+          attributes: ["rating", "comment"],
         },
       ],
     });
