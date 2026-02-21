@@ -1,7 +1,7 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback } from '../models/index.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import admin from "../config/firebaseAdmin.js";
@@ -852,6 +852,29 @@ router.post('/settings/quote', superadminAuth, async (req, res) => {
     } catch (error) {
         console.error('Update daily quote error:', error);
         res.status(500).json({ success: false, message: 'Failed to update daily quote' });
+    }
+});
+
+// ============================================
+// GET ALL APP FEEDBACK (SUPERADMIN)
+// ============================================
+router.get('/app-feedback', superadminAuth, async (req, res) => {
+    try {
+        const feedback = await AppFeedback.findAll({
+            include: [
+                {
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'name', 'email', 'phone'],
+                },
+            ],
+            order: [['createdAt', 'DESC']],
+        });
+
+        res.json(feedback);
+    } catch (error) {
+        console.error('❌ getAllAppFeedback ERROR:', error.message);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
