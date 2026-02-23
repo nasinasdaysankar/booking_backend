@@ -11,7 +11,7 @@ const router = express.Router();
 // ============================================
 // SUPERADMIN AUTHENTICATION MIDDLEWARE
 // ============================================
-const superadminAuth = (req, res, next) => {
+export const superadminAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     // Check for superadmin token (starts with 'superadmin_')
