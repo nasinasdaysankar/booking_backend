@@ -5,8 +5,11 @@ import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetti
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import admin from "../config/firebaseAdmin.js";
+import multer from "multer";
+import { replaceMenuImage } from "../controllers/menuController.js";
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
 
 // ============================================
 // SUPERADMIN AUTHENTICATION MIDDLEWARE
@@ -369,6 +372,11 @@ router.post('/menu', superadminAuth, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to create menu item' });
     }
 });
+
+// ============================================
+// REPLACE MENU ITEM IMAGE (SUPERADMIN)
+// ============================================
+router.put('/menu/replace-image/:id', superadminAuth, upload.single('image'), replaceMenuImage);
 
 // ============================================
 // UPDATE MENU ITEM (SUPERADMIN)

@@ -40,7 +40,6 @@ router.delete("/delete/:id", deleteMenuItem);
 router.put("/restore/:id", restoreMenuItem);    // ✅ ADD THIS - Restore deleted item
 router.get('/deleted', getDeletedMenuItems);
 router.get("/today-specials/:id", getTodaySpecials);
-router.put("/replace-image/:id", upload.single("image"), replaceMenuImage); // ✅ NEW - Instant Replace
 // 🚀 PUBLIC MENU (NO AUTH)
 router.get("/public/:cafeteriaId", getPublicMenuByCafeteria);
 
