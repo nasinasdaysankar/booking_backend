@@ -17,15 +17,16 @@ import {
   restoreMenuItem,  // ✅ ADD THIS
   updateCategoryBulk,
   getPublicMenuByCafeteria,
+  replaceMenuImage, // ✅ NEW
 } from "../controllers/menuController.js";
 import multer from "multer";
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
-router.post("/add", addMenuItem);              
-router.post("/add/bulk", addBulkMenuItems);    
- router.get("/", getAllMenuItems);
+router.post("/add", addMenuItem);
+router.post("/add/bulk", addBulkMenuItems);
+router.get("/", getAllMenuItems);
 router.get("/category/:category", getBeveragesMenu);
 router.get("/cafeteria/:id", getMenuByCafeteria);
 router.put("/update-image/:id", updateSingleImage);
@@ -39,6 +40,7 @@ router.delete("/delete/:id", deleteMenuItem);
 router.put("/restore/:id", restoreMenuItem);    // ✅ ADD THIS - Restore deleted item
 router.get('/deleted', getDeletedMenuItems);
 router.get("/today-specials/:id", getTodaySpecials);
+router.put("/replace-image/:id", upload.single("image"), replaceMenuImage); // ✅ NEW - Instant Replace
 // 🚀 PUBLIC MENU (NO AUTH)
 router.get("/public/:cafeteriaId", getPublicMenuByCafeteria);
 

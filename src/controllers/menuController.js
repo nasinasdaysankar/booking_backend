@@ -1,6 +1,9 @@
 import { MenuItem, sequelize } from "../models/index.js";
 import { Op } from "sequelize";
 import { menuCacheGet, menuCacheSet, analyticsCacheGet, analyticsCacheSet, CACHE_KEYS, clearMenuCache } from "../utils/cache.js";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
+import slugify from "slugify";
 
 
 /* ================== ADD SINGLE MENU ITEM ================== */
@@ -575,6 +578,82 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch menu",
+    });
+  }
+};
+/**
+ * 🚀 REPLACE MENU ITEM IMAGE (S3)
+ * URL: /api/menu/replace-image/:id
+ */
+export const replaceMenuImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image file provided" });
+    }
+
+    const item = await MenuItem.findByPk(id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Menu item not found" });
+    }
+
+    const s3 = getS3Client();
+    const bucket = getS3Bucket();
+
+    // 1. DELETE OLD IMAGE FROM S3 (optional, if it was an S3 image)
+    if (item.imageUrl && item.imageUrl.includes(".amazonaws.com/")) {
+      try {
+        const urlParts = item.imageUrl.split(".amazonaws.com/");
+        if (urlParts.length > 1) {
+          const oldS3Key = urlParts[1];
+          await s3.send(
+            new DeleteObjectCommand({
+              Bucket: bucket,
+              Key: oldS3Key,
+            })
+          );
+        }
+      } catch (s3DelErr) {
+        console.error("Failed to delete old menu image from S3:", s3DelErr.message);
+      }
+    }
+
+    // 2. UPLOAD NEW IMAGE
+    const safeName = slugify(item.name, { lower: true });
+    const ext = req.file.mimetype === "image/png" ? "png" : "jpg";
+    const newS3Key = `images/menu/${safeName}-${Date.now()}.${ext}`;
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: newS3Key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
+
+    const newImageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${newS3Key}`;
+
+    // 3. UPDATE DB
+    item.imageUrl = newImageUrl;
+    await item.save();
+
+    // 4. CLEAR CACHE
+    await clearMenuCache();
+
+    return res.json({
+      success: true,
+      message: "Image replaced successfully ✨",
+      imageUrl: newImageUrl
+    });
+
+  } catch (err) {
+    console.error("replaceMenuImage error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Replacement failed",
+      error: err.message
     });
   }
 };
