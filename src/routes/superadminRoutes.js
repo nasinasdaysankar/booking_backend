@@ -239,7 +239,21 @@ router.get('/orders', superadminAuth, async (req, res) => {
         const orders = await sequelize.query(
             `
             SELECT 
-                orders.*,
+                orders.id,
+                orders."cashfreeorderid" AS "cashfreeOrderId",
+                orders."billid" AS "billId",
+                orders."studentid" AS "studentId",
+                orders."cafeteriaid" AS "cafeteriaId",
+                orders."totalamount" AS "totalAmount",
+                orders.status,
+                orders."paymentstatus" AS "paymentStatus",
+                orders."etaminutes" AS "etaMinutes",
+                orders."kotnumber" AS "kotNumber",
+                orders."israted" AS "isRated",
+                orders."isparcel" AS "isParcel",
+                orders."parcelamount" AS "parcelAmount",
+                orders."created_at" AS "createdAt",
+                orders."updated_at" AS "updatedAt",
                 orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
                 cafeterias.name AS "cafeteriaName"
             FROM orders
@@ -266,7 +280,15 @@ router.get('/orders', superadminAuth, async (req, res) => {
         if (orders.length > 0) {
             const orderIds = orders.map(o => o.id);
             const allItems = await sequelize.query(
-                `SELECT * FROM order_items WHERE "orderid" IN (:ids)`,
+                `SELECT 
+                    id,
+                    "orderid" AS "orderId",
+                    "name",
+                    "imageurl" AS "imageUrl",
+                    "quantity",
+                    "priceatorder" AS "priceAtOrder",
+                    "isparcel" AS "isParcel"
+                FROM order_items WHERE "orderid" IN (:ids)`,
                 {
                     replacements: { ids: orderIds },
                     type: QueryTypes.SELECT
@@ -523,8 +545,8 @@ router.get('/customers', superadminAuth, async (req, res) => {
                     u.name,
                     u.email,
                     u.phone,
-                    u."created_at",
-                    u."updated_at",
+                    u."created_at" AS "createdAt",
+                    u."updated_at" AS "updatedAt",
                     COUNT(DISTINCT o.id) as "orderCount",
                     COALESCE(SUM(o."totalamount"), 0) as "totalSpent"
                 FROM users u
@@ -581,8 +603,8 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 u.name,
                 u.email,
                 u.phone,
-                u."created_at",
-                u."updated_at",
+                u."created_at" AS "createdAt",
+                u."updated_at" AS "updatedAt",
                 COUNT(DISTINCT o.id) as "orderCount",
                 COALESCE(SUM(CASE WHEN o."paymentstatus" = 'SUCCESS' THEN o."totalamount" ELSE 0 END), 0) as "totalSpent"
             FROM users u
@@ -637,10 +659,10 @@ router.get('/admins', superadminAuth, async (req, res) => {
             SELECT 
                 a.id,
                 a.name,
-                a."staffId",
+                a."staffid" AS "staffId",
                 a.role,
-                a."cafeteriaid",
-                a."created_at",
+                a."cafeteriaid" AS "cafeteriaId",
+                a."created_at" AS "createdAt",
                 c.name as "cafeteriaName"
             FROM admins a
             LEFT JOIN cafeterias c ON a."cafeteriaid" = c.id
@@ -922,13 +944,17 @@ router.get('/app-feedback', superadminAuth, async (req, res) => {
                     attributes: ['id', 'name', 'email', 'phone'],
                 },
             ],
-            order: [['createdAt', 'DESC']],
+            order: [['created_at', 'DESC']], // Use DB column name for raw SQL ordering or attribute name correctly
         });
 
-        res.json(feedback);
+        res.json({
+            success: true,
+            count: feedback.length,
+            data: feedback
+        });
     } catch (error) {
         console.error('❌ getAllAppFeedback ERROR:', error.message);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
