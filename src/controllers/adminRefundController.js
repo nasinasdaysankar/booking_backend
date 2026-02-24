@@ -396,22 +396,22 @@ export const getRefundHistory = async (req, res) => {
       `
       SELECT 
         p.id as "paymentId",
-        p."refundId",
-        p."refundAmount",
+        p."refundid" AS "refundId",
+        p."refundamount" AS "refundAmount",
         p.status as "refundStatus",
-        p."refundedAt",
+        p."refundedat",
         o.id as "orderId",
-        o."billId",
-        o."totalAmount",
+        o."billid" AS "billId",
+        o."totalamount" AS "totalAmount",
         o.status as "orderStatus",
         o."created_at"
       FROM payments p
       JOIN orders o 
-        ON p."orderId" = o.id
+        ON p."orderid" = o.id
       WHERE 
         o."cafeteriaid" = :cafeteriaId
-        AND p."refundId" IS NOT NULL
-      ORDER BY p."refundedAt" DESC
+        AND p."refundid" IS NOT NULL
+      ORDER BY p."refundedat" DESC
       `,
       {
         replacements: { cafeteriaId },
@@ -450,21 +450,21 @@ export const getUserRefundHistory = async (req, res) => {
       `
       SELECT 
         p.id AS "paymentId",
-        p."refundId",
-        p."refundAmount",
+        p."refundid" AS "refundId",
+        p."refundamount" AS "refundAmount",
         p.status AS "refundStatus",
-        p."refundedAt",
+        p."refundedat",
         o.id AS "orderId",
-        o."billId",
-        o."totalAmount",
+        o."billid" AS "billId",
+        o."totalamount" AS "totalAmount",
         o.status AS "orderStatus",
         o."created_at"
       FROM payments p
-      JOIN orders o ON p."orderId" = o.id
+      JOIN orders o ON p."orderid" = o.id
       WHERE 
         o."studentid" = :userId
-        AND p."refundId" IS NOT NULL
-      ORDER BY p."refundedAt" DESC
+        AND p."refundid" IS NOT NULL
+      ORDER BY p."refundedat" DESC
       `,
       {
         replacements: { userId },

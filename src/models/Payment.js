@@ -78,7 +78,7 @@ export default (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: "When refund was initiated",
-      field: "refunded_at"
+      field: "refundedat"
     },
 
     refundAmount: {
@@ -91,7 +91,7 @@ export default (sequelize) => {
     paidAt: {
       type: DataTypes.DATE,
       allowNull: true,
-      field: "paid_at"
+      field: "paidat"
     },
 
     createdAt: {
