@@ -92,7 +92,7 @@ export default (sequelize) => {
       activatedAt: {
         type: DataTypes.DATE,
         allowNull: true,
-        field: "activated_at",
+        field: "activatedat",
         comment: "When Cashfree approved and activated vendor",
       },
       rejectionReason: {
