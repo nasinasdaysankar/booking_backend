@@ -49,6 +49,7 @@
 import express from 'express';
 import { auth } from '../middleware/auth.js';
 import { getCafeterias, getCafeteriaMenu } from '../controllers/cafeteriaController.js';
+import { SystemSetting } from '../models/index.js';
 
 const router = express.Router();
 
@@ -101,14 +102,17 @@ router.get('/:id/menu', auth, getCafeteriaMenu);
  */
 router.get('/quote', async (req, res) => {
     try {
-        const { SystemSetting } = await import('../models/index.js');
-        const setting = await SystemSetting.findOne({
-            where: { key: 'DAILY_QUOTE' }
-        });
+        const [textSetting, imageSetting] = await Promise.all([
+            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE' } }),
+            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE_IMAGE' } })
+        ]);
 
         res.json({
             success: true,
-            data: setting ? setting.value : 'Enjoy your meal!'
+            data: {
+                quote: textSetting ? textSetting.value : 'Enjoy your meal!',
+                imageUrl: imageSetting ? imageSetting.value : ''
+            }
         });
     } catch (error) {
         console.error('Public fetch daily quote error:', error);

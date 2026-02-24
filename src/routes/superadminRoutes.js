@@ -6,6 +6,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import admin from "../config/firebaseAdmin.js";
 import multer from "multer";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
 
 const router = express.Router();
@@ -814,13 +816,17 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
 // ============================================
 router.get('/settings/quote', superadminAuth, async (req, res) => {
     try {
-        const setting = await SystemSetting.findOne({
-            where: { key: 'DAILY_QUOTE' }
-        });
+        const [textSetting, imageSetting] = await Promise.all([
+            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE' } }),
+            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE_IMAGE' } })
+        ]);
 
         res.json({
             success: true,
-            data: setting ? setting.value : ''
+            data: {
+                quote: textSetting ? textSetting.value : '',
+                imageUrl: imageSetting ? imageSetting.value : ''
+            }
         });
     } catch (error) {
         console.error('Fetch daily quote error:', error);
@@ -828,15 +834,37 @@ router.get('/settings/quote', superadminAuth, async (req, res) => {
     }
 });
 
-router.post('/settings/quote', superadminAuth, async (req, res) => {
+router.post('/settings/quote', superadminAuth, upload.single('image'), async (req, res) => {
     try {
         const { quote } = req.body;
+        let imageUrl = null;
 
         if (quote === undefined) {
             return res.status(400).json({ success: false, message: 'Quote is required' });
         }
 
-        const [setting, created] = await SystemSetting.findOrCreate({
+        // 1. Handle Image Upload to S3 if file provided
+        if (req.file) {
+            const s3 = getS3Client();
+            const bucket = getS3Bucket();
+
+            const fileExt = req.file.originalname.split('.').pop();
+            const fileName = `images/quotes/daily-quote-${Date.now()}.${fileExt}`;
+
+            await s3.send(
+                new PutObjectCommand({
+                    Bucket: bucket,
+                    Key: fileName,
+                    Body: req.file.buffer,
+                    ContentType: req.file.mimetype,
+                })
+            );
+
+            imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+        }
+
+        // 2. Update Quote Text
+        const [textSetting] = await SystemSetting.findOrCreate({
             where: { key: 'DAILY_QUOTE' },
             defaults: {
                 value: quote,
@@ -846,16 +874,34 @@ router.post('/settings/quote', superadminAuth, async (req, res) => {
                 description: 'Engaging quote displayed on the mobile home screen'
             }
         });
+        textSetting.value = quote;
+        await textSetting.save();
 
-        if (!created) {
-            setting.value = quote;
-            await setting.save();
+        // 3. Update Image URL (only if new image uploaded)
+        if (imageUrl) {
+            const [imageSetting] = await SystemSetting.findOrCreate({
+                where: { key: 'DAILY_QUOTE_IMAGE' },
+                defaults: {
+                    value: imageUrl,
+                    type: 'STRING',
+                    group: 'GENERAL',
+                    isPublic: true,
+                    description: 'Image displayed alongside the daily quote'
+                }
+            });
+            imageSetting.value = imageUrl;
+            await imageSetting.save();
         }
+
+        const finalImageSetting = await SystemSetting.findOne({ where: { key: 'DAILY_QUOTE_IMAGE' } });
 
         res.json({
             success: true,
             message: 'Daily quote updated successfully',
-            data: quote
+            data: {
+                quote: quote,
+                imageUrl: finalImageSetting ? finalImageSetting.value : imageUrl
+            }
         });
     } catch (error) {
         console.error('Update daily quote error:', error);
