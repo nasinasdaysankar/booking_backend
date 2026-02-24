@@ -11,6 +11,7 @@ export default (sequelize) => {
         orderId: {
             type: DataTypes.INTEGER,
             allowNull: false,
+            field: "orderid",
             references: {
                 model: "orders",
                 key: "id",
@@ -29,6 +30,7 @@ export default (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false,
             defaultValue: "Velish Canteen",
+            field: "payeename",
         },
 
         amount: {
@@ -42,6 +44,7 @@ export default (sequelize) => {
             allowNull: false,
             unique: true,
             comment: "Unique reference for this UPI transaction",
+            field: "transactionref",
         },
 
         status: {
@@ -54,6 +57,7 @@ export default (sequelize) => {
             type: DataTypes.STRING,
             allowNull: true,
             comment: "Unique Transaction Reference from UPI network",
+            field: "utrnumber",
         },
 
         // Sender details (from webhook)
@@ -61,23 +65,27 @@ export default (sequelize) => {
             type: DataTypes.STRING,
             allowNull: true,
             comment: "Payer's VPA (e.g., student@okaxis)",
+            field: "sendervpa",
         },
 
         senderName: {
             type: DataTypes.STRING,
             allowNull: true,
+            field: "sendername",
         },
 
         // Webhook tracking
         webhookReceivedAt: {
             type: DataTypes.DATE,
             allowNull: true,
+            field: "webhookreceivedat",
         },
 
         webhookPayload: {
             type: DataTypes.JSONB,
             allowNull: true,
             comment: "Raw webhook data for debugging",
+            field: "webhookpayload",
         },
 
         // Payment expiry (optional - for cleanup)
@@ -85,17 +93,31 @@ export default (sequelize) => {
             type: DataTypes.DATE,
             allowNull: true,
             comment: "Payment expires after this time",
+            field: "expiresat",
+        },
+
+        createdAt: {
+            type: DataTypes.DATE,
+            field: "created_at",
+        },
+
+        updatedAt: {
+            type: DataTypes.DATE,
+            field: "updated_at",
         },
 
     }, {
         tableName: "upi_payments",
         timestamps: true,
+        underscored: true,
+        createdAt: "created_at",
+        updatedAt: "updated_at",
         indexes: [
-            { fields: ["orderId"] },
+            { fields: ["orderid"] },
             { fields: ["vpa"] },  // Not unique - all payments go to same VPA
-            { fields: ["transactionRef"], unique: true },
+            { fields: ["transactionref"], unique: true },
             { fields: ["status"] },
-            { fields: ["utrNumber"] },
+            { fields: ["utrnumber"] },
         ],
     });
 

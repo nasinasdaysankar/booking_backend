@@ -13,6 +13,7 @@ export default (sequelize) => {
       cafeteriaId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        field: "cafeteriaid",
       },
 
       name: {
@@ -30,6 +31,7 @@ export default (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 5,
+        field: "estpreptimeminutes",
       },
 
       // ✅ Available for ordering
@@ -37,6 +39,7 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
+        field: "isavailable",
       },
 
       // 🗑 Soft delete
@@ -44,12 +47,14 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "isdeleted",
       },
 
       // 🖼 Image
       imageUrl: {
         type: DataTypes.STRING,
         allowNull: true,
+        field: "imageurl",
       },
 
       // 🍔 Category
@@ -63,27 +68,44 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "istodayspecial",
       },
-isParcelAvailable: {
-  type: DataTypes.BOOLEAN,
-  allowNull: false,
-  defaultValue: true,
-},
+      isParcelAvailable: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: "isparcelavailable",
+      },
       // 📅 Which date it is special for (YYYY-MM-DD)
       specialDate: {
         type: DataTypes.DATEONLY,
         allowNull: true,
+        field: "specialdate",
       },
 
       // 📝 Optional note shown to users
       specialNote: {
         type: DataTypes.STRING,
         allowNull: true,
+        field: "specialnote",
+      },
+
+      createdAt: {
+        type: DataTypes.DATE,
+        field: "created_at",
+      },
+
+      updatedAt: {
+        type: DataTypes.DATE,
+        field: "updated_at",
       },
     },
     {
       tableName: "menu_items",
       timestamps: true,
+      underscored: true,
+      createdAt: "created_at",
+      updatedAt: "updated_at",
 
       indexes: [
         { fields: ["cafeteriaId"] },

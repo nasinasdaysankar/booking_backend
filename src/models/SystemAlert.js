@@ -8,11 +8,24 @@ export default (sequelize) => {
         message: { type: DataTypes.TEXT, allowNull: false },
         priority: { type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'), defaultValue: 'MEDIUM' },
         status: { type: DataTypes.ENUM('ACTIVE', 'RESOLVED', 'ACKNOWLEDGED'), defaultValue: 'ACTIVE' },
-        cafeteriaId: { type: DataTypes.INTEGER, allowNull: true },
+        cafeteriaId: { type: DataTypes.INTEGER, allowNull: true, field: "cafeteriaid" },
         metadata: { type: DataTypes.JSONB, allowNull: true },
+
+        createdAt: {
+            type: DataTypes.DATE,
+            field: "created_at"
+        },
+
+        updatedAt: {
+            type: DataTypes.DATE,
+            field: "updated_at"
+        },
     }, {
         tableName: 'system_alerts',
-        timestamps: true
+        timestamps: true,
+        underscored: true,
+        createdAt: "created_at",
+        updatedAt: "updated_at"
     });
     return SystemAlert;
 };

@@ -5,6 +5,7 @@ export default (sequelize) => {
         userId: {
             type: DataTypes.INTEGER,
             allowNull: false,
+            field: "userid",
         },
         rating: {
             type: DataTypes.INTEGER,
@@ -25,7 +26,24 @@ export default (sequelize) => {
         appVersion: {
             type: DataTypes.STRING,
             allowNull: true,
+            field: "appversion",
         },
+
+        createdAt: {
+            type: DataTypes.DATE,
+            field: "created_at",
+        },
+
+        updatedAt: {
+            type: DataTypes.DATE,
+            field: "updated_at",
+        },
+    }, {
+        tableName: 'app_feedbacks',
+        timestamps: true,
+        underscored: true,
+        createdAt: "created_at",
+        updatedAt: "updated_at",
     });
 
     return AppFeedback;
