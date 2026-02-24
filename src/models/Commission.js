@@ -47,7 +47,7 @@ export default (sequelize) => {
         type: DataTypes.DATE,
         allowNull: true,
         comment: "When Cashfree settled the split to vendor",
-        field: "settled_at",
+        field: "settledat",
       },
       splitId: {
         type: DataTypes.STRING,
