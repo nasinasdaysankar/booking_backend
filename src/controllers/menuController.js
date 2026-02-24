@@ -364,18 +364,23 @@ export const getMostLovedItems = async (req, res) => {
       cafeteriaFilter = `AND mi."cafeteriaid" = ${cafeteriaId}`;
     }
 
+    // ✅ Use name-based matching as fallback when menuitemid is NULL/0
     const [items] = await sequelize.query(`
       SELECT
         mi.id,
         mi.name,
         mi.price,
         mi."imageurl" AS "imageUrl",
-        mi."cafeteriaid" AS "cafeteriaId",
+        CAST(mi."cafeteriaid" AS INTEGER) AS "cafeteriaId",
         COUNT(oi.id) AS "orderCount"
       FROM order_items oi
-      JOIN menu_items mi ON mi.id = oi."menuitemid"
+      JOIN menu_items mi ON (
+        (oi."menuitemid" IS NOT NULL AND oi."menuitemid" > 0 AND mi.id = oi."menuitemid")
+        OR
+        (oi."menuitemid" IS NULL OR oi."menuitemid" = 0) AND LOWER(mi.name) = LOWER(oi.name)
+      )
       JOIN orders o ON o.id = oi."orderid"
-      WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
+      WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'PICKED_UP', 'COMPLETED')
       ${cafeteriaFilter}
       GROUP BY mi.id
       ORDER BY "orderCount" DESC
@@ -383,7 +388,9 @@ export const getMostLovedItems = async (req, res) => {
     `);
 
     // ✅ SAVE TO REDIS (5 min TTL)
-    await analyticsCacheSet(cacheKey, items);
+    if (items.length > 0) {
+      await analyticsCacheSet(cacheKey, items);
+    }
 
     res.json({
       success: true,
