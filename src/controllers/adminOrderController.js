@@ -489,45 +489,43 @@ export const updateOrderStatus = async (req, res) => {
       try {
         const userTokens = await UserFcmToken.findAll({
           where: { userId: order.studentId },
+          order: [['updatedAt', 'DESC']],
+          limit: 1
         });
 
         if (userTokens.length > 0) {
-          const tokens = userTokens.map((t) => t.fcmToken);
+          const token = userTokens[0].fcmToken;
 
           let bodyText = `Your order is now ${order.status}`;
           if (order.status === "READY") {
             bodyText = `Your order is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
           }
 
-          const response = await admin.messaging().sendEachForMulticast({
-            tokens,
-            notification: {
-              title: order.status === "READY" ? "✅ Order Ready!" : "📦 Order Update",
-              body: bodyText,
-            },
-            data: {
-              orderId: String(order.id),
-              status: order.status,
-              etaMinutes: String(order.etaMinutes || 0),
-            },
-            android: {
-              priority: "high",
+          try {
+            await admin.messaging().send({
+              token,
               notification: {
-                channelId: "high_importance_channel",
+                title: order.status === "READY" ? "✅ Order Ready!" : "📦 Order Update",
+                body: bodyText,
               },
-            },
-          });
-
-          console.log(`✅ FCM sent. Success: ${response.successCount}, Fail: ${response.failureCount}`);
-
-          if (response.failureCount > 0) {
-            const invalidTokens = [];
-            response.responses.forEach((resp, idx) => {
-              if (!resp.success) invalidTokens.push(tokens[idx]);
+              data: {
+                orderId: String(order.id),
+                status: order.status,
+                etaMinutes: String(order.etaMinutes || 0),
+              },
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: "high_importance_channel",
+                },
+              },
             });
-            if (invalidTokens.length > 0) {
-              await UserFcmToken.destroy({ where: { fcmToken: invalidTokens } });
-              console.log("Deleted invalid tokens:", invalidTokens.length);
+            console.log(`✅ FCM sent to most recent token for User ${order.studentId}`);
+          } catch (sendError) {
+            console.error("❌ FCM individual send error:", sendError.message);
+            if (sendError.code === 'messaging/registration-token-not-registered') {
+              await UserFcmToken.destroy({ where: { fcmToken: token } });
+              console.log("🗑️ Deleted invalid token");
             }
           }
         }
@@ -536,91 +534,8 @@ export const updateOrderStatus = async (req, res) => {
       }
     })();
 
-    // ⏰ SCHEDULE TIMED NOTIFICATIONS (10 min & 20 min) - INSTANT PRECISION
-    if (status === "READY") {
-      const orderId = order.id;
-      const studentId = order.studentId;
-
-      // 🔔 10-Minute Reminder (600,000 ms = 10 minutes)
-      setTimeout(async () => {
-        try {
-          // Check if order still needs reminder (not picked up, flag not set)
-          const currentOrder = await Order.findByPk(orderId);
-          if (!currentOrder || currentOrder.status !== "READY" || currentOrder.tenMinReminderSent) {
-            console.log(`⏭️ Skipping 10-min reminder for Order #${orderId} (already handled or status changed)`);
-            return;
-          }
-
-          // Mark as sent FIRST
-          await currentOrder.update({ tenMinReminderSent: true }, { silent: true });
-
-          // Get latest FCM token
-          const userTokens = await UserFcmToken.findAll({
-            where: { userId: studentId },
-            order: [['updatedAt', 'DESC']],
-            limit: 1
-          });
-
-          if (userTokens.length > 0) {
-            await admin.messaging().send({
-              token: userTokens[0].fcmToken,
-              notification: {
-                title: "⏳ 10 Minutes Left!",
-                body: `Hurry! Order #${orderId} is waiting. Please pick it up soon.`,
-              },
-              data: { orderId: String(orderId), status: "READY" },
-              android: { priority: "high" },
-            });
-            console.log(`🔔 [setTimeout] Sent 10-min reminder for Order #${orderId}`);
-          }
-        } catch (err) {
-          console.error(`⚠️ [setTimeout] Failed 10-min reminder for #${orderId}:`, err.message);
-        }
-      }, 10 * 60 * 1000); // 10 minutes
-
-      // 🔔 20-Minute Expiration (1,200,000 ms = 20 minutes)
-      setTimeout(async () => {
-        try {
-          // Check if order still needs expiration notification
-          const currentOrder = await Order.findByPk(orderId);
-          if (!currentOrder || currentOrder.status !== "READY" || currentOrder.expirationNotificationSent) {
-            console.log(`⏭️ Skipping expiration notification for Order #${orderId} (already handled or status changed)`);
-            return;
-          }
-
-          // Mark as sent FIRST
-          await currentOrder.update({ expirationNotificationSent: true }, { silent: true });
-
-          // Get latest FCM token
-          const userTokens = await UserFcmToken.findAll({
-            where: { userId: studentId },
-            order: [['updatedAt', 'DESC']],
-            limit: 1
-          });
-
-          if (userTokens.length > 0) {
-            await admin.messaging().send({
-              token: userTokens[0].fcmToken,
-              notification: {
-                title: "⏳ Pickup Window Closed",
-                body: "You didn't pick up the order within 20 mins. As per policy, no refund is provided.",
-              },
-              data: {
-                orderId: String(orderId),
-                status: "READY",
-                type: "ORDER_EXPIRED"
-              },
-              android: { priority: "high" },
-            });
-            console.log(`🔔 [setTimeout] Sent expiration notification for Order #${orderId}`);
-          }
-        } catch (err) {
-          console.error(`⚠️ [setTimeout] Failed expiration notification for #${orderId}:`, err.message);
-        }
-      }, 20 * 60 * 1000); // 20 minutes
-
-      console.log(`⏰ Scheduled 10-min and 20-min notifications for Order #${orderId}`);
-    }
+    // ⏰ Scheduled READY reminders are handled by notificationScheduler.js (Cron)
+    // No redundant setTimeout here to prevent duplicates
 
     // 🗑️ INVALIDATE ANALYTICS/STATS CACHE
     await clearAnalyticsCache(order.cafeteriaId);

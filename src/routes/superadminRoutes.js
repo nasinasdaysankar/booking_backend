@@ -9,6 +9,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
+import { clearCafeteriaCache } from "../utils/cache.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
@@ -70,6 +71,9 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             ownerId
         });
 
+        // ✅ Clear cafeteria cache so mobile app sees new restaurant immediately
+        await clearCafeteriaCache();
+
         res.status(201).json({
             success: true,
             data: cafeteria
@@ -98,6 +102,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isOpen !== undefined && { isOpen }),
             ...(isUserVisible !== undefined && { isUserVisible }),
         });
+
+        // ✅ Clear cafeteria cache so mobile app sees updates immediately
+        await clearCafeteriaCache();
 
         res.json({
             success: true,
