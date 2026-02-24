@@ -369,8 +369,8 @@ export const getMostLovedItems = async (req, res) => {
         mi.id,
         mi.name,
         mi.price,
-        mi."imageurl",
-        mi."cafeteriaid",
+        mi."imageurl" AS "imageUrl",
+        mi."cafeteriaid" AS "cafeteriaId",
         COUNT(oi.id) AS "orderCount"
       FROM order_items oi
       JOIN menu_items mi ON mi.id = oi."menuitemid"
