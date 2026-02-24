@@ -71,85 +71,85 @@ const AppFeedback = AppFeedbackModel(sequelize);
 // ================= RELATIONS =================
 
 // Cafeteria → Menu
-Cafeteria.hasMany(MenuItem, { foreignKey: "cafeteriaId" });
-MenuItem.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+Cafeteria.hasMany(MenuItem, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+MenuItem.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
 // User → Orders
-User.hasMany(Order, { foreignKey: "studentId" });
-Order.belongsTo(User, { foreignKey: "studentId" });
+User.hasMany(Order, { foreignKey: { name: "studentId", field: "studentid" } });
+Order.belongsTo(User, { foreignKey: { name: "studentId", field: "studentid" } });
 
 // Cafeteria → Orders
-Cafeteria.hasMany(Order, { foreignKey: "cafeteriaId" });
-Order.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+Cafeteria.hasMany(Order, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+Order.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
 // Order → OrderItems
-Order.hasMany(OrderItem, { foreignKey: "orderId", as: "items" });
-OrderItem.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+Order.hasMany(OrderItem, { foreignKey: { name: "orderId", field: "orderid" }, as: "items" });
+OrderItem.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" }, as: "order" });
 
 // MenuItem → OrderItems
-MenuItem.hasMany(OrderItem, { foreignKey: "menuItemId" });
-OrderItem.belongsTo(MenuItem, { foreignKey: "menuItemId", as: "menuItem" });
+MenuItem.hasMany(OrderItem, { foreignKey: { name: "menuItemId", field: "menuitemid" } });
+OrderItem.belongsTo(MenuItem, { foreignKey: { name: "menuItemId", field: "menuitemid" }, as: "menuItem" });
 
 
 // ================= FEEDBACK RELATIONS =================
 
 // Order → Feedback
-Order.hasOne(OrderFeedback, { foreignKey: "orderId" });
-OrderFeedback.belongsTo(Order, { foreignKey: "orderId" });
+Order.hasOne(OrderFeedback, { foreignKey: { name: "orderId", field: "orderid" } });
+OrderFeedback.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } });
 
 // User → Feedback
-User.hasMany(OrderFeedback, { foreignKey: "studentId" });
-OrderFeedback.belongsTo(User, { foreignKey: "studentId" });
+User.hasMany(OrderFeedback, { foreignKey: { name: "studentId", field: "studentid" } });
+OrderFeedback.belongsTo(User, { foreignKey: { name: "studentId", field: "studentid" } });
 
 // Cafeteria → Feedback
-Cafeteria.hasMany(OrderFeedback, { foreignKey: "cafeteriaId" });
-OrderFeedback.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+Cafeteria.hasMany(OrderFeedback, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+OrderFeedback.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
 // User → App Feedback
-User.hasMany(AppFeedback, { foreignKey: "userId" });
-AppFeedback.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(AppFeedback, { foreignKey: { name: "userId", field: "userid" } });
+AppFeedback.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user" });
 
 
 // ================= COMMISSION RELATIONS =================
-Commission.belongsTo(Order, { foreignKey: "orderId" }); // [NEW]
-Commission.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
+Commission.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } }); // [NEW]
+Commission.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } }); // [NEW]
 
 // ================= VENDOR RELATIONS =================
-Vendor.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" }); // [NEW]
-Cafeteria.hasOne(Vendor, { foreignKey: "cafeteriaId" }); // [NEW]
+Vendor.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } }); // [NEW]
+Cafeteria.hasOne(Vendor, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } }); // [NEW]
 
 // ================= UPI PAYMENT RELATIONS =================
-Order.hasOne(UpiPayment, { foreignKey: "orderId" }); // [NEW]
-UpiPayment.belongsTo(Order, { foreignKey: "orderId" }); // [NEW]
+Order.hasOne(UpiPayment, { foreignKey: { name: "orderId", field: "orderid" } }); // [NEW]
+UpiPayment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } }); // [NEW]
 
 
 // ================= FCM RELATIONS =================
 
 // Admin → AdminFcmToken
-Admin.hasMany(AdminFcmToken, { foreignKey: "adminId" });
-AdminFcmToken.belongsTo(Admin, { foreignKey: "adminId" });
+Admin.hasMany(AdminFcmToken, { foreignKey: { name: "adminId", field: "adminid" } });
+AdminFcmToken.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
 
 // User → UserFcmToken
-User.hasMany(UserFcmToken, { foreignKey: "userId" });
-UserFcmToken.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(UserFcmToken, { foreignKey: { name: "userId", field: "userid" } });
+UserFcmToken.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
 // User → Streak
-User.hasMany(UserStreak, { foreignKey: "userId" });
-UserStreak.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(UserStreak, { foreignKey: { name: "userId", field: "userid" } });
+UserStreak.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
 // Cafeteria → Streak
-Cafeteria.hasMany(UserStreak, { foreignKey: "cafeteriaId" });
-UserStreak.belongsTo(Cafeteria, { foreignKey: "cafeteriaId" });
+Cafeteria.hasMany(UserStreak, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
 // ================= SYSTEM RELATIONS =================
-SystemAlert.belongsTo(Cafeteria, { foreignKey: "cafeteriaId", as: "Cafeteria" });
-Cafeteria.hasMany(SystemAlert, { foreignKey: "cafeteriaId", as: "alerts" });
+SystemAlert.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
+Cafeteria.hasMany(SystemAlert, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "alerts" });
 
-AuditLog.belongsTo(Admin, { foreignKey: "adminId" });
-Admin.hasMany(AuditLog, { foreignKey: "adminId" });
+AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
+Admin.hasMany(AuditLog, { foreignKey: { name: "adminId", field: "adminid" } });
 
-Payment.belongsTo(Order, { foreignKey: "orderId" });
-Order.hasMany(Payment, { foreignKey: "orderId" });
+Payment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } });
+Order.hasMany(Payment, { foreignKey: { name: "orderId", field: "orderid" } });
 
 
 // ================= EXPORT =================
