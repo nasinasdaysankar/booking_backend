@@ -337,14 +337,28 @@ export const getAdminOrders = async (req, res) => {
 
     const orders = await sequelize.query(
       `
-      SELECT orders.*,
+      SELECT orders.id,
+             orders."cashfreeorderid" AS "cashfreeOrderId",
+             orders."billid" AS "billId",
+             orders."studentid" AS "studentId",
+             orders."cafeteriaid" AS "cafeteriaId",
+             orders."totalamount" AS "totalAmount",
+             orders.status,
+             orders."paymentstatus" AS "paymentStatus",
+             orders."etaminutes" AS "etaMinutes",
+             orders."kotnumber" AS "kotNumber",
+             orders."israted" AS "isRated",
+             orders."isparcel" AS "isParcel",
+             orders."parcelamount" AS "parcelAmount",
              orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
+             orders."created_at" AS "createdAt",
+             orders."updated_at" AS "updatedAt",
              (orders."totalamount" - COALESCE(commissions.amount, 0)) AS "netAmount"
       FROM orders
       LEFT JOIN commissions ON orders.id = commissions."orderid"
       WHERE orders.status = :status
       AND orders."cafeteriaid" = :cafeteriaId
-      ORDER BY "createdAtUtc" DESC
+      ORDER BY orders."created_at" DESC
       `,
       {
         replacements: { status: status || "PAID", cafeteriaId },
@@ -358,7 +372,14 @@ export const getAdminOrders = async (req, res) => {
     const orderIds = orders.map((o) => o.id);
 
     const allItems = await sequelize.query(
-      `SELECT * FROM order_items WHERE "orderid" IN (:ids)`,
+      `SELECT id,
+              "orderid" AS "orderId",
+              "name",
+              "imageurl" AS "imageUrl",
+              "quantity",
+              "priceatorder" AS "priceAtOrder",
+              "isparcel" AS "isParcel"
+       FROM order_items WHERE "orderid" IN (:ids)`,
       {
         replacements: { ids: orderIds },
         type: QueryTypes.SELECT,
@@ -414,7 +435,14 @@ export const updateOrderStatus = async (req, res) => {
     // 🔔 REALTIME → ADMIN (SOCKET)
     // 🧺 Fetch items to include in socket payload for "Instant Injection"
     const items = await sequelize.query(
-      `SELECT * FROM order_items WHERE "orderid" = :orderId`,
+      `SELECT id,
+              "orderid" AS "orderId",
+              "name",
+              "imageurl" AS "imageUrl",
+              "quantity",
+              "priceatorder" AS "priceAtOrder",
+              "isparcel" AS "isParcel"
+       FROM order_items WHERE "orderid" = :orderId`,
       {
         replacements: { orderId: order.id },
         type: QueryTypes.SELECT
