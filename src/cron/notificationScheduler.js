@@ -24,7 +24,7 @@ export const initNotificationScheduler = () => {
                 const reminderOrders = await Order.findAll({
                     where: {
                         status: "READY",
-                        updatedAt: { [Op.lt]: tenMinutesAgo },
+                        updated_at: { [Op.lt]: tenMinutesAgo },
                         tenMinReminderSent: false,
                     },
                     lock: t.LOCK.UPDATE,
@@ -77,7 +77,7 @@ export const initNotificationScheduler = () => {
                 const expiredOrders = await Order.findAll({
                     where: {
                         status: "READY",
-                        updatedAt: { [Op.lt]: twentyMinutesAgo },
+                        updated_at: { [Op.lt]: twentyMinutesAgo },
                         expirationNotificationSent: false,
                     },
                     lock: t.LOCK.UPDATE,

@@ -14,6 +14,7 @@ export default (sequelize) => {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
+        field: "cashfreeorderid",
       },
 
       parcelAmount: {
@@ -27,12 +28,14 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "isparcel",
       },
 
       parcelAmount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
         defaultValue: 0.00,
+        field: "parcelamount",
       },
 
 
@@ -40,21 +43,25 @@ export default (sequelize) => {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
+        field: "billid",
       },
 
       studentId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        field: "studentid",
       },
 
       cafeteriaId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        field: "cafeteriaid",
       },
 
       totalAmount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
+        field: "totalamount",
       },
 
       status: {
@@ -73,16 +80,19 @@ export default (sequelize) => {
       paymentStatus: {
         type: DataTypes.ENUM("PENDING", "SUCCESS", "FAILED"),
         defaultValue: "PENDING",
+        field: "paymentstatus",
       },
 
       etaMinutes: {
         type: DataTypes.INTEGER,
         allowNull: true,
+        field: "etaminutes",
       },
 
       kotNumber: {
         type: DataTypes.STRING,
         allowNull: true,
+        field: "kotnumber",
       },
 
       // 🔥🔥 CRITICAL FIX — FEEDBACK FLAG
@@ -90,6 +100,7 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "israted",
       },
 
       // 🔔 NOTIFICATION TRACKING FLAGS
@@ -97,17 +108,32 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "tenminremindersent",
       },
 
       expirationNotificationSent: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+        field: "expirationnotificationsent",
+      },
+
+      createdAt: {
+        type: DataTypes.DATE,
+        field: "created_at",
+      },
+
+      updatedAt: {
+        type: DataTypes.DATE,
+        field: "updated_at",
       },
     },
     {
       tableName: "orders", // ⚠️ MUST match DB table name
       timestamps: true,
+      underscored: true,
+      createdAt: "created_at",
+      updatedAt: "updated_at",
     }
   );
 

@@ -50,7 +50,7 @@ export default (sequelize) => {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     name: { type: DataTypes.STRING, allowNull: true },
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
-    passwordHash: { type: DataTypes.STRING, allowNull: true },
+    passwordHash: { type: DataTypes.STRING, allowNull: true, field: "passwordhash" },
     // googleId: { type: DataTypes.STRING, allowNull: true },  // TODO: Uncomment after running migration
 
     phone: {                     // ✅ ADD THIS
@@ -61,14 +61,17 @@ export default (sequelize) => {
 
     otpCode: {
       type: DataTypes.STRING,
+      field: "otpcode",
     },
     otpExpiry: {
       type: DataTypes.DATE,
+      field: "otpexpiry",
     },
 
     fcmToken: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: "fcmtoken",
     },
 
 
@@ -79,11 +82,25 @@ export default (sequelize) => {
     },
     cafeteriaId: { // for staff users
       type: DataTypes.INTEGER,
-      allowNull: true
-    }
+      allowNull: true,
+      field: "cafeteriaid",
+    },
+
+    createdAt: {
+      type: DataTypes.DATE,
+      field: "created_at",
+    },
+
+    updatedAt: {
+      type: DataTypes.DATE,
+      field: "updated_at",
+    },
   }, {
     tableName: 'users',
-    timestamps: true
+    timestamps: true,
+    underscored: true,
+    createdAt: "created_at",
+    updatedAt: "updated_at",
   });
 
   return User;
