@@ -169,7 +169,7 @@ export const createOrder = async (req, res) => {
       total += price * qty;
 
       finalItems.push({
-        Id: item.Id || 0,
+        menuItemId: item.Id || item.menuItemId || 0,
         name: item.name,
         quantity: qty,
         priceAtOrder: price,
