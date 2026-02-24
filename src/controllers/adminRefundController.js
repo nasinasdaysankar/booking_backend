@@ -404,12 +404,12 @@ export const getRefundHistory = async (req, res) => {
         o."billId",
         o."totalAmount",
         o.status as "orderStatus",
-        o."createdAt"
+        o."created_at"
       FROM payments p
       JOIN orders o 
         ON p."orderId" = o.id
       WHERE 
-        o."cafeteriaId" = :cafeteriaId
+        o."cafeteriaid" = :cafeteriaId
         AND p."refundId" IS NOT NULL
       ORDER BY p."refundedAt" DESC
       `,
@@ -458,11 +458,11 @@ export const getUserRefundHistory = async (req, res) => {
         o."billId",
         o."totalAmount",
         o.status AS "orderStatus",
-        o."createdAt"
+        o."created_at"
       FROM payments p
       JOIN orders o ON p."orderId" = o.id
       WHERE 
-        o."studentId" = :userId
+        o."studentid" = :userId
         AND p."refundId" IS NOT NULL
       ORDER BY p."refundedAt" DESC
       `,

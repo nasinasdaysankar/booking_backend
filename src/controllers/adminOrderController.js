@@ -338,12 +338,12 @@ export const getAdminOrders = async (req, res) => {
     const orders = await sequelize.query(
       `
       SELECT orders.*,
-             orders."createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
-             (orders."totalAmount" - COALESCE(commissions.amount, 0)) AS "netAmount"
+             orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
+             (orders."totalamount" - COALESCE(commissions.amount, 0)) AS "netAmount"
       FROM orders
-      LEFT JOIN commissions ON orders.id = commissions."orderId"
+      LEFT JOIN commissions ON orders.id = commissions."orderid"
       WHERE orders.status = :status
-      AND orders."cafeteriaId" = :cafeteriaId
+      AND orders."cafeteriaid" = :cafeteriaId
       ORDER BY "createdAtUtc" DESC
       `,
       {
@@ -358,7 +358,7 @@ export const getAdminOrders = async (req, res) => {
     const orderIds = orders.map((o) => o.id);
 
     const allItems = await sequelize.query(
-      `SELECT * FROM order_items WHERE "orderId" IN (:ids)`,
+      `SELECT * FROM order_items WHERE "orderid" IN (:ids)`,
       {
         replacements: { ids: orderIds },
         type: QueryTypes.SELECT,
@@ -414,7 +414,7 @@ export const updateOrderStatus = async (req, res) => {
     // 🔔 REALTIME → ADMIN (SOCKET)
     // 🧺 Fetch items to include in socket payload for "Instant Injection"
     const items = await sequelize.query(
-      `SELECT * FROM order_items WHERE "orderId" = :orderId`,
+      `SELECT * FROM order_items WHERE "orderid" = :orderId`,
       {
         replacements: { orderId: order.id },
         type: QueryTypes.SELECT

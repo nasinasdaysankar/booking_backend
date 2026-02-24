@@ -233,22 +233,22 @@ router.get('/orders', superadminAuth, async (req, res) => {
         // Build date filter for SQL
         let dateFilter = '';
         if (days) {
-            dateFilter = `AND orders."createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'`;
+            dateFilter = `AND orders."created_at" >= NOW() - INTERVAL '${parseInt(days)} days'`;
         }
 
         const orders = await sequelize.query(
             `
             SELECT 
                 orders.*,
-                orders."createdAt" AT TIME ZONE 'UTC' AS "createdAtUtc",
+                orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
                 cafeterias.name AS "cafeteriaName"
             FROM orders
-            LEFT JOIN cafeterias ON orders."cafeteriaId" = cafeterias.id
-            WHERE orders."paymentStatus" = 'SUCCESS'
+            LEFT JOIN cafeterias ON orders."cafeteriaid" = cafeterias.id
+            WHERE orders."paymentstatus" = 'SUCCESS'
             ${status ? `AND orders.status = :status` : ''}
-            ${cafeteriaId ? `AND orders."cafeteriaId" = :cafeteriaId` : ''}
+            ${cafeteriaId ? `AND orders."cafeteriaid" = :cafeteriaId` : ''}
             ${dateFilter}
-            ORDER BY orders."createdAt" DESC
+            ORDER BY orders."created_at" DESC
             LIMIT :limit OFFSET :offset
             `,
             {
@@ -266,7 +266,7 @@ router.get('/orders', superadminAuth, async (req, res) => {
         if (orders.length > 0) {
             const orderIds = orders.map(o => o.id);
             const allItems = await sequelize.query(
-                `SELECT * FROM order_items WHERE "orderId" IN (:ids)`,
+                `SELECT * FROM order_items WHERE "orderid" IN (:ids)`,
                 {
                     replacements: { ids: orderIds },
                     type: QueryTypes.SELECT
@@ -434,14 +434,14 @@ router.get('/trend', superadminAuth, async (req, res) => {
         const trendData = await sequelize.query(
             `
             SELECT 
-                DATE("createdAt") as date,
+                DATE("created_at") as date,
                 COUNT(*) as orders,
-                COALESCE(SUM("totalAmount"), 0) as revenue
+                COALESCE(SUM("totalamount"), 0) as revenue
             FROM orders
-            WHERE "paymentStatus" = 'SUCCESS'
-            AND "createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'
-            ${cafeteriaId ? `AND "cafeteriaId" = :cafeteriaId` : ''}
-            GROUP BY DATE("createdAt")
+            WHERE "paymentstatus" = 'SUCCESS'
+            AND "created_at" >= NOW() - INTERVAL '${parseInt(days)} days'
+            ${cafeteriaId ? `AND "cafeteriaid" = :cafeteriaId` : ''}
+            GROUP BY DATE("created_at")
             ORDER BY date ASC
             `,
             {
@@ -474,12 +474,12 @@ router.get('/top-items', superadminAuth, async (req, res) => {
             SELECT 
                 oi."name" as "itemName",
                 SUM(oi.quantity) as quantity,
-                SUM(oi.quantity * oi."priceAtOrder") as revenue
+                SUM(oi.quantity * oi."priceatorder") as revenue
             FROM order_items oi
-            JOIN orders o ON oi."orderId" = o.id
-            WHERE o."paymentStatus" = 'SUCCESS'
-            AND o."createdAt" >= NOW() - INTERVAL '${parseInt(days)} days'
-            ${cafeteriaId ? `AND o."cafeteriaId" = :cafeteriaId` : ''}
+            JOIN orders o ON oi."orderid" = o.id
+            WHERE o."paymentstatus" = 'SUCCESS'
+            AND o."created_at" >= NOW() - INTERVAL '${parseInt(days)} days'
+            ${cafeteriaId ? `AND o."cafeteriaid" = :cafeteriaId` : ''}
             GROUP BY oi."name"
             ORDER BY quantity DESC
             LIMIT :limit
@@ -523,17 +523,17 @@ router.get('/customers', superadminAuth, async (req, res) => {
                     u.name,
                     u.email,
                     u.phone,
-                    u."createdAt",
-                    u."updatedAt",
+                    u."created_at",
+                    u."updated_at",
                     COUNT(DISTINCT o.id) as "orderCount",
-                    COALESCE(SUM(o."totalAmount"), 0) as "totalSpent"
+                    COALESCE(SUM(o."totalamount"), 0) as "totalSpent"
                 FROM users u
-                INNER JOIN orders o ON u.id = o."studentId"
-                WHERE o."cafeteriaId" = :cafeteriaId
-                AND o."paymentStatus" = 'SUCCESS'
+                INNER JOIN orders o ON u.id = o."studentid"
+                WHERE o."cafeteriaid" = :cafeteriaId
+                AND o."paymentstatus" = 'SUCCESS'
                 ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-                GROUP BY u.id, u.name, u.email, u.phone, u."createdAt", u."updatedAt"
-                ORDER BY u."createdAt" DESC
+                GROUP BY u.id, u.name, u.email, u.phone, u."created_at", u."updated_at"
+                ORDER BY u."created_at" DESC
                 LIMIT :limit OFFSET :offset
                 `,
                 {
@@ -552,9 +552,9 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 `
                 SELECT COUNT(DISTINCT u.id) as count
                 FROM users u
-                INNER JOIN orders o ON u.id = o."studentId"
-                WHERE o."cafeteriaId" = :cafeteriaId
-                AND o."paymentStatus" = 'SUCCESS'
+                INNER JOIN orders o ON u.id = o."studentid"
+                WHERE o."cafeteriaid" = :cafeteriaId
+                AND o."paymentstatus" = 'SUCCESS'
                 ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
                 `,
                 {
@@ -581,15 +581,15 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 u.name,
                 u.email,
                 u.phone,
-                u."createdAt",
-                u."updatedAt",
+                u."created_at",
+                u."updated_at",
                 COUNT(DISTINCT o.id) as "orderCount",
-                COALESCE(SUM(CASE WHEN o."paymentStatus" = 'SUCCESS' THEN o."totalAmount" ELSE 0 END), 0) as "totalSpent"
+                COALESCE(SUM(CASE WHEN o."paymentstatus" = 'SUCCESS' THEN o."totalamount" ELSE 0 END), 0) as "totalSpent"
             FROM users u
-            LEFT JOIN orders o ON u.id = o."studentId" AND o."paymentStatus" = 'SUCCESS'
+            LEFT JOIN orders o ON u.id = o."studentid" AND o."paymentstatus" = 'SUCCESS'
             ${search ? `WHERE (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-            GROUP BY u.id, u.name, u.email, u.phone, u."createdAt", u."updatedAt"
-            ORDER BY u."createdAt" DESC
+            GROUP BY u.id, u.name, u.email, u.phone, u."created_at", u."updated_at"
+            ORDER BY u."created_at" DESC
             LIMIT :limit OFFSET :offset
             `,
             {
@@ -639,11 +639,11 @@ router.get('/admins', superadminAuth, async (req, res) => {
                 a.name,
                 a."staffId",
                 a.role,
-                a."cafeteriaId",
-                a."createdAt",
+                a."cafeteriaid",
+                a."created_at",
                 c.name as "cafeteriaName"
             FROM admins a
-            LEFT JOIN cafeterias c ON a."cafeteriaId" = c.id
+            LEFT JOIN cafeterias c ON a."cafeteriaid" = c.id
             ORDER BY a.id ASC
             `,
             { type: QueryTypes.SELECT }

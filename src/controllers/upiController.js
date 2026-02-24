@@ -39,9 +39,9 @@ const generateRandomString = (length) => {
 const generateKotNumber = async (cafeteriaId, transaction) => {
     const [result] = await sequelize.query(
         `
-    INSERT INTO kot_counters ("cafeteriaId", "counter")
+    INSERT INTO kot_counters ("cafeteriaid", "counter")
     VALUES (:cafeteriaId, 1)
-    ON CONFLICT ("cafeteriaId")
+    ON CONFLICT ("cafeteriaid")
     DO UPDATE SET "counter" = kot_counters."counter" + 1
     RETURNING "counter";
     `,

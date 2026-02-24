@@ -164,20 +164,20 @@ export const getTrendData = async (req, res) => {
     let dateFormat;
 
     if (range === "daily") {
-      groupBy = `DATE("createdAt")`;
+      groupBy = `DATE("created_at")`;
       dateFormat = "YYYY-MM-DD";
     } else if (range === "weekly") {
-      groupBy = `DATE_TRUNC('week', "createdAt")`;
+      groupBy = `DATE_TRUNC('week', "created_at")`;
       dateFormat = "YYYY-MM-DD";
     } else {
-      groupBy = `DATE_TRUNC('month', "createdAt")`;
+      groupBy = `DATE_TRUNC('month', "created_at")`;
       dateFormat = "YYYY-MM";
     }
 
     const [results] = await sequelize.query(`
       SELECT 
         TO_CHAR(${groupBy}, '${dateFormat}') AS date,
-        SUM("totalAmount")::FLOAT AS revenue,
+        SUM("totalamount")::FLOAT AS revenue,
         COUNT(*)::INT AS orders
       FROM orders
       WHERE status != 'cancelled'

@@ -361,7 +361,7 @@ export const getMostLovedItems = async (req, res) => {
 
     let cafeteriaFilter = "";
     if (cafeteriaId) {
-      cafeteriaFilter = `AND mi."cafeteriaId" = ${cafeteriaId}`;
+      cafeteriaFilter = `AND mi."cafeteriaid" = ${cafeteriaId}`;
     }
 
     const [items] = await sequelize.query(`
@@ -369,12 +369,12 @@ export const getMostLovedItems = async (req, res) => {
         mi.id,
         mi.name,
         mi.price,
-        mi."imageUrl",
-        mi."cafeteriaId",
+        mi."imageurl",
+        mi."cafeteriaid",
         COUNT(oi.id) AS "orderCount"
       FROM order_items oi
-      JOIN menu_items mi ON mi.id = oi."menuItemId"
-      JOIN orders o ON o.id = oi."orderId"
+      JOIN menu_items mi ON mi.id = oi."menuitemid"
+      JOIN orders o ON o.id = oi."orderid"
       WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'COMPLETED')
       ${cafeteriaFilter}
       GROUP BY mi.id
