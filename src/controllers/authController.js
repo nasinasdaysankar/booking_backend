@@ -412,11 +412,17 @@ dotenv.config();
 
 // Generate JWT Token
 const signToken = (user) => {
-  return jwt.sign(
+  const accessToken = jwt.sign(
     { id: user.id, role: user.role },
     process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+  const refreshToken = jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-secret-key',
     { expiresIn: "7d" }
   );
+  return { accessToken, refreshToken };
 };
 
 
@@ -558,14 +564,15 @@ export const googleLogin = async (req, res) => {
       console.log(`✅ Existing user found: ${email}`);
     }
 
-    const token = signToken(user);
+    const { accessToken, refreshToken } = signToken(user);
 
     console.log(`✅ Google login successful: ${email}`);
 
     return res.json({
       success: true,
       message: "Google login successful",
-      token,
+      token: accessToken,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -627,11 +634,12 @@ export const register = async (req, res) => {
       role
     });
 
-    const token = signToken(user);
+    const { accessToken, refreshToken } = signToken(user);
 
     res.status(201).json({
       message: "Registration Successful 🎉",
-      token,
+      token: accessToken,
+      refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role }
     });
 
@@ -653,11 +661,12 @@ export const login = async (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(400).json({ message: "Invalid email or password ❌" });
 
-    const token = signToken(user);
+    const { accessToken, refreshToken } = signToken(user);
 
     res.json({
       message: "Login Successful 🚀",
-      token,
+      token: accessToken,
+      refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
     });
 
@@ -737,11 +746,12 @@ export const verifyOtp = async (req, res) => {
     user.otpExpiry = null;
     await user.save();
 
-    const token = signToken(user);
+    const { accessToken, refreshToken } = signToken(user);
 
     res.json({
       message: "Login successful 🎉",
-      token,
+      token: accessToken,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,

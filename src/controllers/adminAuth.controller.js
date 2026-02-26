@@ -37,20 +37,31 @@ export const adminLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid Staff ID or Password" });
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       {
         id: admin.id,
         role: admin.role,
         cafeteriaId: admin.cafeteriaId,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "1h" }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        id: admin.id,
+        role: admin.role,
+        cafeteriaId: admin.cafeteriaId,
+      },
+      process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-secret-key',
+      { expiresIn: "7d" }
     );
 
     console.log("✅ [ADMIN LOGIN] Login successful for Staff ID:", staffId);
 
     return res.json({
-      token,
+      token: accessToken,
+      refreshToken,
       user: {
         id: admin.id,
         staffId: admin.staffId,

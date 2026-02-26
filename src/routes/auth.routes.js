@@ -3,10 +3,8 @@ import {
   register,
   login,
   googleLogin,
-  // sendOtp,
-  // verifyOtp,
-  // saveFcmForOtp,
 } from "../controllers/authController.js";
+import { refreshToken } from "../controllers/refreshTokenController.js";
 
 const router = express.Router();
 
@@ -14,6 +12,7 @@ const router = express.Router();
 router.post("/register", register);
 router.post("/login", login);
 router.post("/google", googleLogin);
+router.post("/refresh-token", refreshToken);
 
 //✅ OTP ROUTES (FIXED)
 // router.post("/send-otp", sendOtp);

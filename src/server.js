@@ -6,7 +6,7 @@ import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
 
-import { sequelize, Cafeteria, AppFeedback } from "./models/index.js";
+import { sequelize, Cafeteria, AppFeedback, OrderFeedback } from "./models/index.js";
 import { connectRedis, isRedisReady } from "./config/redis.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import logger from "./utils/logger.js"; // ✅ Value Added
@@ -89,12 +89,13 @@ const start = async () => {
       logger.warn("⚠️ Sequelize sync skipped");
     }
 
-    // 🔧 One-time sync for AppFeedback table (safe to remove after first deploy)
+    // 🔧 One-time sync for new Feedback tables
     try {
       await AppFeedback.sync({ alter: true });
-      logger.info("✅ AppFeedback table synced");
+      await OrderFeedback.sync({ alter: true });
+      logger.info("✅ Feedback tables synced");
     } catch (e) {
-      logger.error("❌ AppFeedback sync error: " + e.message);
+      logger.error("❌ Feedback sync error: " + e.message);
     }
 
     // ============================================
