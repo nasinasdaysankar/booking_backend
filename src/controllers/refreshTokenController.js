@@ -18,7 +18,7 @@ export const refreshToken = async (req, res) => {
         // For now, we'll just sign a new token with the same payload (minus iat/exp)
         const { iat, exp, ...payload } = decoded;
 
-        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
         return res.json({
             token: accessToken

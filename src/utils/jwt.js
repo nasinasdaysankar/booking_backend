@@ -5,7 +5,7 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-
 
 export const generateToken = (payload) => {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: '1h'
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
 };
 

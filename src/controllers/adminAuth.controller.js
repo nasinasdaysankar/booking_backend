@@ -44,7 +44,7 @@ export const adminLogin = async (req, res) => {
         cafeteriaId: admin.cafeteriaId,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
 
     const refreshToken = jwt.sign(
