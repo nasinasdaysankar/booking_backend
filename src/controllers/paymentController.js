@@ -327,6 +327,8 @@ export const confirmPayment = async (req, res) => {
       items,
       isParcel,
       parcelAmount,
+      platformFee,
+      gstAmount,
     } = req.body;
 
     const authenticatedStudentId = req.user.id;
@@ -374,6 +376,8 @@ export const confirmPayment = async (req, res) => {
           kotNumber,
           isParcel: Boolean(isParcel),
           parcelAmount: Number(parcelAmount) || 0,
+          platformFee: Number(platformFee) || 0,
+          gstAmount: Number(gstAmount) || 0,
         },
         { transaction: t }
       );
@@ -387,6 +391,8 @@ export const confirmPayment = async (req, res) => {
           paymentStatus: "SUCCESS",
           isParcel: Boolean(isParcel),
           parcelAmount: Number(parcelAmount) || 0,
+          platformFee: Number(platformFee) || 0,
+          gstAmount: Number(gstAmount) || 0,
         },
         { transaction: t }
       );
@@ -423,9 +429,19 @@ export const confirmPayment = async (req, res) => {
       // ===================================================================
       // 🆕 RECORD COMMISSION (PLATFORM FEE) WITH SPLIT TRACKING
       // ===================================================================
-      const { Commission } = await import("../models/index.js");
+      const { Commission, Cafeteria } = await import("../models/index.js");
 
-      const platformCommission = 1.00; // Fixed ₹1 platform fee
+      // Calculate dynamic commission
+      const cafeteriaData = await Cafeteria.findByPk(cafeteriaId, { transaction: t });
+      let platformCommission = 1.00; // Default ₹1 platform fee
+      if (cafeteriaData) {
+        if (cafeteriaData.commissionType === "percentage") {
+          platformCommission = (amount * Number(cafeteriaData.commissionAmount)) / 100;
+        } else {
+          platformCommission = Number(cafeteriaData.commissionAmount);
+        }
+      }
+
       const vendorAmount = amount - platformCommission;
 
       await Commission.create(

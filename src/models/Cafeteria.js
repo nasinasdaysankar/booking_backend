@@ -51,6 +51,39 @@ export default (sequelize) => {
         field: "ownerid",
       },
 
+      gstType: {
+        type: DataTypes.ENUM("fixed", "percentage"),
+        defaultValue: "percentage",
+        field: "gst_type",
+      },
+      gstAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 5.00,
+        field: "gst_amount",
+      },
+
+      platformFeeType: {
+        type: DataTypes.ENUM("fixed", "percentage"),
+        defaultValue: "fixed",
+        field: "platform_fee_type",
+      },
+      platformFeeAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 1.00,
+        field: "platform_fee_amount",
+      },
+
+      commissionType: {
+        type: DataTypes.ENUM("fixed", "percentage"),
+        defaultValue: "fixed",
+        field: "commission_type",
+      },
+      commissionAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 1.00,
+        field: "commission_amount",
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at",

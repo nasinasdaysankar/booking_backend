@@ -70,6 +70,8 @@ export const createUpiPayment = async (req, res) => {
             items,
             isParcel,
             parcelAmount,
+            platformFee,
+            gstAmount,
         } = req.body;
 
         const studentId = req.user.id;
@@ -121,6 +123,8 @@ export const createUpiPayment = async (req, res) => {
                 paymentStatus: "PENDING",
                 isParcel: Boolean(isParcel),
                 parcelAmount: Number(parcelAmount) || 0,
+                platformFee: Number(platformFee) || 0,
+                gstAmount: Number(gstAmount) || 0,
             },
             { transaction: t }
         );

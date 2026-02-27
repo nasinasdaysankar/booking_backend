@@ -27,7 +27,13 @@ export const getCafeterias = async (req, res) => {
         'staticQrToken',
         'isUserVisible',
         'latitude',
-        'longitude'
+        'longitude',
+        'gstType',
+        'gstAmount',
+        'platformFeeType',
+        'platformFeeAmount',
+        'commissionType',
+        'commissionAmount'
       ],
       order: [['id', 'ASC']]
     });

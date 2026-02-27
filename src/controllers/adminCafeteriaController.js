@@ -24,6 +24,12 @@ export const getCafeteriaDetails = async (req, res) => {
         "longitude",
         "isOpen",
         "staticQrToken",
+        "gstType",
+        "gstAmount",
+        "platformFeeType",
+        "platformFeeAmount",
+        "commissionType",
+        "commissionAmount",
       ],
     });
 
@@ -64,6 +70,12 @@ export const getMyCafeterias = async (req, res) => {
         "longitude",
         "staticQrToken",
         "isOpen",
+        "gstType",
+        "gstAmount",
+        "platformFeeType",
+        "platformFeeAmount",
+        "commissionType",
+        "commissionAmount",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -95,6 +107,12 @@ export const updateCafeteria = async (req, res) => {
       latitude,
       longitude,
       isOpen,
+      gstType,
+      gstAmount,
+      platformFeeType,
+      platformFeeAmount,
+      commissionType,
+      commissionAmount,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -119,6 +137,12 @@ export const updateCafeteria = async (req, res) => {
     if (latitude !== undefined) cafeteria.latitude = latitude;
     if (longitude !== undefined) cafeteria.longitude = longitude;
     if (isOpen !== undefined) cafeteria.isOpen = isOpen;
+    if (gstType !== undefined) cafeteria.gstType = gstType;
+    if (gstAmount !== undefined) cafeteria.gstAmount = gstAmount;
+    if (platformFeeType !== undefined) cafeteria.platformFeeType = platformFeeType;
+    if (platformFeeAmount !== undefined) cafeteria.platformFeeAmount = platformFeeAmount;
+    if (commissionType !== undefined) cafeteria.commissionType = commissionType;
+    if (commissionAmount !== undefined) cafeteria.commissionAmount = commissionAmount;
 
     await cafeteria.save();
 
@@ -134,6 +158,12 @@ export const updateCafeteria = async (req, res) => {
         longitude: cafeteria.longitude,
         isOpen: cafeteria.isOpen,
         staticQrToken: cafeteria.staticQrToken,
+        gstType: cafeteria.gstType,
+        gstAmount: cafeteria.gstAmount,
+        platformFeeType: cafeteria.platformFeeType,
+        platformFeeAmount: cafeteria.platformFeeAmount,
+        commissionType: cafeteria.commissionType,
+        commissionAmount: cafeteria.commissionAmount,
       },
     });
   } catch (err) {

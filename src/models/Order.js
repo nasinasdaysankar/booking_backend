@@ -64,6 +64,18 @@ export default (sequelize) => {
         field: "totalamount",
       },
 
+      platformFee: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.00,
+        field: "platform_fee",
+      },
+
+      gstAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.00,
+        field: "gst_amount",
+      },
+
       status: {
         type: DataTypes.ENUM(
           "PENDING_PAYMENT",
