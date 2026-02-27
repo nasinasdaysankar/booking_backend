@@ -113,8 +113,19 @@ functions.http('createCashfreeOrder', async (req, res) => {
         const platformCommission = 1.00; // ₹1 platform fee
         const vendorAmount = totalAmount - platformCommission;
 
-        // ✅ Prepare Cashfree request
-        const cashfreeUrl = 'https://sandbox.cashfree.com/pg/orders';
+        // ✅ Environment Configuration
+        const isProduction = process.env.CASHFREE_ENV === 'production';
+        const cashfreeUrl = isProduction
+            ? 'https://api.cashfree.com/pg/orders'
+            : 'https://sandbox.cashfree.com/pg/orders';
+
+        const clientId = isProduction
+            ? process.env.CASHFREE_CLIENT_ID
+            : process.env.CASHFREE_SANDBOX_CLIENT_ID;
+
+        const clientSecret = isProduction
+            ? process.env.CASHFREE_CLIENT_SECRET
+            : process.env.CASHFREE_SANDBOX_CLIENT_SECRET;
 
         const orderPayload = {
             order_id: orderId,
@@ -153,8 +164,8 @@ functions.http('createCashfreeOrder', async (req, res) => {
         const cashfreeResponse = await axios.post(cashfreeUrl, orderPayload, {
             headers: {
                 'Content-Type': 'application/json',
-                'x-client-id': process.env.CASHFREE_SANDBOX_CLIENT_ID,
-                'x-client-secret': process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+                'x-client-id': clientId,
+                'x-client-secret': clientSecret,
                 'x-api-version': '2023-08-01',
             },
         });
