@@ -88,7 +88,7 @@ export const initNotificationScheduler = () => {
                 if (expiredOrders.length > 0) {
                     console.log(`☠️ Found ${expiredOrders.length} expired orders (>20 mins)`);
                     for (const order of expiredOrders) {
-                        await order.update({ expirationNotificationSent: true }, { silent: true, transaction: t });
+                        await order.update({ status: "EXPIRED", expirationNotificationSent: true }, { silent: true, transaction: t });
                         ordersToExpire.push(order);
                     }
                 }

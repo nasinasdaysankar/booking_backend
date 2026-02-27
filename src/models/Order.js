@@ -84,7 +84,8 @@ export default (sequelize) => {
           "READY",
           "PICKED_UP",
           "COMPLETED",
-          "CANCELLED"
+          "CANCELLED",
+          "EXPIRED"
         ),
         defaultValue: "PENDING_PAYMENT",
       },

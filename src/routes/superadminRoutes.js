@@ -53,7 +53,20 @@ router.get('/cafeterias', superadminAuth, async (req, res) => {
 // ============================================
 router.post('/cafeterias', superadminAuth, async (req, res) => {
     try {
-        const { name, latitude, longitude, isOpen, isUserVisible, ownerId } = req.body;
+        const {
+            name,
+            latitude,
+            longitude,
+            isOpen,
+            isUserVisible,
+            ownerId,
+            gstType,
+            gstAmount,
+            platformFeeType,
+            platformFeeAmount,
+            commissionType,
+            commissionAmount
+        } = req.body;
 
         if (!name || !latitude || !longitude || !ownerId) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -68,7 +81,13 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isOpen: isOpen !== undefined ? isOpen : true,
             isUserVisible: isUserVisible !== undefined ? isUserVisible : false,
             staticQrToken,
-            ownerId
+            ownerId,
+            gstType: gstType || 'percentage',
+            gstAmount: gstAmount !== undefined ? gstAmount : 5.0,
+            platformFeeType: platformFeeType || 'fixed',
+            platformFeeAmount: platformFeeAmount !== undefined ? platformFeeAmount : 1.0,
+            commissionType: commissionType || 'fixed',
+            commissionAmount: commissionAmount !== undefined ? commissionAmount : 1.0,
         });
 
         // ✅ Clear cafeteria cache so mobile app sees new restaurant immediately
@@ -90,7 +109,17 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
 router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, isOpen, isUserVisible } = req.body;
+        const {
+            name,
+            isOpen,
+            isUserVisible,
+            gstType,
+            gstAmount,
+            platformFeeType,
+            platformFeeAmount,
+            commissionType,
+            commissionAmount
+        } = req.body;
 
         const cafeteria = await Cafeteria.findByPk(id);
         if (!cafeteria) {
@@ -101,6 +130,12 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(name !== undefined && { name }),
             ...(isOpen !== undefined && { isOpen }),
             ...(isUserVisible !== undefined && { isUserVisible }),
+            ...(gstType !== undefined && { gstType }),
+            ...(gstAmount !== undefined && { gstAmount }),
+            ...(platformFeeType !== undefined && { platformFeeType }),
+            ...(platformFeeAmount !== undefined && { platformFeeAmount }),
+            ...(commissionType !== undefined && { commissionType }),
+            ...(commissionAmount !== undefined && { commissionAmount }),
         });
 
         // ✅ Clear cafeteria cache so mobile app sees updates immediately
