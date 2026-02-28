@@ -26,6 +26,7 @@ export const getCafeterias = async (req, res) => {
         'isOpen',
         'staticQrToken',
         'isUserVisible',
+        'isInsideCampus',
         'latitude',
         'longitude',
         'gstType',

@@ -45,6 +45,12 @@ export default (sequelize) => {
         field: "staticqrtoken",
       },
 
+      isInsideCampus: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "isinsidecampus",
+      },
+
       ownerId: {
         type: DataTypes.INTEGER,
         allowNull: false,
