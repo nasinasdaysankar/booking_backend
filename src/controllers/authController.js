@@ -594,6 +594,86 @@ export const googleLogin = async (req, res) => {
     });
   }
 };
+
+/* ================= APPLE LOGIN ================= */
+export const appleLogin = async (req, res) => {
+  try {
+    const { idToken, name, email: providedEmail } = req.body;
+
+    // ✅ VALIDATION: Check if idToken is provided
+    if (!idToken) {
+      console.error("❌ Apple login: Missing idToken in request body");
+      return res.status(400).json({
+        success: false,
+        message: "ID token is required",
+        code: "MISSING_TOKEN"
+      });
+    }
+
+    let decodedToken;
+    try {
+      // Verify Firebase token
+      decodedToken = await admin.auth().verifyIdToken(idToken, true);
+    } catch (firebaseError) {
+      console.error("❌ Firebase Apple token verification failed:", firebaseError.message);
+      return res.status(401).json({
+        success: false,
+        message: "Authentication failed. Please try again.",
+        code: "AUTH_FAILED"
+      });
+    }
+
+    // Apple often hides email, but Firebase captures it if available
+    // Fallback to email/name provided in request body if Firebase doesn't have it
+    const email = decodedToken.email || providedEmail;
+    const displayName = decodedToken.name || name || "Apple User";
+
+    if (!email) {
+      console.error("❌ Apple login: No email found in token and none provided");
+      return res.status(400).json({
+        success: false,
+        message: "Apple account email not available",
+        code: "NO_EMAIL"
+      });
+    }
+
+    let user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        name: displayName,
+        role: "student",
+      });
+      console.log(`✅ New Apple user created: ${email}`);
+    } else {
+      console.log(`✅ Existing user found (Apple login): ${email}`);
+    }
+
+    const { accessToken, refreshToken } = signToken(user);
+
+    return res.json({
+      success: true,
+      message: "Apple login successful",
+      token: accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Apple login error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error during login",
+      code: "SERVER_ERROR"
+    });
+  }
+};
 /* ===========================================================
    📌 REGISTER ONLY UNIVERSITY EMAILS
    - alliance.edu.in → FACULTY
