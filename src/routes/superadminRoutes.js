@@ -9,6 +9,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
+import { uploadCafeteriaMedia } from "../controllers/superadminController.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
 
 const router = express.Router();
@@ -65,7 +66,9 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             platformFeeType,
             platformFeeAmount,
             commissionType,
-            commissionAmount
+            commissionAmount,
+            promoVideoUrl,
+            promoImageUrl
         } = req.body;
 
         if (!name || !latitude || !longitude || !ownerId) {
@@ -88,6 +91,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             platformFeeAmount: platformFeeAmount !== undefined ? platformFeeAmount : 1.0,
             commissionType: commissionType || 'fixed',
             commissionAmount: commissionAmount !== undefined ? commissionAmount : 1.0,
+            promoVideoUrl,
+            promoImageUrl,
         });
 
         // ✅ Clear cafeteria cache so mobile app sees new restaurant immediately
@@ -118,7 +123,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             platformFeeType,
             platformFeeAmount,
             commissionType,
-            commissionAmount
+            commissionAmount,
+            promoVideoUrl,
+            promoImageUrl
         } = req.body;
 
         const cafeteria = await Cafeteria.findByPk(id);
@@ -136,6 +143,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(platformFeeAmount !== undefined && { platformFeeAmount }),
             ...(commissionType !== undefined && { commissionType }),
             ...(commissionAmount !== undefined && { commissionAmount }),
+            ...(promoVideoUrl !== undefined && { promoVideoUrl }),
+            ...(promoImageUrl !== undefined && { promoImageUrl }),
         });
 
         // ✅ Clear cafeteria cache so mobile app sees updates immediately
@@ -150,6 +159,11 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to update cafeteria' });
     }
 });
+
+// ============================================
+// UPLOAD CAFETERIA MEDIA (SUPERADMIN)
+// ============================================
+router.post('/cafeterias/upload-media/:id', superadminAuth, upload.single('file'), uploadCafeteriaMedia);
 
 // ============================================
 // GET SUPERADMIN DASHBOARD STATS

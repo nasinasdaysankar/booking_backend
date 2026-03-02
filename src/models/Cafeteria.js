@@ -99,6 +99,18 @@ export default (sequelize) => {
         type: DataTypes.DATE,
         field: "updated_at",
       },
+
+      promoVideoUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "promo_video_url",
+      },
+
+      promoImageUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "promo_image_url",
+      },
     },
     {
       tableName: "cafeterias",
