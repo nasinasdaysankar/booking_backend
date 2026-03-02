@@ -36,7 +36,10 @@ export const getCafeterias = async (req, res) => {
         'commissionType',
         'commissionAmount',
         'promoVideoUrl',
-        'promoImageUrl'
+        'promoImageUrl',
+        'showGst',
+        'showPlatformFee',
+        'showCommission'
       ],
       order: [['id', 'ASC']]
     });

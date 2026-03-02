@@ -68,7 +68,10 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             commissionType,
             commissionAmount,
             promoVideoUrl,
-            promoImageUrl
+            promoImageUrl,
+            showGst,
+            showPlatformFee,
+            showCommission
         } = req.body;
 
         if (!name || !latitude || !longitude || !ownerId) {
@@ -93,6 +96,9 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             commissionAmount: commissionAmount !== undefined ? commissionAmount : 1.0,
             promoVideoUrl,
             promoImageUrl,
+            showGst: showGst !== undefined ? showGst : true,
+            showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
+            showCommission: showCommission !== undefined ? showCommission : true,
         });
 
         // ✅ Clear cafeteria cache so mobile app sees new restaurant immediately
@@ -125,7 +131,10 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             commissionType,
             commissionAmount,
             promoVideoUrl,
-            promoImageUrl
+            promoImageUrl,
+            showGst,
+            showPlatformFee,
+            showCommission
         } = req.body;
 
         const cafeteria = await Cafeteria.findByPk(id);
@@ -145,6 +154,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(commissionAmount !== undefined && { commissionAmount }),
             ...(promoVideoUrl !== undefined && { promoVideoUrl }),
             ...(promoImageUrl !== undefined && { promoImageUrl }),
+            ...(showGst !== undefined && { showGst }),
+            ...(showPlatformFee !== undefined && { showPlatformFee }),
+            ...(showCommission !== undefined && { showCommission }),
         });
 
         // ✅ Clear cafeteria cache so mobile app sees updates immediately

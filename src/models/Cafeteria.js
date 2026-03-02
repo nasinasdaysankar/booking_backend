@@ -111,6 +111,21 @@ export default (sequelize) => {
         allowNull: true,
         field: "promo_image_url",
       },
+      showGst: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "show_gst",
+      },
+      showPlatformFee: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "show_platform_fee",
+      },
+      showCommission: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "show_commission",
+      },
     },
     {
       tableName: "cafeterias",
