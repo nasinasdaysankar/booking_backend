@@ -9,7 +9,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
-import { uploadCafeteriaMedia } from "../controllers/superadminController.js";
+import { uploadCafeteriaMedia, deleteCafeteriaMedia } from "../controllers/superadminController.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
 
 const router = express.Router();
@@ -164,6 +164,11 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
 // UPLOAD CAFETERIA MEDIA (SUPERADMIN)
 // ============================================
 router.post('/cafeterias/upload-media/:id', superadminAuth, upload.single('file'), uploadCafeteriaMedia);
+
+// ============================================
+// DELETE CAFETERIA MEDIA (SUPERADMIN)
+// ============================================
+router.post('/cafeterias/delete-media/:id', superadminAuth, deleteCafeteriaMedia);
 
 // ============================================
 // GET SUPERADMIN DASHBOARD STATS
