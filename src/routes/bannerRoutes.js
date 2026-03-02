@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { uploadBanner, getBanners, deleteBanner, updateBanner } from "../controllers/bannerController.js";
-import { superadminAuth } from "./superadminRoutes.js";
+import { superadminAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });

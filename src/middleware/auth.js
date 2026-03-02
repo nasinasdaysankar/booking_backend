@@ -110,10 +110,56 @@ export const requireRole = (roles = []) => {
 };
 
 // ============================================
+// 👑 SUPERADMIN AUTH (Secure JWT)
+// ============================================
+export const superadminAuth = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith("Bearer ")) {
+      return res.status(401).json({ success: false, message: "Superadmin token missing" });
+    }
+
+    const token = header.split(" ")[1];
+    
+    // Verify using the dedicated superadmin secret
+    const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
+
+    if (payload.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: "Access denied: Not a superadmin" });
+    }
+
+    req.user = {
+      id: payload.id,
+      role: 'superadmin'
+    };
+    
+    next();
+  } catch (err) {
+    console.error("❌ [SUPERADMIN AUTH] Error:", err.message);
+    return res.status(401).json({ success: false, message: "Invalid or expired superadmin token" });
+  }
+};
+
+// ============================================
 // 🗑️ HELPER: Clear user from cache (on logout/delete)
 // ============================================
 export const clearAuthCache = async (userId) => {
   await delCache(CACHE_KEYS.AUTH(userId));
+};
+
+// ============================================
+// 🔑 INTERNAL WEBHOOK AUTH (API Key)
+// ============================================
+export const verifyWebhookKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const internalSecret = process.env.WEBHOOK_API_KEY;
+
+  if (!apiKey || apiKey !== internalSecret) {
+    console.error("❌ [WEBHOOK AUTH] Invalid or missing API key");
+    return res.status(401).json({ success: false, message: "Unauthorized webhook access" });
+  }
+
+  next();
 };
 
 

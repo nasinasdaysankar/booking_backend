@@ -350,6 +350,8 @@ export const getAdminOrders = async (req, res) => {
              orders."israted" AS "isRated",
              orders."isparcel" AS "isParcel",
              orders."parcelamount" AS "parcelAmount",
+             orders."platform_fee" AS "platformFee",
+             orders."gst_amount" AS "gstAmount",
              orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",

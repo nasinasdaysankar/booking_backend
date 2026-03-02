@@ -2,6 +2,8 @@ import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
 import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback } from '../models/index.js';
+import { superadminAuth } from '../middleware/auth.js';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import admin from "../config/firebaseAdmin.js";
@@ -16,19 +18,41 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
 
 // ============================================
-// SUPERADMIN AUTHENTICATION MIDDLEWARE
+// SUPERADMIN LOGIN
 // ============================================
-export const superadminAuth = (req, res, next) => {
-    const authHeader = req.headers.authorization;
+router.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
 
-    // Check for superadmin token (starts with 'superadmin_')
-    if (authHeader && authHeader.startsWith('Bearer superadmin_')) {
-        req.isSuperAdmin = true;
-        next();
-    } else {
-        res.status(401).json({ success: false, message: 'Superadmin access required' });
+        // Using hardcoded credentials as per existing logic, but checking them properly
+        const SUPER_ADMIN_EMAIL = 'super@velish.com';
+        const SUPER_ADMIN_PASSWORD = 'admin123'; // In a real app, this would be hashed in DB
+
+        if (email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD) {
+            const token = jwt.sign(
+                { id: 0, role: 'superadmin' },
+                process.env.SUPERADMIN_JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            return res.json({
+                success: true,
+                token,
+                user: {
+                    id: 0,
+                    name: 'Super Admin',
+                    email: SUPER_ADMIN_EMAIL,
+                    role: 'superadmin'
+                }
+            });
+        }
+
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+    } catch (error) {
+        console.error('Superadmin login error:', error);
+        res.status(500).json({ success: false, message: 'Login failed' });
     }
-};
+});
 
 // ============================================
 // GET ALL CAFETERIAS (SUPERADMIN)

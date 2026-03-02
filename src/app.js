@@ -40,7 +40,24 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ================= MIDDLEWARE =================
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:5173',      // Local development (Vite)
+  'http://localhost:3000',      // Local development (Alternative)
+  'https://api.velish.in',      // Production API/Web domain
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Check if origin is allowed or if it's a non-browser request (like mobile app)
+    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost')) {
+      callback(null, true);
+    } else {
+      console.warn(`🔒 [CORS] Blocked request from unauthorized origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // 📡 DEBUG: Log all requests
