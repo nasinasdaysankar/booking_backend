@@ -1,6 +1,7 @@
 import { Cafeteria } from "../models/index.js";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
+import { clearCafeteriaCache } from "../utils/cache.js";
 import slugify from "slugify";
 
 /**
@@ -71,6 +72,9 @@ export const uploadCafeteriaMedia = async (req, res) => {
             cafeteria.promoImageUrl = url;
         }
         await cafeteria.save();
+
+        // 4. CLEAR CACHE
+        await clearCafeteriaCache();
 
         return res.json({
             success: true,
