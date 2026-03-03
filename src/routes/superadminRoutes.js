@@ -829,15 +829,17 @@ router.get('/payments', superadminAuth, async (req, res) => {
         const finalOffset = offset ? parseInt(offset) : (page ? (parseInt(page) - 1) * finalLimit : 0);
 
         if (cafeteriaId) where.cafeteriaId = parseInt(cafeteriaId);
-        if (status) {
+
+        if (status && status !== 'ALL') {
             if (status === 'REFUNDED') {
-                where.status = { [Op.or]: ['REFUND_SUCCESS', 'REFUND_INITIATED'] };
+                where.status = { [Op.in]: ['REFUND_SUCCESS', 'REFUND_INITIATED'] };
             } else if (status === 'COMPLETED') {
                 where.status = 'SUCCESS';
             } else {
                 where.status = status;
             }
         }
+
         if (search) {
             where[Op.or] = [
                 { transactionId: { [Op.iLike]: `%${search}%` } },
@@ -851,6 +853,7 @@ router.get('/payments', superadminAuth, async (req, res) => {
             limit: finalLimit,
             offset: finalOffset,
             order: [['createdAt', 'DESC']],
+            distinct: true, // Needed for correct count with joins
             include: [{
                 model: Order,
                 include: [
@@ -862,12 +865,12 @@ router.get('/payments', superadminAuth, async (req, res) => {
 
         res.json({ success: true, ...payments });
     } catch (error) {
-        console.error('Payments error detailed:', {
+        console.error('Payments detailed error:', {
             message: error.message,
             query: req.query,
             stack: error.stack
         });
-        res.status(500).json({ success: false, message: 'Failed to fetch payments' });
+        res.status(500).json({ success: false, message: `Failed to fetch payments: ${error.message}` });
     }
 });
 
