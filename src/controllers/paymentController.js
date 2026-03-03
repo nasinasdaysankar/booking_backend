@@ -370,6 +370,58 @@ export const confirmPayment = async (req, res) => {
       });
     }
 
+    // ===================================================================
+    // 🔍 STEP 0: VERIFY ACTUAL PAYMENT STATUS WITH CASHFREE (SECURITY)
+    // ===================================================================
+    console.log(`🔍 [CONFIRM] Verifying Cashfree payment status for: ${cashfreeOrderId}`);
+    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
+
+    try {
+      const cfResponse = await axios.get(
+        `${cfBaseUrl}/orders/${cashfreeOrderId}`,
+        {
+          headers: {
+            "x-api-version": "2023-08-01",
+            "x-client-id": clientId,
+            "x-client-secret": clientSecret,
+          },
+          timeout: 10000,
+        }
+      );
+
+      const orderData = cfResponse.data;
+      const orderStatus = orderData.order_status || "";
+
+      // Get payment status from the latest payment attempt if possible
+      let paymentAttemptStatus = "";
+      if (orderData.payments && orderData.payments.length > 0) {
+        // Cashfree sorts payments chronologically, [0] is often the latest or only one
+        paymentAttemptStatus = orderData.payments[0].payment_status || "";
+      }
+
+      // Check if order is actually PAID
+      const isActuallyPaid = orderStatus === "PAID" || paymentAttemptStatus === "SUCCESS";
+
+      if (!isActuallyPaid) {
+        console.error(`❌ [CONFIRM] Payment verification failed for ${cashfreeOrderId}. Status: ${orderStatus}, Payment: ${paymentAttemptStatus}`);
+        await t.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Payment could not be verified with gateway. Please ensure your payment was successful.",
+          paymentStatus: paymentAttemptStatus || orderStatus
+        });
+      }
+      console.log(`✅ [CONFIRM] Cashfree verification passed for ${cashfreeOrderId}`);
+    } catch (cfErr) {
+      console.error(`❌ [CONFIRM] Error verifying with Cashfree:`, cfErr.response?.data || cfErr.message);
+      await t.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to verify payment status with gateway. Please try again.",
+        error: cfErr.message
+      });
+    }
+
     // Create order first
     let order = await Order.findOne({
       where: { cashfreeOrderId },
