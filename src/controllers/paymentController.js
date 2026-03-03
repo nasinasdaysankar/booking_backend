@@ -15,7 +15,12 @@ import axios from "axios";
 // 🔧 HELPER: Get Cashfree credentials based on environment
 // ===================================================================
 const getCashfreeCredentials = () => {
-  const isSandbox = process.env.CASHFREE_ENV !== "production";
+  // Use CASHFREE_ENV if set, otherwise fallback to NODE_ENV
+  const env = (process.env.CASHFREE_ENV || process.env.NODE_ENV || "sandbox").toLowerCase();
+  const isSandbox = env !== "production";
+
+  console.log(`ℹ️ [CASHFREE] Using ${isSandbox ? "SANDBOX" : "PRODUCTION"} environment`);
+
   return {
     clientId: isSandbox
       ? process.env.CASHFREE_SANDBOX_CLIENT_ID
@@ -26,6 +31,7 @@ const getCashfreeCredentials = () => {
     baseUrl: isSandbox
       ? "https://sandbox.cashfree.com/pg"
       : "https://api.cashfree.com/pg",
+    env: env,
   };
 };
 
@@ -374,7 +380,7 @@ export const confirmPayment = async (req, res) => {
     // 🔍 STEP 0: VERIFY ACTUAL PAYMENT STATUS WITH CASHFREE (SECURITY)
     // ===================================================================
     console.log(`🔍 [CONFIRM] Verifying Cashfree payment status for: ${cashfreeOrderId}`);
-    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
+    const { clientId, clientSecret, baseUrl: cfBaseUrl, env } = getCashfreeCredentials();
 
     try {
       const cfResponse = await axios.get(
@@ -413,11 +419,11 @@ export const confirmPayment = async (req, res) => {
       }
       console.log(`✅ [CONFIRM] Cashfree verification passed for ${cashfreeOrderId}`);
     } catch (cfErr) {
-      console.error(`❌ [CONFIRM] Error verifying with Cashfree:`, cfErr.response?.data || cfErr.message);
+      console.error(`❌ [CONFIRM] Error verifying with Cashfree (${env}):`, cfErr.response?.data || cfErr.message);
       await t.rollback();
       return res.status(500).json({
         success: false,
-        message: "Failed to verify payment status with gateway. Please try again.",
+        message: `Failed to verify payment status with gateway (${env}). Please try again.`,
         error: cfErr.message
       });
     }
@@ -1315,14 +1321,13 @@ export const verifyPaymentStatus = async (req, res) => {
     }
 
     console.log(`🔍 [VERIFY] Checking Cashfree payment status for: ${orderId}`);
-
-    const { clientId, clientSecret, baseUrl } = getCashfreeCredentials();
+    const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
 
     if (!clientId || !clientSecret) {
-      console.error("❌ [VERIFY] Cashfree credentials not configured");
+      console.error(`❌ [VERIFY] Cashfree credentials missing for ${env} environment. (clientId: ${!!clientId}, clientSecret: ${!!clientSecret})`);
       return res.status(500).json({
         success: false,
-        message: "Payment gateway credentials not configured",
+        message: `Payment gateway credentials for ${env} not configured`,
       });
     }
 
@@ -1341,6 +1346,8 @@ export const verifyPaymentStatus = async (req, res) => {
 
     const orderData = cfResponse.data;
     const orderStatus = orderData.order_status || "";
+
+    console.log(`ℹ️ [VERIFY] Cashfree responded for ${orderId}: Order Status=${orderStatus}`);
 
     // Get payment status from the first payment attempt
     let paymentStatus = "";
