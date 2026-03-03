@@ -838,12 +838,12 @@ router.get('/payments', superadminAuth, async (req, res) => {
                     { refundamount: { [Op.gt]: 0 } }
                 ];
             } else if (status === 'COMPLETED') {
-                // In this system, 'SUCCESS' covers all completed payments.
-                // We map COMPLETED to SUCCESS to show all successful transactions.
                 where.status = 'SUCCESS';
             } else if (status === 'FAILED') {
-                // Explicitly check for FAILED. Note: DB currently has 0, but logic should exist.
                 where.status = 'FAILED';
+            } else if (status === 'PENDING') {
+                where.status = 'PENDING';
+                where.refundamount = { [Op.or]: [0, null] }; // 🔴 Exclude already refunded but stuck as PENDING
             } else {
                 where.status = status;
             }
@@ -872,10 +872,19 @@ router.get('/payments', superadminAuth, async (req, res) => {
             }]
         });
 
+        const rows = payments.rows.map(p => {
+            const data = p.toJSON();
+            // 🔄 Logic: If it has a refund amount, force the status to REFUNDED for the UI
+            if (data.refundamount > 0 && (data.status === 'PENDING' || data.status === 'SUCCESS')) {
+                data.status = 'REFUNDED';
+            }
+            return data;
+        });
+
         res.json({
             success: true,
             count: payments.count,
-            rows: payments.rows
+            rows: rows
         });
     } catch (error) {
         console.error('Payments detailed error:', error);
