@@ -3,6 +3,24 @@ import admin from "../config/firebaseAdmin.js";
 import { emitOrderStatusToUser } from "../socket.js";
 
 // ===================================================================
+// 🔧 HELPER: Get Cashfree credentials based on environment
+// ===================================================================
+const getCashfreeCredentials = () => {
+  const isSandbox = process.env.CASHFREE_ENV !== "production";
+  return {
+    clientId: isSandbox
+      ? process.env.CASHFREE_SANDBOX_CLIENT_ID
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_ID || process.env.CASHFREE_CLIENT_ID),
+    clientSecret: isSandbox
+      ? process.env.CASHFREE_SANDBOX_CLIENT_SECRET
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_CLIENT_SECRET),
+    baseUrl: isSandbox
+      ? "https://sandbox.cashfree.com/pg"
+      : "https://api.cashfree.com/pg",
+    env: isSandbox ? "SANDBOX" : "PRODUCTION",
+  };
+};
+// ===================================================================
 // ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
 // ===================================================================
 export const checkWebhookStatus = async (req, res) => {
@@ -125,31 +143,30 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    // 3️⃣ CHECK CASHFREE PRODUCTION KEYS
-    console.log("🔐 Cashfree App ID:", process.env.CASHFREE_CLIENT_ID);
-    console.log(
-      "🔐 Cashfree Secret:",
-      process.env.CASHFREE_CLIENT_SECRET
-        ? process.env.CASHFREE_CLIENT_SECRET.slice(0, 6) + "******"
-        : "MISSING"
-    );
+    // 3️⃣ GET CASHFREE CREDENTIALS
+    const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
 
-    if (!process.env.CASHFREE_CLIENT_ID || !process.env.CASHFREE_CLIENT_SECRET) {
+    console.log(`🔐 Cashfree Environment: ${env}`);
+    console.log(`🔐 Cashfree Client ID: ${clientId ? clientId.slice(0, 8) + '...' : 'MISSING'}`);
+    console.log(`🔐 Cashfree Secret: ${clientSecret ? clientSecret.slice(0, 6) + '******' : 'MISSING'}`);
+
+    if (!clientId || !clientSecret) {
       return res.status(500).json({
         success: false,
-        message: "Cashfree production credentials not configured in Railway",
+        message: `Cashfree ${env} credentials not configured in Railway`,
       });
     }
 
-    // 4️⃣ Call Cashfree PRODUCTION API
+    // 4️⃣ Call Cashfree Refund API
     const axios = (await import("axios")).default;
 
     const refundId = `refund_${order.id}_${Date.now()}`;
-    console.log("🚀 Calling Cashfree refund API (PRODUCTION)...");
+    console.log(`🚀 Calling Cashfree refund API (${env})...`);
     console.log(`   refund_id: ${refundId}`);
+    console.log(`   URL: ${baseUrl}/orders/${payment.cashfreeOrderId}/refunds`);
 
     const refundResponse = await axios.post(
-      `https://api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
+      `${baseUrl}/orders/${payment.cashfreeOrderId}/refunds`,
       {
         refund_amount: Number(order.totalAmount),
         refund_id: refundId,
@@ -158,8 +175,8 @@ export const refundOrder = async (req, res) => {
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
           "Content-Type": "application/json",
         },
         timeout: 15000,
@@ -293,14 +310,15 @@ export const checkRefundStatus = async (req, res) => {
     // ✅ FETCH EXISTING REFUND STATUS
     // ====================================
     const axios = (await import("axios")).default;
+    const { clientId, clientSecret, baseUrl } = getCashfreeCredentials();
 
     const refundResponse = await axios.get(
-      `https://api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
+      `${baseUrl}/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
         },
         timeout: 15000,
       }
