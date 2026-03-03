@@ -822,10 +822,22 @@ router.post('/admins', superadminAuth, async (req, res) => {
 // ============================================
 router.get('/payments', superadminAuth, async (req, res) => {
     try {
-        const { limit = 50, offset = 0, cafeteriaId, status, search } = req.query;
+        const { limit = 10, offset, page, cafeteriaId, status, search } = req.query;
         const where = {};
+
+        const finalLimit = parseInt(limit) || 10;
+        const finalOffset = offset ? parseInt(offset) : (page ? (parseInt(page) - 1) * finalLimit : 0);
+
         if (cafeteriaId) where.cafeteriaId = parseInt(cafeteriaId);
-        if (status) where.status = status;
+        if (status) {
+            if (status === 'REFUNDED') {
+                where.status = { [Op.or]: ['REFUND_SUCCESS', 'REFUND_INITIATED'] };
+            } else if (status === 'COMPLETED') {
+                where.status = 'SUCCESS';
+            } else {
+                where.status = status;
+            }
+        }
         if (search) {
             where[Op.or] = [
                 { transactionId: { [Op.iLike]: `%${search}%` } },
@@ -836,8 +848,8 @@ router.get('/payments', superadminAuth, async (req, res) => {
 
         const payments = await Payment.findAndCountAll({
             where,
-            limit: parseInt(limit),
-            offset: parseInt(offset),
+            limit: finalLimit,
+            offset: finalOffset,
             order: [['createdAt', 'DESC']],
             include: [{
                 model: Order,
@@ -850,7 +862,11 @@ router.get('/payments', superadminAuth, async (req, res) => {
 
         res.json({ success: true, ...payments });
     } catch (error) {
-        console.error('Payments error:', error);
+        console.error('Payments error detailed:', {
+            message: error.message,
+            query: req.query,
+            stack: error.stack
+        });
         res.status(500).json({ success: false, message: 'Failed to fetch payments' });
     }
 });
