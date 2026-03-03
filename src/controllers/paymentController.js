@@ -333,6 +333,39 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 //   }
 // };
 // ===================================================================
+// ✅ CREATE CASHFREE ORDER (PROXY TO FINANCE BACKEND)
+// ===================================================================
+export const createCashfreeOrder = async (req, res) => {
+  try {
+    console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
+
+    // The flutter app sends: amount, orderId, uid, email, name, phone, cafeteriaId, etc.
+    const payload = req.body;
+
+    // Forward the request using the internal webhook API key
+    const financeBackendUrl = process.env.FINANCE_BACKEND_URL || "https://createcashfreeorder-ueekkmxxta-uc.a.run.app/";
+    const internalApiKey = process.env.WEBHOOK_API_KEY;
+
+    const response = await axios.post(financeBackendUrl, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": internalApiKey,
+      },
+    });
+
+    console.log("✅ [PROXY] Order created successfully via Finance Backend");
+    return res.status(200).json(response.data);
+  } catch (error) {
+    console.error("❌ [PROXY] Error creating Cashfree order:", error?.response?.data || error.message);
+    return res.status(error?.response?.status || 500).json({
+      success: false,
+      message: "Failed to create Cashfree order via proxy",
+      error: error?.response?.data?.error || error.message,
+    });
+  }
+};
+
+// ===================================================================
 // ✅ CONFIRM PAYMENT (FROM FLUTTER APP) - UPDATED WITH PARCEL TRACKING
 // ===================================================================
 export const confirmPayment = async (req, res) => {

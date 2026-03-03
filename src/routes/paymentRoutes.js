@@ -4,11 +4,15 @@ import {
   syncFromWebhook,
   getPaymentByOrderId,
   updatePaymentIdFromWebhook,
-  verifyPaymentStatus
+  verifyPaymentStatus,
+  createCashfreeOrder
 } from "../controllers/paymentController.js";
 import { auth, verifyWebhookKey } from "../middleware/auth.js";
 
 const router = express.Router();
+
+// ✅ Create Cashfree order (via Finance Backend proxy)
+router.post("/create", auth, createCashfreeOrder);
 
 // ✅ User confirms payment after Cashfree SDK
 router.post("/confirm", auth, confirmPayment);
