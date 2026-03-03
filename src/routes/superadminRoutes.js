@@ -833,7 +833,10 @@ router.get('/payments', superadminAuth, async (req, res) => {
 
         if (status && status !== 'ALL') {
             if (status === 'REFUNDED') {
-                where.status = { [Op.in]: ['REFUND_SUCCESS', 'REFUND_INITIATED'] };
+                where[Op.or] = [
+                    { status: { [Op.in]: ['REFUND_SUCCESS', 'REFUND_INITIATED'] } },
+                    { refundamount: { [Op.gt]: 0 } }
+                ];
             } else if (status === 'COMPLETED') {
                 where.status = 'SUCCESS';
             } else {
