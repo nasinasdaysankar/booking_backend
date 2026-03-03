@@ -3,7 +3,6 @@ import {
   confirmPayment,
   syncFromWebhook,
   getPaymentByOrderId,
-  updatePaymentIdFromWebhook,
   verifyPaymentStatus,
   createCashfreeOrder
 } from "../controllers/paymentController.js";
@@ -25,6 +24,5 @@ router.post("/sync-from-webhook", verifyWebhookKey, syncFromWebhook);
 
 // ✅ Get payment details by Cashfree order ID
 router.get("/order/:orderId", auth, getPaymentByOrderId);
-
 
 export default router;

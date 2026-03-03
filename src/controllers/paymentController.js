@@ -1,13 +1,7 @@
-// ===================================================================
-// FILE: controllers/paymentController.js
-// Complete refund functions with all fixes
-// ===================================================================
-
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
-import { AdminFcmToken } from "../models/index.js";
-import { UserStreak } from "../models/index.js";
+import { AdminFcmToken, UserStreak } from "../models/index.js";
 import dayjs from "dayjs";
 import axios from "axios";
 
@@ -21,10 +15,10 @@ const getCashfreeCredentials = () => {
   return {
     clientId: isSandbox
       ? process.env.CASHFREE_SANDBOX_CLIENT_ID
-      : (process.env.CASHFREE_PRODUCTION_CLIENT_ID || process.env.CASHFREE_CLIENT_ID),
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_ID || process.env.CASHFREE_APP_ID),
     clientSecret: isSandbox
       ? process.env.CASHFREE_SANDBOX_CLIENT_SECRET
-      : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_CLIENT_SECRET),
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_SECRET_KEY),
     baseUrl: isSandbox
       ? "https://sandbox.cashfree.com/pg"
       : "https://api.cashfree.com/pg",
@@ -36,22 +30,67 @@ const getCashfreeCredentials = () => {
 // 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
 // --------------------------------------------------
 const generateKotNumber = async (cafeteriaId, transaction) => {
-  const [result] = await sequelize.query(
-    `
-    INSERT INTO kot_counters ("cafeteriaId", "counter")
-    VALUES (:cafeteriaId, 1)
-    ON CONFLICT ("cafeteriaId")
-    DO UPDATE SET "counter" = kot_counters."counter" + 1
-    RETURNING "counter";
-    `,
-    {
-      replacements: { cafeteriaId },
-      transaction,
-    }
-  );
+  try {
+    console.log(`🎯 [KOT] Generating KOT for cafeteria: ${cafeteriaId}`);
 
-  const counter = result[0].counter;
-  return `KOT-${cafeteriaId}-${String(counter).padStart(5, "0")}`;
+    // Step 1: Try to find existing counter
+    const [existingCounter] = await sequelize.query(
+      `SELECT "counter" FROM kot_counters WHERE "cafeteriaid" = :cafeteriaId`,
+      {
+        replacements: { cafeteriaId },
+        transaction,
+        type: sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    let newCounter;
+
+    if (existingCounter) {
+      // Step 2a: If exists, increment it
+      console.log(`📊 [KOT] Counter exists, incrementing from ${existingCounter.counter}`);
+
+      const [result] = await sequelize.query(
+        `UPDATE kot_counters 
+         SET "counter" = "counter" + 1 
+         WHERE "cafeteriaid" = :cafeteriaId 
+         RETURNING "counter"`,
+        {
+          replacements: { cafeteriaId },
+          transaction,
+        }
+      );
+
+      newCounter = result[0].counter;
+      console.log(`✅ [KOT] Counter incremented to: ${newCounter}`);
+    } else {
+      // Step 2b: If doesn't exist, create it with counter = 1
+      console.log(`📝 [KOT] Counter doesn't exist, creating new one`);
+
+      await sequelize.query(
+        `INSERT INTO kot_counters ("cafeteriaid", "counter") 
+         VALUES (:cafeteriaId, 1)`,
+        {
+          replacements: { cafeteriaId },
+          transaction,
+        }
+      );
+
+      newCounter = 1;
+      console.log(`✅ [KOT] Counter created with value: 1`);
+    }
+
+    // Step 3: Generate KOT number
+    const kotNumber = `KOT-${cafeteriaId}-${String(newCounter).padStart(5, "0")}`;
+    console.log(`🎫 [KOT] Generated KOT Number: ${kotNumber}`);
+
+    return kotNumber;
+  } catch (error) {
+    console.error("❌ [KOT] Error generating KOT number:", {
+      message: error.message,
+      cafeteriaId,
+    });
+    throw error;
+  }
 };
 
 // --------------------------------------------------
@@ -103,21 +142,33 @@ export const createCashfreeOrder = async (req, res) => {
   try {
     console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
 
-    // The flutter app sends: amount, orderId, uid, email, name, phone, cafeteriaId, etc.
     const payload = req.body;
-
-    // Forward the request using the internal webhook API key
-    const financeBackendUrl = process.env.FINANCE_BACKEND_URL || "https://createcashfreeorder-ueekkmxxta-uc.a.run.app/";
+    const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
     const internalApiKey = process.env.WEBHOOK_API_KEY;
 
     console.log(`🔗 [PROXY] Finance URL: ${financeBackendUrl}`);
     console.log(`🔑 [PROXY] API Key set: ${!!internalApiKey}, length: ${internalApiKey?.length || 0}`);
+
+    if (!financeBackendUrl) {
+      return res.status(500).json({
+        success: false,
+        message: "Finance backend URL not configured",
+      });
+    }
+
+    if (!internalApiKey) {
+      return res.status(500).json({
+        success: false,
+        message: "Internal API key not configured",
+      });
+    }
 
     const response = await axios.post(financeBackendUrl, payload, {
       headers: {
         "Content-Type": "application/json",
         "x-api-key": internalApiKey,
       },
+      timeout: 15000,
     });
 
     console.log("✅ [PROXY] Order created successfully via Finance Backend");
@@ -296,25 +347,47 @@ export const confirmPayment = async (req, res) => {
       kotNumber = await generateKotNumber(cafeteriaId, t);
       console.log(`✅ [KOT] Generated: ${kotNumber}`);
 
-      order = await Order.create(
-        {
-          cashfreeOrderId,
-          billId,
-          studentId: authenticatedStudentId,
-          cafeteriaId,
-          totalAmount: amount,
-          status: "PAID",
-          paymentStatus: "SUCCESS",
-          kotNumber,
-          isParcel: Boolean(isParcel),
-          parcelAmount: Number(parcelAmount) || 0,
-          platformFee: Number(platformFee) || 0,
-          gstAmount: Number(gstAmount) || 0,
-        },
-        { transaction: t }
-      );
+      try {
+        order = await Order.create(
+          {
+            cashfreeOrderId,
+            billId,
+            studentId: authenticatedStudentId,
+            cafeteriaId,
+            totalAmount: amount,
+            status: "PAID",
+            paymentStatus: "SUCCESS",
+            kotNumber,
+            isParcel: Boolean(isParcel),
+            parcelAmount: Number(parcelAmount) || 0,
+            platformFee: Number(platformFee) || 0,
+            gstAmount: Number(gstAmount) || 0,
+          },
+          { transaction: t }
+        );
 
-      console.log(`✅ [DATABASE] Order created with ID: ${order.id}`);
+        console.log(`✅ [DATABASE] Order created with ID: ${order.id}`);
+      } catch (createErr) {
+        console.error("❌ [DATABASE CREATE ERROR]:", {
+          name: createErr.name,
+          message: createErr.message,
+          sql: createErr.sql,
+          fields: createErr.fields,
+        });
+
+        await t.rollback();
+
+        return res.status(500).json({
+          success: false,
+          message: "Failed to create order in database",
+          error: createErr.message,
+          debug: {
+            errorName: createErr.name,
+            sql: createErr.sql,
+            fields: createErr.fields,
+          },
+        });
+      }
     } else {
       console.log("📝 [DATABASE] Order already exists, updating it");
       kotNumber = order.kotNumber;
@@ -332,7 +405,153 @@ export const confirmPayment = async (req, res) => {
       console.log(`✅ [DATABASE] Order updated: ${order.id}`);
     }
 
-    // Continue with rest of function...
+    // ========================================
+    // 💳 CREATE PAYMENT RECORD
+    // ========================================
+    console.log("\n💳 [PAYMENT] Creating payment record...");
+
+    const existingPayment = await Payment.findOne({
+      where: { cashfreeOrderId },
+      transaction: t,
+    });
+
+    if (!existingPayment) {
+      await Payment.create(
+        {
+          orderId: order.id,
+          billId,
+          cafeteriaId,
+          paymentGateway: "CASHFREE",
+          cashfreeOrderId,
+          transactionId,
+          amount,
+          status: "SUCCESS",
+          paidAt: new Date(),
+        },
+        { transaction: t }
+      );
+
+      console.log("✅ [PAYMENT] Payment record created");
+    } else {
+      console.log("ℹ️ [PAYMENT] Payment already exists");
+    }
+
+    // ========================================
+    // 🧺 CREATE ORDER ITEMS
+    // ========================================
+    console.log("\n🧺 [ITEMS] Creating order items...");
+
+    const existingItem = await OrderItem.findOne({
+      where: { orderId: order.id },
+      transaction: t,
+    });
+
+    if (!existingItem && Array.isArray(items) && items.length > 0) {
+      console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2));
+
+      const itemsToCreate = items.map((item) => {
+        const isParcelForThisItem = Boolean(item.isParcelSelected);
+
+        console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`);
+
+        return {
+          orderId: order.id,
+          menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
+          name: item.name,
+          quantity: item.quantity || item.qty,
+          priceAtOrder: item.price,
+          imageUrl: item.imageUrl || item.img || null,
+          isParcel: isParcelForThisItem,
+        };
+      });
+
+      await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+
+      console.log(`✅ Created ${itemsToCreate.length} order items`);
+
+      const parcelItems = itemsToCreate.filter(i => i.isParcel);
+      if (parcelItems.length > 0) {
+        console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
+      } else {
+        console.log(`📦 No items have parcel packaging`);
+      }
+    }
+
+    // ========================================
+    // 🎯 UPDATE USER STREAK
+    // ========================================
+    await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
+
+    await t.commit();
+
+    console.log("✅ Transaction committed successfully");
+
+    // ========================================
+    // 🔔 SEND NOTIFICATIONS (Async)
+    // ========================================
+    (async () => {
+      try {
+        emitNewOrder(cafeteriaId, {
+          orderId: order.id,
+          id: order.id,
+          billId: order.billId,
+          kotNumber: order.kotNumber,
+          totalAmount: order.totalAmount,
+          status: order.status,
+          createdAt: order.createdAt,
+          isParcel: order.isParcel,
+          parcelAmount: order.parcelAmount,
+          items: itemsToCreate,
+          customerName: req.user.name || "Customer",
+        });
+
+        const adminTokens = await AdminFcmToken.findAll({
+          where: { cafeteriaId },
+        });
+
+        if (adminTokens.length > 0) {
+          const tokens = adminTokens.map((t) => t.fcmToken);
+
+          const standardNotificationResponse = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: {
+              title: "🍽 New Order Received",
+              body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+            },
+            android: {
+              priority: "high",
+              notification: { channelId: "high_importance_channel" },
+            },
+          });
+
+          console.log(`🔔 FCM sent to admins.`);
+
+          if (standardNotificationResponse.failureCount > 0) {
+            const invalidTokens = [];
+            standardNotificationResponse.responses.forEach((resp, idx) => {
+              if (!resp.success) invalidTokens.push(adminTokens[idx].fcmToken);
+            });
+            if (invalidTokens.length > 0) {
+              await AdminFcmToken.destroy({ where: { fcmToken: invalidTokens } });
+              console.log("Deleted invalid admin tokens:", invalidTokens.length);
+            }
+          }
+        }
+      } catch (notifyErr) {
+        console.error("⚠️ Notification error (background):", notifyErr);
+      }
+    })();
+
+    // ========================================
+    // ✅ RETURN SUCCESS RESPONSE
+    // ========================================
+    return res.json({
+      success: true,
+      dbOrderId: order.id,
+      billId: order.billId,
+      kotNumber,
+      message: "Payment confirmed successfully. Order sent to cafeteria.",
+    });
   } catch (err) {
     if (!t.finished) {
       await t.rollback();
@@ -348,35 +567,114 @@ export const confirmPayment = async (req, res) => {
       success: false,
       error: err.message,
       errorName: err.name,
-      debug: process.env.NODE_ENV === "development" ? err : undefined,
+      debug: process.env.NODE_ENV === "development" ? { stack: err.stack } : undefined,
     });
   }
 };
 
 // ===================================================================
-// ✅ SYNC FROM WEBHOOK (ROBUST VERSION)
+// ✅ VERIFY PAYMENT STATUS WITH CASHFREE
+// ===================================================================
+export const verifyPaymentStatus = async (req, res) => {
+  const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
+
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ success: false, message: "orderId is required" });
+    }
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).json({
+        success: false,
+        message: `Payment gateway credentials for ${env} not configured`,
+      });
+    }
+
+    console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    let paymentStatus = "";
+    let orderStatus = "";
+
+    try {
+      const paymentsResponse = await axios.get(
+        `${baseUrl}/orders/${orderId}/payments`,
+        {
+          headers: {
+            "x-api-version": "2023-08-01",
+            "x-client-id": clientId,
+            "x-client-secret": clientSecret,
+          },
+          timeout: 15000,
+        }
+      );
+
+      const payments = paymentsResponse.data;
+      if (Array.isArray(payments) && payments.length > 0) {
+        const latest = payments[payments.length - 1];
+        paymentStatus = latest.payment_status || "";
+      }
+    } catch (payErr) {
+      console.log("⚠️ [VERIFY] /payments endpoint error:", payErr.message);
+    }
+
+    if (!paymentStatus) {
+      const orderResponse = await axios.get(
+        `${baseUrl}/orders/${orderId}`,
+        {
+          headers: {
+            "x-api-version": "2023-08-01",
+            "x-client-id": clientId,
+            "x-client-secret": clientSecret,
+          },
+          timeout: 15000,
+        }
+      );
+      orderStatus = orderResponse.data.order_status || "";
+    }
+
+    const isSuccess = orderStatus === "PAID" || paymentStatus === "SUCCESS";
+
+    console.log(`📊 [VERIFY] orderStatus=${orderStatus}, paymentStatus=${paymentStatus}, isSuccess=${isSuccess}`);
+
+    return res.json({
+      success: true,
+      paymentStatus: isSuccess ? "SUCCESS" : (paymentStatus || orderStatus || "UNKNOWN"),
+      orderStatus,
+      message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
+    });
+
+  } catch (error) {
+    console.error("❌ [VERIFY] Error:", error.response?.data || error.message);
+
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        paymentStatus: "NOT_FOUND",
+        message: `Order not found in Cashfree (${env}). Check that app and backend use same environment.`,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      paymentStatus: "ERROR",
+      message: "Failed to verify payment status",
+    });
+  }
+};
+
+// ===================================================================
+// ✅ SYNC FROM WEBHOOK
 // ===================================================================
 export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-    console.log("🔔 [WEBHOOK] Raw body:", JSON.stringify(req.body, null, 2));
+    const { cashfreeOrderId, paymentId, orderStatus, paymentStatus } = req.body;
 
-    const {
-      cashfreeOrderId,
-      paymentId,
-      orderStatus,
-      paymentStatus,
-    } = req.body;
-
-    console.log("🔔 [WEBHOOK] Extracted:", {
-      cashfreeOrderId,
-      paymentId,
-      orderStatus,
-      paymentStatus,
-    });
-
-    // 1️⃣ Validate webhook
     if (!cashfreeOrderId || !paymentId) {
       await t.rollback();
       return res.json({
@@ -393,19 +691,13 @@ export const syncFromWebhook = async (req, res) => {
       });
     }
 
-    console.log("✅ [WEBHOOK] Processing successful payment");
-
-    // 2️⃣ Try to find payment row
     const payment = await Payment.findOne({
       where: { cashfreeOrderId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    // 3️⃣ If payment not created yet → store in pending_webhooks
     if (!payment) {
-      console.log("⚠️ [WEBHOOK] Payment not yet created. Saving webhook.");
-
       await sequelize.query(
         `
         INSERT INTO pending_webhooks (cashfree_order_id, payment_id)
@@ -414,51 +706,31 @@ export const syncFromWebhook = async (req, res) => {
         DO UPDATE SET payment_id = EXCLUDED.payment_id
         `,
         {
-          replacements: {
-            orderId: cashfreeOrderId,
-            paymentId,
-          },
+          replacements: { orderId: cashfreeOrderId, paymentId },
           transaction: t,
         }
       );
 
       await t.commit();
-
       return res.json({
         success: true,
         message: "Webhook saved. Will be linked when /confirm runs.",
       });
     }
 
-    // 4️⃣ Payment exists → update it
-    console.log("🔗 [WEBHOOK] Linking paymentId to payment");
-
     await payment.update(
-      {
-        paymentId,
-        status: "SUCCESS",
-        paidAt: new Date(),
-      },
+      { paymentId, status: "SUCCESS", paidAt: new Date() },
       { transaction: t }
     );
 
-    // 5️⃣ Also mark order paid
     if (payment.orderId) {
       await Order.update(
-        {
-          status: "PAID",
-          paymentStatus: "SUCCESS",
-        },
-        {
-          where: { id: payment.orderId },
-          transaction: t,
-        }
+        { status: "PAID", paymentStatus: "SUCCESS" },
+        { where: { id: payment.orderId }, transaction: t }
       );
     }
 
     await t.commit();
-
-    console.log("✅ [WEBHOOK] Linked successfully");
 
     return res.json({
       success: true,
@@ -478,390 +750,7 @@ export const syncFromWebhook = async (req, res) => {
 };
 
 // ===================================================================
-// ✅ CHECK WEBHOOK STATUS (BEFORE REFUND)
-// ===================================================================
-export const checkWebhookStatus = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    console.log(`🔍 Checking webhook status for order: ${orderId}`);
-
-    const payment = await Payment.findOne({
-      where: { orderId },
-      attributes: ["paymentId", "cashfreeOrderId", "status", "createdAt"],
-    });
-
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment not found",
-      });
-    }
-
-    const hasPaymentId = !!payment.paymentId;
-    const waitTime =
-      (Date.now() - new Date(payment.createdAt).getTime()) / 1000;
-
-    console.log(
-      `📊 Webhook status: ${hasPaymentId ? "RECEIVED" : "PENDING"} (${waitTime.toFixed(2)}s)`
-    );
-
-    return res.json({
-      success: true,
-      webhookReceived: hasPaymentId,
-      paymentId: payment.paymentId || null,
-      cashfreeOrderId: payment.cashfreeOrderId,
-      waitedSeconds: waitTime.toFixed(2),
-      message: hasPaymentId
-        ? "✅ Ready for refund"
-        : `⏳ Webhook pending (${waitTime.toFixed(1)}s elapsed)`,
-    });
-  } catch (error) {
-    console.error("❌ checkWebhookStatus error:", error);
-    return res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ REFUND ORDER (MAIN REFUND FUNCTION)
-// ===================================================================
-export const refundOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const authenticatedAdminId = req.user?.id;
-
-    console.log(
-      `🔄 Refund request for order: ${orderId} by admin: ${authenticatedAdminId}`
-    );
-
-    // 1️⃣ FETCH ORDER
-    const order = await Order.findByPk(orderId);
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    console.log(`📦 Order found:`, {
-      id: order.id,
-      status: order.status,
-      totalAmount: order.totalAmount,
-    });
-
-    // 2️⃣ CHECK IF ORDER CAN BE REFUNDED
-    if (order.status !== "PAID") {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot refund order. Current status is "${order.status}". Only PAID orders can be refunded.`,
-      });
-    }
-
-    // 3️⃣ FETCH PAYMENT RECORD
-    const payment = await Payment.findOne({
-      where: { orderId: order.id },
-    });
-
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment record not found for this order",
-      });
-    }
-
-    console.log(`💳 Payment found:`, {
-      id: payment.id,
-      paymentId: payment.paymentId,
-      cashfreeOrderId: payment.cashfreeOrderId,
-      status: payment.status,
-    });
-
-    // 4️⃣ CHECK IF paymentId EXISTS (WEBHOOK MUST HAVE ARRIVED)
-    if (!payment.paymentId) {
-      console.log("❌ WEBHOOK NOT RECEIVED YET");
-      return res.status(400).json({
-        success: false,
-        message: "Cannot refund yet - payment webhook not received",
-        hint: "Webhook typically arrives within 2-3 seconds. Please try again.",
-        receivedPaymentId: null,
-        orderCreatedAt: order.createdAt,
-      });
-    }
-
-    if (!payment.paymentId.startsWith("pay_")) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Cashfree paymentId",
-        error: "Expected format: pay_xxx",
-        storedPaymentId: payment.paymentId,
-      });
-    }
-
-    // 5️⃣ CALL CASHFREE REFUND API
-    console.log(`🔄 Initiating Cashfree refund...`);
-    console.log(`   paymentId: ${payment.paymentId}`);
-    console.log(`   amount: ₹${order.totalAmount}`);
-
-    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
-
-    const refundResponse = await axios.post(
-      `${cfBaseUrl}/payments/${payment.paymentId}/refunds`,
-      {
-        refund_amount: Number(order.totalAmount),
-        refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
-      },
-      {
-        headers: {
-          "x-api-version": "2023-08-01",
-          "x-client-id": clientId,
-          "x-client-secret": clientSecret,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    console.log("✅ Cashfree refund initiated:", refundResponse.data);
-
-    // 6️⃣ EXTRACT REFUND ID FROM RESPONSE
-    const refundId = refundResponse.data?.refund?.refund_id;
-    const refundStatus = refundResponse.data?.refund?.refund_status;
-
-    if (!refundId) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to get refund ID from Cashfree",
-        details: refundResponse.data,
-      });
-    }
-
-    console.log(`✅ Refund ID received: ${refundId}`);
-
-    // 7️⃣ UPDATE PAYMENT TABLE
-    await Payment.update(
-      {
-        status: "REFUND_INITIATED",
-        refundId: refundId,
-        refundedAt: new Date(),
-        refundAmount: order.totalAmount,
-      },
-      { where: { id: payment.id } }
-    );
-
-    console.log(`✅ Payment updated with refund info`);
-
-    // 8️⃣ UPDATE ORDER STATUS
-    await order.update({
-      status: "REFUND_INITIATED",
-      refundReason: `Order declined by cafeteria. Refund ID: ${refundId}`,
-      updatedAt: new Date(),
-    });
-
-    console.log(`✅ Order status updated to REFUND_INITIATED`);
-
-    // 9️⃣ SEND SUCCESS RESPONSE
-    return res.json({
-      success: true,
-      message: "Refund initiated successfully",
-      data: {
-        refundId: refundId,
-        refundStatus: refundStatus,
-        orderId: order.id,
-        billId: order.billId,
-        amount: order.totalAmount,
-        paymentId: payment.paymentId,
-        initiatedBy: authenticatedAdminId,
-        initiatedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    console.error(
-      "❌ Refund error:",
-      error.response?.data || error.message
-    );
-
-    const errorMessage =
-      error.response?.data?.message || error.message;
-    const errorCode = error.response?.data?.code;
-
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: "Refund initiation failed",
-      error: errorMessage,
-      code: errorCode,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ CHECK REFUND STATUS
-// ===================================================================
-export const checkRefundStatus = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    console.log(`🔍 Checking refund status for order: ${orderId}`);
-
-    const payment = await Payment.findOne({
-      where: { orderId: orderId },
-      include: [
-        {
-          model: Order,
-          where: { id: orderId },
-        },
-      ],
-    });
-
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: "Payment not found for this order",
-      });
-    }
-
-    if (!payment.refundId) {
-      return res.status(400).json({
-        success: false,
-        message: "No refund initiated for this order",
-      });
-    }
-
-    console.log(`🔍 Refund ID found: ${payment.refundId}`);
-
-    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
-
-    const refundResponse = await axios.get(
-      `${cfBaseUrl}/refunds/${payment.refundId}`,
-      {
-        headers: {
-          "x-api-version": "2023-08-01",
-          "x-client-id": clientId,
-          "x-client-secret": clientSecret,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const refundStatus = refundResponse.data?.refund?.refund_status;
-    const refundAmount = refundResponse.data?.refund?.refund_amount;
-
-    console.log(`📊 Current refund status from Cashfree: ${refundStatus}`);
-
-    // 4️⃣ UPDATE LOCAL DATABASE BASED ON CASHFREE STATUS
-    if (refundStatus === "SUCCESS") {
-      await Payment.update(
-        { status: "REFUND_SUCCESS" },
-        { where: { id: payment.id } }
-      );
-
-      await Order.update(
-        { status: "REFUND_SUCCESS" },
-        { where: { id: orderId } }
-      );
-
-      console.log(`✅ Refund marked as SUCCESS in local DB`);
-    } else if (refundStatus === "FAILED") {
-      await Payment.update(
-        { status: "REFUND_FAILED" },
-        { where: { id: payment.id } }
-      );
-
-      await Order.update(
-        { status: "REFUND_FAILED" },
-        { where: { id: orderId } }
-      );
-
-      console.log(`❌ Refund marked as FAILED in local DB`);
-    }
-
-    return res.json({
-      success: true,
-      message: "Refund status retrieved",
-      data: {
-        orderId: orderId,
-        refundId: payment.refundId,
-        refundStatus: refundStatus,
-        refundAmount: refundAmount,
-        refundedAt: payment.refundedAt,
-        orderStatus: payment.Order?.status,
-      },
-    });
-  } catch (error) {
-    console.error(
-      "❌ Check refund status error:",
-      error.response?.data || error.message
-    );
-
-    return res.status(error.response?.status || 500).json({
-      success: false,
-      message: "Failed to check refund status",
-      error: error.response?.data?.message || error.message,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ GET REFUND HISTORY (FOR ADMIN DASHBOARD)
-// ===================================================================
-export const getRefundHistory = async (req, res) => {
-  try {
-    const { cafeteriaId, status } = req.query;
-
-    console.log(`📊 Fetching refund history - cafeteriaId: ${cafeteriaId}, status: ${status}`);
-
-    let whereClause = {};
-
-    if (status) {
-      whereClause.status = status;
-    } else {
-      whereClause.status = ["REFUND_INITIATED", "REFUND_SUCCESS", "REFUND_FAILED"];
-    }
-
-    if (cafeteriaId) {
-      whereClause.cafeteriaId = cafeteriaId;
-    }
-
-    const refunds = await Payment.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Order,
-          attributes: [
-            "id",
-            "billId",
-            "totalAmount",
-            "status",
-            "createdAt",
-          ],
-        },
-      ],
-      order: [["refundedAt", "DESC"]],
-      limit: 50,
-    });
-
-    console.log(`✅ Found ${refunds.length} refund records`);
-
-    return res.json({
-      success: true,
-      count: refunds.length,
-      data: refunds,
-    });
-  } catch (error) {
-    console.error("❌ Get refund history error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch refund history",
-      error: error.message,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ GET PAYMENT BY ORDER ID (FOR VERIFICATION)
+// ✅ GET PAYMENT BY ORDER ID
 // ===================================================================
 export const getPaymentByOrderId = async (req, res) => {
   try {
@@ -904,124 +793,6 @@ export const getPaymentByOrderId = async (req, res) => {
       success: false,
       message: "Failed to fetch paymentId",
       error: err.message,
-    });
-  }
-};
-
-// ===================================================================
-// ✅ LEGACY: UPDATE PAYMENT ID FROM WEBHOOK
-// ===================================================================
-export const updatePaymentIdFromWebhook = async (req, res) => {
-  const { cashfreeOrderId, paymentId } = req.body;
-
-  if (!cashfreeOrderId || !paymentId) {
-    return res.status(400).json({ message: "Missing data" });
-  }
-
-  await Payment.update(
-    { paymentId },
-    { where: { cashfreeOrderId } }
-  );
-
-  res.json({ success: true });
-};
-
-// ===================================================================
-// ✅ VERIFY PAYMENT STATUS WITH CASHFREE (BEFORE CONFIRMING ORDER)
-// Called by Flutter app after Cashfree SDK returns to check if
-// payment was actually successful or cancelled/failed
-// ===================================================================
-export const verifyPaymentStatus = async (req, res) => {
-  const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
-
-  try {
-    const { orderId } = req.body;
-
-    if (!orderId) {
-      return res.status(400).json({ success: false, message: "orderId is required" });
-    }
-
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({
-        success: false,
-        message: `Payment gateway credentials for ${env} not configured`,
-      });
-    }
-
-    console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
-
-    // Add a small delay to let Cashfree finalize the payment
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // Always use the /payments sub-endpoint, not order object
-    let paymentStatus = "";
-    let orderStatus = "";
-
-    try {
-      const paymentsResponse = await axios.get(
-        `${baseUrl}/orders/${orderId}/payments`,
-        {
-          headers: {
-            "x-api-version": "2023-08-01",
-            "x-client-id": clientId,
-            "x-client-secret": clientSecret,
-          },
-          timeout: 15000,
-        }
-      );
-
-      const payments = paymentsResponse.data;
-      if (Array.isArray(payments) && payments.length > 0) {
-        // Get the latest payment attempt
-        const latest = payments[payments.length - 1];
-        paymentStatus = latest.payment_status || "";
-      }
-    } catch (payErr) {
-      console.log("⚠️ [VERIFY] /payments endpoint error:", payErr.message);
-    }
-
-    // Fallback: check order status
-    if (!paymentStatus) {
-      const orderResponse = await axios.get(
-        `${baseUrl}/orders/${orderId}`,
-        {
-          headers: {
-            "x-api-version": "2023-08-01",
-            "x-client-id": clientId,
-            "x-client-secret": clientSecret,
-          },
-          timeout: 15000,
-        }
-      );
-      orderStatus = orderResponse.data.order_status || "";
-    }
-
-    const isSuccess = orderStatus === "PAID" || paymentStatus === "SUCCESS";
-
-    console.log(`📊 [VERIFY] orderStatus=${orderStatus}, paymentStatus=${paymentStatus}, isSuccess=${isSuccess}`);
-
-    return res.json({
-      success: true,
-      paymentStatus: isSuccess ? "SUCCESS" : (paymentStatus || orderStatus || "UNKNOWN"),
-      orderStatus,
-      message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
-    });
-
-  } catch (error) {
-    console.error("❌ [VERIFY] Error:", error.response?.data || error.message);
-
-    if (error.response?.status === 404) {
-      return res.status(404).json({
-        success: false,
-        paymentStatus: "NOT_FOUND",
-        message: `Order not found in Cashfree (${env}). Check that app and backend use same environment.`,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      paymentStatus: "ERROR",
-      message: "Failed to verify payment status",
     });
   }
 };
