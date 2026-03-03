@@ -15,14 +15,8 @@ import axios from "axios";
 // 🔧 HELPER: Get Cashfree credentials based on environment
 // ===================================================================
 const getCashfreeCredentials = () => {
-  // Use CASHFREE_ENV if set, otherwise fallback to NODE_ENV
-  const env = (process.env.CASHFREE_ENV || process.env.NODE_ENV || "sandbox").toLowerCase();
+  const env = (process.env.CASHFREE_ENV || "sandbox").toLowerCase();
   const isSandbox = env !== "production";
-
-  console.log("---------------------------------------");
-  console.log(`🚀 [CASHFREE] ENVIRONMENT: ${env.toUpperCase()}`);
-  console.log(`📍 [CASHFREE] BASE URL: ${isSandbox ? "https://sandbox.cashfree.com/pg" : "https://api.cashfree.com/pg"}`);
-  console.log("---------------------------------------");
 
   return {
     clientId: isSandbox
@@ -33,11 +27,10 @@ const getCashfreeCredentials = () => {
       : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_CLIENT_SECRET),
     baseUrl: isSandbox
       ? "https://sandbox.cashfree.com/pg"
-      : "https://api.cashfree.com/pg",
-    env: env,
+      : "https://api.cashfree.com/pg",  // ← URL still switches correctly
+    env,
   };
 };
-
 // --------------------------------------------------
 // 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
 // --------------------------------------------------
