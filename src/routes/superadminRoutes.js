@@ -822,12 +822,13 @@ router.post('/admins', superadminAuth, async (req, res) => {
 // ============================================
 router.get('/payments', superadminAuth, async (req, res) => {
     try {
-        const { limit = 10, offset, page, cafeteriaId, status, search } = req.query;
+        const { limit = 50, page, cafeteriaId, status, search } = req.query;
+
+        const finalLimit = parseInt(limit) || 50;
+        const finalPage = parseInt(page) || 1;
+        const finalOffset = (finalPage - 1) * finalLimit;
+
         const where = {};
-
-        const finalLimit = parseInt(limit) || 10;
-        const finalOffset = offset ? parseInt(offset) : (page ? (parseInt(page) - 1) * finalLimit : 0);
-
         if (cafeteriaId) where.cafeteriaId = parseInt(cafeteriaId);
 
         if (status && status !== 'ALL') {
@@ -853,24 +854,24 @@ router.get('/payments', superadminAuth, async (req, res) => {
             limit: finalLimit,
             offset: finalOffset,
             order: [['createdAt', 'DESC']],
-            distinct: true, // Needed for correct count with joins
             include: [{
                 model: Order,
+                required: false,
                 include: [
-                    { model: User, attributes: ['name', 'email'] },
-                    { model: OrderItem, as: 'items', attributes: ['name', 'quantity'] }
+                    { model: User, required: false, attributes: ['name', 'email'] },
+                    { model: OrderItem, as: 'items', required: false, attributes: ['name', 'quantity'] }
                 ]
             }]
         });
 
-        res.json({ success: true, ...payments });
-    } catch (error) {
-        console.error('Payments detailed error:', {
-            message: error.message,
-            query: req.query,
-            stack: error.stack
+        res.json({
+            success: true,
+            count: payments.count,
+            rows: payments.rows
         });
-        res.status(500).json({ success: false, message: `Failed to fetch payments: ${error.message}` });
+    } catch (error) {
+        console.error('Payments detailed error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch payments' });
     }
 });
 
