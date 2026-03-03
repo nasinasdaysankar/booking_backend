@@ -10,6 +10,9 @@ export default (sequelize) => {
         autoIncrement: true,
       },
 
+      // ========================================
+      // PAYMENT & ORDER IDENTIFICATION
+      // ========================================
       cashfreeOrderId: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -17,13 +20,60 @@ export default (sequelize) => {
         field: "cashfreeorderid",
       },
 
-      parcelAmount: {
-        type: DataTypes.DECIMAL(10, 2),
+      billId: {
+        type: DataTypes.STRING,
         allowNull: false,
-        defaultValue: 0,
+        unique: true,
+        field: "billid",
       },
 
-      // Add these fields to your Order model definition
+      // ========================================
+      // RELATIONSHIPS (Foreign Keys)
+      // ========================================
+      studentId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: "studentid",
+        references: {
+          model: "users",
+          key: "id",
+        },
+      },
+
+      cafeteriaId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: "cafeteriaid",
+        references: {
+          model: "cafeterias",
+          key: "id",
+        },
+      },
+
+      // ========================================
+      // AMOUNT & PRICING
+      // ========================================
+      totalAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        field: "totalamount",
+      },
+
+      platformFee: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.0,
+        field: "platform_fee",
+      },
+
+      gstAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.0,
+        field: "gst_amount",
+      },
+
+      // ========================================
+      // PARCEL INFORMATION
+      // ========================================
       isParcel: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -34,48 +84,13 @@ export default (sequelize) => {
       parcelAmount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
-        defaultValue: 0.00,
+        defaultValue: 0.0,
         field: "parcelamount",
       },
 
-
-      billId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true,
-        field: "billid",
-      },
-
-      studentId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        field: "studentid",
-      },
-
-      cafeteriaId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        field: "cafeteriaid",
-      },
-
-      totalAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        field: "totalamount",
-      },
-
-      platformFee: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        field: "platform_fee",
-      },
-
-      gstAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.00,
-        field: "gst_amount",
-      },
-
+      // ========================================
+      // ORDER STATUS
+      // ========================================
       status: {
         type: DataTypes.ENUM(
           "PENDING_PAYMENT",
@@ -85,7 +100,10 @@ export default (sequelize) => {
           "PICKED_UP",
           "COMPLETED",
           "CANCELLED",
-          "EXPIRED"
+          "EXPIRED",
+          "REFUND_INITIATED",
+          "REFUND_SUCCESS",
+          "REFUND_FAILED"
         ),
         defaultValue: "PENDING_PAYMENT",
       },
@@ -96,19 +114,24 @@ export default (sequelize) => {
         field: "paymentstatus",
       },
 
-      etaMinutes: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        field: "etaminutes",
-      },
-
+      // ========================================
+      // KOT & TRACKING
+      // ========================================
       kotNumber: {
         type: DataTypes.STRING,
         allowNull: true,
         field: "kotnumber",
       },
 
-      // 🔥🔥 CRITICAL FIX — FEEDBACK FLAG
+      etaMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "etaminutes",
+      },
+
+      // ========================================
+      // FEEDBACK & NOTIFICATIONS
+      // ========================================
       isRated: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -116,7 +139,6 @@ export default (sequelize) => {
         field: "israted",
       },
 
-      // 🔔 NOTIFICATION TRACKING FLAGS
       tenMinReminderSent: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -131,6 +153,18 @@ export default (sequelize) => {
         field: "expirationnotificationsent",
       },
 
+      // ========================================
+      // REFUND INFORMATION
+      // ========================================
+      refundReason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: "refundreason",
+      },
+
+      // ========================================
+      // TIMESTAMPS
+      // ========================================
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at",
@@ -142,11 +176,19 @@ export default (sequelize) => {
       },
     },
     {
-      tableName: "orders", // ⚠️ MUST match DB table name
+      tableName: "orders",
       timestamps: true,
       underscored: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
+      indexes: [
+        { fields: ["cashfreeorderid"], unique: true },
+        { fields: ["billid"], unique: true },
+        { fields: ["studentid"] },
+        { fields: ["cafeteriaid"] },
+        { fields: ["paymentstatus"] },
+        { fields: ["status"] },
+      ],
     }
   );
 
