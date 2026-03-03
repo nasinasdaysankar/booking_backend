@@ -154,15 +154,6 @@ export default (sequelize) => {
       },
 
       // ========================================
-      // REFUND INFORMATION
-      // ========================================
-      refundReason: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        field: "refundreason",
-      },
-
-      // ========================================
       // TIMESTAMPS
       // ========================================
       createdAt: {
