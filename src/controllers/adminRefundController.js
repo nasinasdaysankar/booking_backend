@@ -6,7 +6,15 @@ import { emitOrderStatusToUser } from "../socket.js";
 // 🔧 HELPER: Get Cashfree credentials based on environment
 // ===================================================================
 const getCashfreeCredentials = () => {
-  const isSandbox = process.env.CASHFREE_ENV !== "production";
+  // Use CASHFREE_ENV if set, otherwise fallback to NODE_ENV
+  const env = (process.env.CASHFREE_ENV || process.env.NODE_ENV || "sandbox").toLowerCase();
+  const isSandbox = env !== "production";
+
+  console.log("---------------------------------------");
+  console.log(`🚀 [CASHFREE-REFUND] ENVIRONMENT: ${env.toUpperCase()}`);
+  console.log(`📍 [CASHFREE-REFUND] BASE URL: ${isSandbox ? "https://sandbox.cashfree.com/pg" : "https://api.cashfree.com/pg"}`);
+  console.log("---------------------------------------");
+
   return {
     clientId: isSandbox
       ? process.env.CASHFREE_SANDBOX_CLIENT_ID
@@ -17,7 +25,7 @@ const getCashfreeCredentials = () => {
     baseUrl: isSandbox
       ? "https://sandbox.cashfree.com/pg"
       : "https://api.cashfree.com/pg",
-    env: isSandbox ? "SANDBOX" : "PRODUCTION",
+    env: env,
   };
 };
 // ===================================================================

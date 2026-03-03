@@ -19,7 +19,10 @@ const getCashfreeCredentials = () => {
   const env = (process.env.CASHFREE_ENV || process.env.NODE_ENV || "sandbox").toLowerCase();
   const isSandbox = env !== "production";
 
-  console.log(`ℹ️ [CASHFREE] Using ${isSandbox ? "SANDBOX" : "PRODUCTION"} environment`);
+  console.log("---------------------------------------");
+  console.log(`🚀 [CASHFREE] ENVIRONMENT: ${env.toUpperCase()}`);
+  console.log(`📍 [CASHFREE] BASE URL: ${isSandbox ? "https://sandbox.cashfree.com/pg" : "https://api.cashfree.com/pg"}`);
+  console.log("---------------------------------------");
 
   return {
     clientId: isSandbox
@@ -419,8 +422,19 @@ export const confirmPayment = async (req, res) => {
       }
       console.log(`✅ [CONFIRM] Cashfree verification passed for ${cashfreeOrderId}`);
     } catch (cfErr) {
+      // If Cashfree returns 404, the order doesn't exist
+      if (cfErr.response?.status === 404) {
+        console.error(`❌ [CONFIRM] Order ${cashfreeOrderId} not found in Cashfree (${env}).`);
+        if (t && !t.finished) await t.rollback();
+        return res.status(404).json({
+          success: false,
+          paymentStatus: "NOT_FOUND",
+          message: `Order not found in Cashfree (${env}). Ensure your app and backend are using the same environment (Sandbox vs Production).`,
+        });
+      }
+
       console.error(`❌ [CONFIRM] Error verifying with Cashfree (${env}):`, cfErr.response?.data || cfErr.message);
-      await t.rollback();
+      if (t && !t.finished) await t.rollback();
       return res.status(500).json({
         success: false,
         message: `Failed to verify payment status with gateway (${env}). Please try again.`,
@@ -1310,82 +1324,74 @@ export const updatePaymentIdFromWebhook = async (req, res) => {
 // payment was actually successful or cancelled/failed
 // ===================================================================
 export const verifyPaymentStatus = async (req, res) => {
+  // ✅ FIX 1: Destructure OUTSIDE try so catch can access `env`
+  const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
+
   try {
     const { orderId } = req.body;
 
     if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message: "orderId is required",
-      });
+      return res.status(400).json({ success: false, message: "orderId is required" });
     }
 
-    console.log(`🔍 [VERIFY] Checking Cashfree payment status for: ${orderId}`);
-    const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
-
     if (!clientId || !clientSecret) {
-      console.error(`❌ [VERIFY] Cashfree credentials missing for ${env} environment. (clientId: ${!!clientId}, clientSecret: ${!!clientSecret})`);
       return res.status(500).json({
         success: false,
         message: `Payment gateway credentials for ${env} not configured`,
       });
     }
 
-    // Call Cashfree to get the actual order/payment status
-    const cfResponse = await axios.get(
-      `${baseUrl}/orders/${orderId}`,
-      {
-        headers: {
-          "x-api-version": "2023-08-01",
-          "x-client-id": clientId,
-          "x-client-secret": clientSecret,
-        },
-        timeout: 15000,
-      }
-    );
+    console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
 
-    const orderData = cfResponse.data;
-    const orderStatus = orderData.order_status || "";
+    // ✅ FIX 2: Add a small delay to let Cashfree finalize the payment
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    console.log(`ℹ️ [VERIFY] Cashfree responded for ${orderId}: Order Status=${orderStatus}`);
-
-    // Get payment status from the first payment attempt
+    // ✅ FIX 3: Always use the /payments sub-endpoint, not order object
     let paymentStatus = "";
-    if (orderData.payments && orderData.payments.length > 0) {
-      paymentStatus = orderData.payments[0].payment_status || "";
-    }
+    let orderStatus = "";
 
-    // If no payment info in order response, check via payments endpoint
-    if (!paymentStatus) {
-      try {
-        const paymentsResponse = await axios.get(
-          `${baseUrl}/orders/${orderId}/payments`,
-          {
-            headers: {
-              "x-api-version": "2023-08-01",
-              "x-client-id": clientId,
-              "x-client-secret": clientSecret,
-            },
-            timeout: 15000,
-          }
-        );
-
-        if (paymentsResponse.data && paymentsResponse.data.length > 0) {
-          // Get the latest payment attempt
-          const latestPayment = paymentsResponse.data[paymentsResponse.data.length - 1];
-          paymentStatus = latestPayment.payment_status || "";
+    try {
+      const paymentsResponse = await axios.get(
+        `${baseUrl}/orders/${orderId}/payments`,
+        {
+          headers: {
+            "x-api-version": "2023-08-01",
+            "x-client-id": clientId,
+            "x-client-secret": clientSecret,
+          },
+          timeout: 15000,
         }
-      } catch (payErr) {
-        console.log("⚠️ [VERIFY] Could not fetch payments list:", payErr.message);
+      );
+
+      const payments = paymentsResponse.data;
+      if (Array.isArray(payments) && payments.length > 0) {
+        // Get the latest payment attempt
+        const latest = payments[payments.length - 1];
+        paymentStatus = latest.payment_status || "";
       }
+    } catch (payErr) {
+      console.log("⚠️ [VERIFY] /payments endpoint error:", payErr.message);
     }
 
-    console.log(`📊 [VERIFY] Order Status: ${orderStatus}, Payment Status: ${paymentStatus}`);
+    // Fallback: check order status
+    if (!paymentStatus) {
+      const orderResponse = await axios.get(
+        `${baseUrl}/orders/${orderId}`,
+        {
+          headers: {
+            "x-api-version": "2023-08-01",
+            "x-client-id": clientId,
+            "x-client-secret": clientSecret,
+          },
+          timeout: 15000,
+        }
+      );
+      orderStatus = orderResponse.data.order_status || "";
+    }
 
-    // Map Cashfree statuses to our response
-    // Cashfree order_status: ACTIVE, PAID, EXPIRED
-    // Cashfree payment_status: SUCCESS, FAILED, USER_DROPPED, CANCELLED, VOID, NOT_ATTEMPTED, PENDING
     const isSuccess = orderStatus === "PAID" || paymentStatus === "SUCCESS";
+
+    console.log(`📊 [VERIFY] orderStatus=${orderStatus}, paymentStatus=${paymentStatus}, isSuccess=${isSuccess}`);
 
     return res.json({
       success: true,
@@ -1397,12 +1403,12 @@ export const verifyPaymentStatus = async (req, res) => {
   } catch (error) {
     console.error("❌ [VERIFY] Error:", error.response?.data || error.message);
 
-    // If Cashfree returns 404, the order doesn't exist
     if (error.response?.status === 404) {
       return res.status(404).json({
         success: false,
         paymentStatus: "NOT_FOUND",
-        message: "Order not found in Cashfree",
+        // ✅ Now `env` is accessible here
+        message: `Order not found in Cashfree (${env}). Check that app and backend use same environment.`,
       });
     }
 
