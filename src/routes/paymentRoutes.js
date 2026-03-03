@@ -3,7 +3,8 @@ import {
   confirmPayment,
   syncFromWebhook,
   getPaymentByOrderId,
-  updatePaymentIdFromWebhook
+  updatePaymentIdFromWebhook,
+  verifyPaymentStatus
 } from "../controllers/paymentController.js";
 import { auth, verifyWebhookKey } from "../middleware/auth.js";
 
@@ -11,6 +12,9 @@ const router = express.Router();
 
 // ✅ User confirms payment after Cashfree SDK
 router.post("/confirm", auth, confirmPayment);
+
+// ✅ Verify actual Cashfree payment status (before confirming order)
+router.post("/verify-status", auth, verifyPaymentStatus);
 
 // ✅ Webhook syncs real paymentId from Cashfree (Protected)
 router.post("/sync-from-webhook", verifyWebhookKey, syncFromWebhook);

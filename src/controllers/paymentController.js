@@ -9,6 +9,25 @@ import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken } from "../models/index.js";
 import { UserStreak } from "../models/index.js";
 import dayjs from "dayjs";
+import axios from "axios";
+
+// ===================================================================
+// 🔧 HELPER: Get Cashfree credentials based on environment
+// ===================================================================
+const getCashfreeCredentials = () => {
+  const isSandbox = process.env.CASHFREE_ENV !== "production";
+  return {
+    clientId: isSandbox
+      ? process.env.CASHFREE_SANDBOX_CLIENT_ID
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_ID || process.env.CASHFREE_CLIENT_ID),
+    clientSecret: isSandbox
+      ? process.env.CASHFREE_SANDBOX_CLIENT_SECRET
+      : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_CLIENT_SECRET),
+    baseUrl: isSandbox
+      ? "https://sandbox.cashfree.com/pg"
+      : "https://api.cashfree.com/pg",
+  };
+};
 
 // --------------------------------------------------
 // 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
@@ -1225,4 +1244,113 @@ export const updatePaymentIdFromWebhook = async (req, res) => {
   );
 
   res.json({ success: true });
+};
+
+// ===================================================================
+// ✅ VERIFY PAYMENT STATUS WITH CASHFREE (BEFORE CONFIRMING ORDER)
+// Called by Flutter app after Cashfree SDK returns to check if
+// payment was actually successful or cancelled/failed
+// ===================================================================
+export const verifyPaymentStatus = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "orderId is required",
+      });
+    }
+
+    console.log(`🔍 [VERIFY] Checking Cashfree payment status for: ${orderId}`);
+
+    const { clientId, clientSecret, baseUrl } = getCashfreeCredentials();
+
+    if (!clientId || !clientSecret) {
+      console.error("❌ [VERIFY] Cashfree credentials not configured");
+      return res.status(500).json({
+        success: false,
+        message: "Payment gateway credentials not configured",
+      });
+    }
+
+    // Call Cashfree to get the actual order/payment status
+    const cfResponse = await axios.get(
+      `${baseUrl}/orders/${orderId}`,
+      {
+        headers: {
+          "x-api-version": "2023-08-01",
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
+        },
+        timeout: 15000,
+      }
+    );
+
+    const orderData = cfResponse.data;
+    const orderStatus = orderData.order_status || "";
+
+    // Get payment status from the first payment attempt
+    let paymentStatus = "";
+    if (orderData.payments && orderData.payments.length > 0) {
+      paymentStatus = orderData.payments[0].payment_status || "";
+    }
+
+    // If no payment info in order response, check via payments endpoint
+    if (!paymentStatus) {
+      try {
+        const paymentsResponse = await axios.get(
+          `${baseUrl}/orders/${orderId}/payments`,
+          {
+            headers: {
+              "x-api-version": "2023-08-01",
+              "x-client-id": clientId,
+              "x-client-secret": clientSecret,
+            },
+            timeout: 15000,
+          }
+        );
+
+        if (paymentsResponse.data && paymentsResponse.data.length > 0) {
+          // Get the latest payment attempt
+          const latestPayment = paymentsResponse.data[paymentsResponse.data.length - 1];
+          paymentStatus = latestPayment.payment_status || "";
+        }
+      } catch (payErr) {
+        console.log("⚠️ [VERIFY] Could not fetch payments list:", payErr.message);
+      }
+    }
+
+    console.log(`📊 [VERIFY] Order Status: ${orderStatus}, Payment Status: ${paymentStatus}`);
+
+    // Map Cashfree statuses to our response
+    // Cashfree order_status: ACTIVE, PAID, EXPIRED
+    // Cashfree payment_status: SUCCESS, FAILED, USER_DROPPED, CANCELLED, VOID, NOT_ATTEMPTED, PENDING
+    const isSuccess = orderStatus === "PAID" || paymentStatus === "SUCCESS";
+
+    return res.json({
+      success: true,
+      paymentStatus: isSuccess ? "SUCCESS" : (paymentStatus || orderStatus || "UNKNOWN"),
+      orderStatus,
+      message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
+    });
+
+  } catch (error) {
+    console.error("❌ [VERIFY] Error:", error.response?.data || error.message);
+
+    // If Cashfree returns 404, the order doesn't exist
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        paymentStatus: "NOT_FOUND",
+        message: "Order not found in Cashfree",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      paymentStatus: "ERROR",
+      message: "Failed to verify payment status",
+    });
+  }
 };
