@@ -125,38 +125,41 @@ export const refundOrder = async (req, res) => {
       });
     }
 
-    // 3️⃣ PRINT CASHFREE KEYS (debug)
-    console.log("🔐 Cashfree Sandbox App ID:", process.env.CASHFREE_SANDBOX_CLIENT_ID);
+    // 3️⃣ CHECK CASHFREE PRODUCTION KEYS
+    console.log("🔐 Cashfree App ID:", process.env.CASHFREE_CLIENT_ID);
     console.log(
-      "🔐 Cashfree Sandbox Secret:",
-      process.env.CASHFREE_SANDBOX_CLIENT_SECRET
-        ? process.env.CASHFREE_SANDBOX_CLIENT_SECRET.slice(0, 6) + "******"
+      "🔐 Cashfree Secret:",
+      process.env.CASHFREE_CLIENT_SECRET
+        ? process.env.CASHFREE_CLIENT_SECRET.slice(0, 6) + "******"
         : "MISSING"
     );
 
-    if (!process.env.CASHFREE_SANDBOX_CLIENT_ID || !process.env.CASHFREE_SANDBOX_CLIENT_SECRET) {
+    if (!process.env.CASHFREE_CLIENT_ID || !process.env.CASHFREE_CLIENT_SECRET) {
       return res.status(500).json({
         success: false,
-        message: "Cashfree sandbox credentials not configured in Railway",
+        message: "Cashfree production credentials not configured in Railway",
       });
     }
 
-    // 4️⃣ Call Cashfree
+    // 4️⃣ Call Cashfree PRODUCTION API
     const axios = (await import("axios")).default;
 
-    console.log("🚀 Calling Cashfree refund API...");
+    const refundId = `refund_${order.id}_${Date.now()}`;
+    console.log("🚀 Calling Cashfree refund API (PRODUCTION)...");
+    console.log(`   refund_id: ${refundId}`);
 
     const refundResponse = await axios.post(
-      `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
+      `https://api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds`,
       {
         refund_amount: Number(order.totalAmount),
+        refund_id: refundId,
         refund_note: `Order #${order.id} declined by cafeteria ${cafeteriaId}`,
       },
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+          "x-client-id": process.env.CASHFREE_CLIENT_ID,
+          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
           "Content-Type": "application/json",
         },
         timeout: 15000,
@@ -292,12 +295,12 @@ export const checkRefundStatus = async (req, res) => {
     const axios = (await import("axios")).default;
 
     const refundResponse = await axios.get(
-      `https://sandbox.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
+      `https://api.cashfree.com/pg/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_SANDBOX_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_SANDBOX_CLIENT_SECRET,
+          "x-client-id": process.env.CASHFREE_CLIENT_ID,
+          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
         },
         timeout: 15000,
       }
