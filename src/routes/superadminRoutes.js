@@ -874,8 +874,10 @@ router.get('/payments', superadminAuth, async (req, res) => {
 
         const rows = payments.rows.map(p => {
             const data = p.toJSON();
-            // 🔄 Logic: If it has a refund amount, force the status to REFUNDED for the UI
-            if (data.refundamount > 0 && (data.status === 'PENDING' || data.status === 'SUCCESS')) {
+            // 🔄 Aggressive Logic: If there's a refund id or amount, it's a refund!
+            const hasRefund = data.refundid || (data.refundamount && parseFloat(data.refundamount) > 0);
+
+            if (hasRefund) {
                 data.status = 'REFUNDED';
             }
             return data;
