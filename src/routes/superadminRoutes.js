@@ -838,7 +838,12 @@ router.get('/payments', superadminAuth, async (req, res) => {
                     { refundamount: { [Op.gt]: 0 } }
                 ];
             } else if (status === 'COMPLETED') {
+                // In this system, 'SUCCESS' covers all completed payments.
+                // We map COMPLETED to SUCCESS to show all successful transactions.
                 where.status = 'SUCCESS';
+            } else if (status === 'FAILED') {
+                // Explicitly check for FAILED. Note: DB currently has 0, but logic should exist.
+                where.status = 'FAILED';
             } else {
                 where.status = status;
             }
