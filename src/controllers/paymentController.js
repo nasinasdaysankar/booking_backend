@@ -27,19 +27,20 @@ const getCashfreeCredentials = () => {
       : (process.env.CASHFREE_PRODUCTION_CLIENT_SECRET || process.env.CASHFREE_CLIENT_SECRET),
     baseUrl: isSandbox
       ? "https://sandbox.cashfree.com/pg"
-      : "https://api.cashfree.com/pg",  // ← URL still switches correctly
+      : "https://api.cashfree.com/pg",
     env,
   };
 };
+
 // --------------------------------------------------
 // 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
 // --------------------------------------------------
 const generateKotNumber = async (cafeteriaId, transaction) => {
   const [result] = await sequelize.query(
     `
-    INSERT INTO kot_counters ("cafeteriaid", "counter")
+    INSERT INTO kot_counters ("cafeteriaId", "counter")
     VALUES (:cafeteriaId, 1)
-    ON CONFLICT ("cafeteriaid")
+    ON CONFLICT ("cafeteriaId")
     DO UPDATE SET "counter" = kot_counters."counter" + 1
     RETURNING "counter";
     `,
@@ -96,243 +97,6 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 }
 
 // ===================================================================
-// ✅ CONFIRM PAYMENT (FROM FLUTTER APP)
-// ===================================================================
-// export const confirmPayment = async (req, res) => {
-//   const t = await sequelize.transaction();
-
-//   try {
-//     const {
-//       orderId: cashfreeOrderId,
-//       billId,
-//       cafeteriaId,
-//       transactionId,
-//       amount,
-//       items,
-//        isParcel,
-//   parcelAmount,
-//     } = req.body;
-
-//     const authenticatedStudentId = req.user.id;
-
-//     console.log("💳 Payment confirmation request:", {
-//       cashfreeOrderId,
-//       billId,
-//       cafeteriaId,
-//       amount,
-//       studentId: authenticatedStudentId,
-//     });
-
-//     if (!cashfreeOrderId || !billId || !cafeteriaId || !amount || !transactionId) {
-//       await t.rollback();
-//       return res.status(400).json({
-//         success: false,
-//         message: "Missing required payment fields.",
-//       });
-//     }
-
-//     // Create order first
-//     let order = await Order.findOne({
-//       where: { cashfreeOrderId },
-//       transaction: t,
-//       lock: t.LOCK.UPDATE,
-//     });
-
-//     let kotNumber = null;
-
-//     if (!order) {
-//       kotNumber = await generateKotNumber(cafeteriaId, t);
-//       console.log("📝 Creating new order with KOT:", kotNumber);
-
-//       order = await Order.create(
-//         {
-//           cashfreeOrderId,
-//           billId,
-//           studentId: authenticatedStudentId,
-//           cafeteriaId,
-//           totalAmount: amount,
-//           status: "PAID",
-//           paymentStatus: "SUCCESS",
-//           kotNumber,
-//            isParcel: Boolean(isParcel),
-//     parcelAmount: Number(parcelAmount) || 0,
-//         },
-//         { transaction: t }
-//       );
-
-//       console.log("✅ Order created:", order.id);
-//     } else {
-//       kotNumber = order.kotNumber;
-//       await order.update(
-//         {
-//           status: "PAID",
-//           paymentStatus: "SUCCESS",
-//            isParcel: Boolean(isParcel),
-//     parcelAmount: Number(parcelAmount) || 0,
-//         },
-//         { transaction: t }
-//       );
-//       console.log("✅ Order updated:", order.id);
-//     }
-
-
-
-
-//     // Create payment record
-//     const existingPayment = await Payment.findOne({
-//       where: { cashfreeOrderId },
-//       transaction: t,
-//     });
-
-//     if (!existingPayment) {
-//       console.log("💳 Creating payment record");
-
-//       await Payment.create(
-//         {
-//           orderId: order.id,
-//           billId,
-//           cafeteriaId,
-//           paymentGateway: "CASHFREE",
-//           cashfreeOrderId,
-//           transactionId,
-//           amount,
-//           status: "SUCCESS",
-//           paidAt: new Date(),
-//           // paymentId will be added by webhook
-//         },
-//         { transaction: t }
-//       );
-
-//       console.log("✅ Payment record created (webhook will add paymentId)");
-//     } else {
-//       console.log("ℹ️ Payment already exists:", existingPayment.id);
-//     }
-
-
-// // 🔗 LINK WEBHOOK PAYMENT ID (if webhook arrived earlier)
-// const [pending] = await sequelize.query(`
-//   SELECT payment_id FROM pending_webhooks
-//   WHERE cashfree_order_id = :orderId
-// `, {
-//   replacements: { orderId: cashfreeOrderId },
-//   transaction: t
-// });
-
-// if (pending.length > 0) {
-//   console.log("🔗 Linking stored webhook paymentId:", pending[0].payment_id);
-
-//   await Payment.update(
-//     { paymentId: pending[0].payment_id },
-//     { where: { cashfreeOrderId }, transaction: t }
-//   );
-
-//   await sequelize.query(`
-//     DELETE FROM pending_webhooks WHERE cashfree_order_id = :orderId
-//   `, {
-//     replacements: { orderId: cashfreeOrderId },
-//     transaction: t
-//   });
-// }
-
-
-//     // Create order items
-//     const existingItem = await OrderItem.findOne({
-//       where: { orderId: order.id },
-//       transaction: t,
-//     });
-
-//     if (!existingItem && Array.isArray(items) && items.length > 0) {
-//       const itemsToCreate = items.map((item) => ({
-//         orderId: order.id,
-//         menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
-//         name: item.name,
-//         quantity: item.quantity || item.qty,
-//         priceAtOrder: item.price,
-//         imageUrl: item.imageUrl || item.img || null,
-//       }));
-
-//       const hasInvalidItem = itemsToCreate.some(
-//         (i) => i.quantity === undefined || i.quantity === null || i.quantity === 0
-//       );
-
-//       if (hasInvalidItem) {
-//         throw new Error("One or more items are missing a valid quantity.");
-//       }
-
-//       await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
-//       console.log(`✅ Created ${itemsToCreate.length} order items`);
-//     }
-
-//     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
-//     await t.commit();
-
-//     console.log("✅ Transaction committed successfully");
-
-//     // Send notifications
-//     try {
-//       emitNewOrder(cafeteriaId, {
-//         orderId: order.id,
-//         billId: order.billId,
-//         kotNumber: order.kotNumber,
-//         totalAmount: order.totalAmount,
-//         status: order.status,
-//         createdAt: order.createdAt,
-//       });
-
-//       const adminTokens = await AdminFcmToken.findAll({
-//         where: { cafeteriaId },
-//       });
-
-//       if (adminTokens.length > 0) {
-//         await admin.messaging().sendEachForMulticast({
-//           tokens: adminTokens.map((t) => t.fcmToken),
-//           notification: {
-//             title: "🍽 New Order Received",
-//             body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-//           },
-//           android: {
-//             priority: "high",
-//             notification: {
-//               channelId: "high_importance_channel",
-//             },
-//           },
-//         });
-
-//         console.log("🔔 FCM notification sent to admins");
-//       }
-//     } catch (notifyErr) {
-//       console.error("⚠️ Notification error (ignored):", notifyErr);
-//     }
-
-//     return res.json({
-//       success: true,
-//       dbOrderId: order.id,
-//       billId: order.billId,
-//       kotNumber,
-//       message: "Payment confirmed successfully. Order sent to cafeteria.",
-//     });
-
-//   } catch (err) {
-//     if (!t.finished) {
-//       await t.rollback();
-//     }
-
-//     console.error("❌ CONFIRM PAYMENT ERROR:", err);
-
-//     if (err.name === "SequelizeUniqueConstraintError") {
-//       return res.status(400).json({
-//         success: false,
-//         error: "This transaction has already been processed.",
-//       });
-//     }
-
-//     return res.status(500).json({
-//       success: false,
-//       error: err.message,
-//     });
-//   }
-// };
-// ===================================================================
 // ✅ CREATE CASHFREE ORDER (PROXY TO FINANCE BACKEND)
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
@@ -369,7 +133,7 @@ export const createCashfreeOrder = async (req, res) => {
 };
 
 // ===================================================================
-// ✅ CONFIRM PAYMENT (FROM FLUTTER APP) - UPDATED WITH PARCEL TRACKING
+// ✅ CONFIRM PAYMENT (FROM FLUTTER APP)
 // ===================================================================
 export const confirmPayment = async (req, res) => {
   const t = await sequelize.transaction();
@@ -430,14 +194,11 @@ export const confirmPayment = async (req, res) => {
       const orderData = cfResponse.data;
       const orderStatus = orderData.order_status || "";
 
-      // Get payment status from the latest payment attempt if possible
       let paymentAttemptStatus = "";
       if (orderData.payments && orderData.payments.length > 0) {
-        // Cashfree sorts payments chronologically, [0] is often the latest or only one
         paymentAttemptStatus = orderData.payments[0].payment_status || "";
       }
 
-      // Check if order is actually PAID
       const isActuallyPaid = orderStatus === "PAID" || paymentAttemptStatus === "SUCCESS";
 
       if (!isActuallyPaid) {
@@ -451,7 +212,6 @@ export const confirmPayment = async (req, res) => {
       }
       console.log(`✅ [CONFIRM] Cashfree verification passed for ${cashfreeOrderId}`);
     } catch (cfErr) {
-      // If Cashfree returns 404, the order doesn't exist
       if (cfErr.response?.status === 404) {
         console.error(`❌ [CONFIRM] Order ${cashfreeOrderId} not found in Cashfree (${env}).`);
         if (t && !t.finished) await t.rollback();
@@ -568,10 +328,10 @@ export const confirmPayment = async (req, res) => {
         {
           orderId: order.id,
           cafeteriaId,
-          amount: platformCommission, // Platform commission (₹1)
-          vendorAmount: vendorAmount, // Amount that goes to vendor
-          totalAmount: amount, // Total order amount
-          splitStatus: 'PENDING', // Will be updated when Cashfree settles
+          amount: platformCommission,
+          vendorAmount: vendorAmount,
+          totalAmount: amount,
+          splitStatus: 'PENDING',
         },
         { transaction: t }
       );
@@ -624,12 +384,12 @@ export const confirmPayment = async (req, res) => {
     let itemsToCreate = [];
 
     if (!existingItem && Array.isArray(items) && items.length > 0) {
-      console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2)); // DEBUG LOG
+      console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2));
 
       itemsToCreate = items.map((item) => {
         const isParcelForThisItem = Boolean(item.isParcelSelected);
 
-        console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`); // DEBUG LOG
+        console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`);
 
         return {
           orderId: order.id,
@@ -638,7 +398,7 @@ export const confirmPayment = async (req, res) => {
           quantity: item.quantity || item.qty,
           priceAtOrder: item.price,
           imageUrl: item.imageUrl || item.img || null,
-          isParcel: isParcelForThisItem, // 🧺 CRITICAL: Must be explicit boolean
+          isParcel: isParcelForThisItem,
         };
       });
 
@@ -705,29 +465,6 @@ export const confirmPayment = async (req, res) => {
             },
           });
 
-          // 2. 🔥 High Traffic Alert (Every 5th pending order after 10)
-          const pendingCount = await Order.count({
-            where: {
-              cafeteriaId,
-              status: { [Op.in]: ['PAID', 'PREPARING'] }
-            }
-          });
-
-          if (pendingCount > 10 && pendingCount % 5 === 0) {
-            await admin.messaging().sendEachForMulticast({
-              tokens,
-              notification: {
-                title: "🔥 High Traffic Alert!",
-                body: `Warning: ${pendingCount} orders are currently pending.`,
-              },
-              android: {
-                priority: "high",
-                notification: { channelId: "high_importance_channel" },
-              },
-            });
-            console.log(`🔥 High Traffic Alert sent (${pendingCount} pending)`);
-          }
-
           console.log(`🔔 FCM sent to admins.`);
 
           // Clean up invalid tokens
@@ -774,6 +511,7 @@ export const confirmPayment = async (req, res) => {
     });
   }
 };
+
 // ===================================================================
 // ✅ SYNC FROM WEBHOOK (ROBUST VERSION)
 // ===================================================================
@@ -1027,10 +765,10 @@ export const refundOrder = async (req, res) => {
     console.log(`   paymentId: ${payment.paymentId}`);
     console.log(`   amount: ₹${order.totalAmount}`);
 
-    const axios = (await import("axios")).default;
+    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
 
     const refundResponse = await axios.post(
-      `https://api.cashfree.com/pg/payments/${payment.paymentId}/refunds`,
+      `${cfBaseUrl}/payments/${payment.paymentId}/refunds`,
       {
         refund_amount: Number(order.totalAmount),
         refund_note: `Order #${order.id} declined by cafeteria ${order.cafeteriaId}`,
@@ -1038,8 +776,8 @@ export const refundOrder = async (req, res) => {
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
           "Content-Type": "application/json",
         },
       }
@@ -1152,15 +890,15 @@ export const checkRefundStatus = async (req, res) => {
 
     console.log(`🔍 Refund ID found: ${payment.refundId}`);
 
-    const axios = (await import("axios")).default;
+    const { clientId, clientSecret, baseUrl: cfBaseUrl } = getCashfreeCredentials();
 
     const refundResponse = await axios.get(
-      `https://api.cashfree.com/pg/refunds/${payment.refundId}`,
+      `${cfBaseUrl}/refunds/${payment.refundId}`,
       {
         headers: {
           "x-api-version": "2023-08-01",
-          "x-client-id": process.env.CASHFREE_CLIENT_ID,
-          "x-client-secret": process.env.CASHFREE_CLIENT_SECRET,
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
           "Content-Type": "application/json",
         },
       }
@@ -1353,7 +1091,6 @@ export const updatePaymentIdFromWebhook = async (req, res) => {
 // payment was actually successful or cancelled/failed
 // ===================================================================
 export const verifyPaymentStatus = async (req, res) => {
-  // ✅ FIX 1: Destructure OUTSIDE try so catch can access `env`
   const { clientId, clientSecret, baseUrl, env } = getCashfreeCredentials();
 
   try {
@@ -1372,10 +1109,10 @@ export const verifyPaymentStatus = async (req, res) => {
 
     console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
 
-    // ✅ FIX 2: Add a small delay to let Cashfree finalize the payment
+    // Add a small delay to let Cashfree finalize the payment
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // ✅ FIX 3: Always use the /payments sub-endpoint, not order object
+    // Always use the /payments sub-endpoint, not order object
     let paymentStatus = "";
     let orderStatus = "";
 
@@ -1436,7 +1173,6 @@ export const verifyPaymentStatus = async (req, res) => {
       return res.status(404).json({
         success: false,
         paymentStatus: "NOT_FOUND",
-        // ✅ Now `env` is accessible here
         message: `Order not found in Cashfree (${env}). Check that app and backend use same environment.`,
       });
     }
