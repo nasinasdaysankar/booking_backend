@@ -346,6 +346,9 @@ export const createCashfreeOrder = async (req, res) => {
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL || "https://createcashfreeorder-ueekkmxxta-uc.a.run.app/";
     const internalApiKey = process.env.WEBHOOK_API_KEY;
 
+    console.log(`🔗 [PROXY] Finance URL: ${financeBackendUrl}`);
+    console.log(`🔑 [PROXY] API Key set: ${!!internalApiKey}, length: ${internalApiKey?.length || 0}`);
+
     const response = await axios.post(financeBackendUrl, payload, {
       headers: {
         "Content-Type": "application/json",
