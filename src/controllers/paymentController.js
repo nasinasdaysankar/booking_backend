@@ -27,60 +27,48 @@ const getCashfreeCredentials = () => {
 };
 
 // --------------------------------------------------
-// 🆕 HELPER: GENERATE KOT NUMBER (PER CAFETERIA)
+// 🆕 HELPER: GET CAFETERIA PREFIX
+// --------------------------------------------------
+const getCafeteriaPrefix = (cafeteriaId) => {
+  if (!cafeteriaId) return "GEN";
+  switch (Number(cafeteriaId)) {
+    case 1: return "AA";  // Anathahara
+    case 2: return "AR";  // Aromos
+    case 3: return "DP";  // Dhanapani
+    case 4: return "FC";  // Foodclub
+    default: return "GEN";
+  }
+};
+
+// --------------------------------------------------
+// 🆕 HELPER: GENERATE RANDOM ALPHANUMERIC STRING
+// --------------------------------------------------
+const generateRandomString = (length = 8) => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    result += chars[randomIndex];
+  }
+  return result;
+};
+
+// --------------------------------------------------
+// 🆕 HELPER: GENERATE UNIQUE RANDOM KOT NUMBER
 // --------------------------------------------------
 const generateKotNumber = async (cafeteriaId, transaction) => {
   try {
-    console.log(`🎯 [KOT] Generating KOT for cafeteria: ${cafeteriaId}`);
+    console.log(`🎯 [KOT] Generating unique KOT for cafeteria: ${cafeteriaId}`);
 
-    // Step 1: Try to find existing counter
-    const [existingCounter] = await sequelize.query(
-      `SELECT "counter" FROM kot_counters WHERE "cafeteriaid" = :cafeteriaId`,
-      {
-        replacements: { cafeteriaId },
-        transaction,
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
+    // Get cafeteria prefix
+    const prefix = getCafeteriaPrefix(cafeteriaId);
 
-    let newCounter;
+    // Generate 8 random alphanumeric characters
+    const randomString = generateRandomString(8);
 
-    if (existingCounter) {
-      // Step 2a: If exists, increment it
-      console.log(`📊 [KOT] Counter exists, incrementing from ${existingCounter.counter}`);
-
-      const [result] = await sequelize.query(
-        `UPDATE kot_counters 
-         SET "counter" = "counter" + 1 
-         WHERE "cafeteriaid" = :cafeteriaId 
-         RETURNING "counter"`,
-        {
-          replacements: { cafeteriaId },
-          transaction,
-        }
-      );
-
-      newCounter = result[0].counter;
-      console.log(`✅ [KOT] Counter incremented to: ${newCounter}`);
-    } else {
-      // Step 2b: If doesn't exist, create it with counter = 1
-      console.log(`📝 [KOT] Counter doesn't exist, creating new one`);
-
-      await sequelize.query(
-        `INSERT INTO kot_counters ("cafeteriaid", "counter") 
-         VALUES (:cafeteriaId, 1)`,
-        {
-          replacements: { cafeteriaId },
-          transaction,
-        }
-      );
-
-      newCounter = 1;
-      console.log(`✅ [KOT] Counter created with value: 1`);
-    }
-
-    // Step 3: Generate KOT number
-    const kotNumber = `KOT-${cafeteriaId}-${String(newCounter).padStart(5, "0")}`;
+    // Combine: KOT-{PREFIX}-{RANDOM}
+    const kotNumber = `KOT-${prefix}-${randomString}`;
+    
     console.log(`🎫 [KOT] Generated KOT Number: ${kotNumber}`);
 
     return kotNumber;
