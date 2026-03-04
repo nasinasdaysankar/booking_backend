@@ -492,6 +492,7 @@ export const confirmPayment = async (req, res) => {
           createdAt: order.createdAt,
           isParcel: order.isParcel,
           parcelAmount: order.parcelAmount,
+          netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
           items: itemsToCreate,
           customerName: req.user.name || "Customer",
         });

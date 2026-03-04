@@ -355,9 +355,8 @@ export const getAdminOrders = async (req, res) => {
              orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
-             (orders."totalamount" - COALESCE(commissions.amount, 0)) AS "netAmount"
+             (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
-      LEFT JOIN commissions ON orders.id = commissions."orderid"
       WHERE orders.status = :status
       AND orders."cafeteriaid" = :cafeteriaId
       ORDER BY orders."created_at" DESC
@@ -471,6 +470,7 @@ export const updateOrderStatus = async (req, res) => {
       createdAt: order.createdAt,
       isParcel: order.isParcel,
       parcelAmount: order.parcelAmount,
+      netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
       items: parsedItems,
       customerName: "Customer", // Ideally fetch user name if possible, but optional for now
     });
@@ -689,7 +689,7 @@ export const getAdminStats = async (req, res) => {
         status: { [Op.in]: ["PAID", "PREPARING", "READY", "PICKED_UP"] },
         ...dateFilter,
       },
-      attributes: ["totalAmount", "status", "studentId"],
+      attributes: ["totalAmount", "platformFee", "commissionAmount", "status", "studentId"],
     });
 
     const totalOrders = orders.length;
@@ -699,8 +699,11 @@ export const getAdminStats = async (req, res) => {
       0
     );
 
-    // 🔥 DEDUCT COMMISSION (₹1 per order)
-    const netRevenue = totalRevenue - totalOrders;
+    // 🔥 DEDUCT PLATFORM FEE & COMMISSION
+    const netRevenue = orders.reduce(
+      (sum, order) => sum + (Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0)),
+      0
+    );
 
     // 👥 TOTAL CUSTOMERS (UNIQUE STUDENTS)
     const uniqueCustomers = new Set(
