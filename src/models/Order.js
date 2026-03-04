@@ -71,6 +71,12 @@ export default (sequelize) => {
         field: "gst_amount",
       },
 
+      commissionAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.0,
+        field: "commission_amount",
+      },
+
       // ========================================
       // PARCEL INFORMATION
       // ========================================

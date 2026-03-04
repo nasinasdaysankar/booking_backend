@@ -253,13 +253,17 @@ router.get('/stats', superadminAuth, async (req, res) => {
         });
 
         // Total revenue (filtered by period)
-        const revenueResult = await Order.sum('totalAmount', {
+        // Total revenue (filtered by period)
+        const revenueResult = await Order.findAll({
+            attributes: [
+                [sequelize.literal('COALESCE(SUM("totalamount" - "platform_fee" - "commission_amount"), 0)'), 'netRevenue']
+            ],
             where: {
                 ...baseWhere,
                 status: { [Op.in]: ['PAID', 'PREPARING', 'READY', 'PICKED_UP'] }
             }
         });
-        const totalRevenue = revenueResult || 0;
+        const totalRevenue = parseFloat(revenueResult[0].dataValues.netRevenue) || 0;
 
         // Pending orders (PAID or PREPARING status — always real-time, not period-filtered)
         const pendingWhere = { paymentStatus: 'SUCCESS', status: { [Op.in]: ['PAID', 'PREPARING'] } };
@@ -272,13 +276,17 @@ router.get('/stats', superadminAuth, async (req, res) => {
         const todayOrders = await Order.count({ where: todayWhere });
 
         // Today's revenue
-        const todayRevenueResult = await Order.sum('totalAmount', {
+        // Today's revenue
+        const todayRevenueResult = await Order.findAll({
+            attributes: [
+                [sequelize.literal('COALESCE(SUM("totalamount" - "platform_fee" - "commission_amount"), 0)'), 'netRevenue']
+            ],
             where: {
                 ...todayWhere,
                 status: { [Op.in]: ['PAID', 'PREPARING', 'READY', 'PICKED_UP'] }
             }
         });
-        const todayRevenue = todayRevenueResult || 0;
+        const todayRevenue = parseFloat(todayRevenueResult[0].dataValues.netRevenue) || 0;
 
         // Total customers (global - don't filter by cafeteria)
         const totalCustomers = await User.count();
@@ -342,6 +350,9 @@ router.get('/orders', superadminAuth, async (req, res) => {
                 orders."studentid" AS "studentId",
                 orders."cafeteriaid" AS "cafeteriaId",
                 orders."totalamount" AS "totalAmount",
+                orders."platform_fee" AS "platformFee",
+                orders."commission_amount" AS "commissionAmount",
+                orders."gst_amount" AS "gstAmount",
                 orders.status,
                 orders."paymentstatus" AS "paymentStatus",
                 orders."etaminutes" AS "etaMinutes",
@@ -555,9 +566,9 @@ router.get('/trend', superadminAuth, async (req, res) => {
             SELECT 
                 DATE("created_at") as date,
                 COUNT(*) as orders,
-                COALESCE(SUM("totalamount"), 0) as revenue
+                COALESCE(SUM("totalamount" - "platform_fee" - "commission_amount"), 0) as revenue
             FROM orders
-            WHERE "paymentstatus" = 'SUCCESS'
+            WHERE orders."paymentstatus" = 'SUCCESS'
             AND "created_at" >= NOW() - INTERVAL '${parseInt(days)} days'
             ${cafeteriaId ? `AND "cafeteriaid" = :cafeteriaId` : ''}
             GROUP BY DATE("created_at")

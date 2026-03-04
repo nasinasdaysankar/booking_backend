@@ -68,7 +68,7 @@ const generateKotNumber = async (cafeteriaId, transaction) => {
 
     // Combine: KOT-{PREFIX}-{RANDOM}
     const kotNumber = `KOT-${prefix}-${randomString}`;
-    
+
     console.log(`🎫 [KOT] Generated KOT Number: ${kotNumber}`);
 
     return kotNumber;
@@ -195,6 +195,7 @@ export const confirmPayment = async (req, res) => {
       isParcel,
       parcelAmount,
       platformFee,
+      commissionAmount,
       gstAmount,
     } = req.body;
 
@@ -243,9 +244,9 @@ export const confirmPayment = async (req, res) => {
     // 🔍 DEBUG SECTION 3: Cashfree Verification
     // ========================================
     console.log("\n🔍 [CASHFREE] Verifying payment with Cashfree...");
-    
+
     const { clientId, clientSecret, baseUrl: cfBaseUrl, env } = getCashfreeCredentials();
-    
+
     console.log("🔑 [CASHFREE] Using credentials:", {
       env,
       clientIdPrefix: clientId?.substring(0, 10) + '***',
@@ -299,7 +300,7 @@ export const confirmPayment = async (req, res) => {
         message: cfErr.message,
         error: cfErr.response?.data,
       });
-      
+
       if (cfErr.response?.status === 404) {
         await t.rollback();
         return res.status(404).json({
@@ -349,6 +350,7 @@ export const confirmPayment = async (req, res) => {
             isParcel: Boolean(isParcel),
             parcelAmount: Number(parcelAmount) || 0,
             platformFee: Number(platformFee) || 0,
+            commissionAmount: Number(commissionAmount) || 0,
             gstAmount: Number(gstAmount) || 0,
           },
           { transaction: t }
@@ -386,6 +388,7 @@ export const confirmPayment = async (req, res) => {
           isParcel: Boolean(isParcel),
           parcelAmount: Number(parcelAmount) || 0,
           platformFee: Number(platformFee) || 0,
+          commissionAmount: Number(commissionAmount) || 0,
           gstAmount: Number(gstAmount) || 0,
         },
         { transaction: t }
