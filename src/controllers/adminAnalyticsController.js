@@ -116,7 +116,7 @@ export const getTrendData = async (req, res) => {
   }
 };
 
-
+//updated the backend 
 export const getTopItems = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
