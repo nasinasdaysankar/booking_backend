@@ -142,8 +142,8 @@ const start = async () => {
     }
 
     // ========== START LISTENING ==========
-    server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+        logger.info(`🚀 Server running on port ${PORT}`);
       logger.info("⚡ WebSocket enabled");
       logger.info("🔥 Optimized for 700-1000 concurrent users");
 
