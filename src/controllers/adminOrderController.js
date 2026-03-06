@@ -355,6 +355,7 @@ export const getAdminOrders = async (req, res) => {
              orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
+             orders."commission_amount" AS "commissionAmount",
              (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
       WHERE orders.status = :status
