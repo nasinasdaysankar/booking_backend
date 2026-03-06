@@ -524,14 +524,22 @@ export const confirmPayment = async (req, res) => {
       try {
         await appendOrderToSheet({
           id: order.id,
+          cashfreeOrderId: order.cashfreeOrderId,
           billId: order.billId,
+          studentId: order.studentId,
           customerName: req.user.name || "Customer",
-          items: items, // use req.body items
+          cafeteriaId: order.cafeteriaId,
           totalAmount: order.totalAmount,
-          transactionId: transactionId,
+          platformFee: order.platformFee,
+          gstAmount: order.gstAmount,
+          commissionAmount: order.commissionAmount,
+          isParcel: order.isParcel,
+          parcelAmount: order.parcelAmount,
+          items: items,
           status: order.status,
-          createdAt: order.createdAt,
-          cafeteriaId: order.cafeteriaId
+          paymentStatus: order.paymentStatus,
+          kotNumber: order.kotNumber,
+          createdAt: order.createdAt
         });
       } catch (sheetErr) {
         console.error("⚠️ Sheets sync error (background):", sheetErr.message);
