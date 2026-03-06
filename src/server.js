@@ -74,7 +74,7 @@ const start = async () => {
     logger.info("🔗 Connecting to database...");
     await sequelize.authenticate();
     logger.info("✅ Database connected");
-
+//Redis
     // ============================================
     // 🔥 REDIS CONNECTION
     // ============================================
