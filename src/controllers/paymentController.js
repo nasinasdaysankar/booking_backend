@@ -1,4 +1,5 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
+import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken, UserStreak } from "../models/index.js";
@@ -531,6 +532,23 @@ export const confirmPayment = async (req, res) => {
         }
       } catch (notifyErr) {
         console.error("⚠️ Notification error (background):", notifyErr);
+      }
+
+      // 📊 GOOGLE SHEETS SYNC
+      try {
+        await appendOrderToSheet({
+          id: order.id,
+          billId: order.billId,
+          customerName: req.user.name || "Customer",
+          items: items, // use req.body items
+          totalAmount: order.totalAmount,
+          transactionId: transactionId,
+          status: order.status,
+          createdAt: order.createdAt,
+          cafeteriaId: order.cafeteriaId
+        });
+      } catch (sheetErr) {
+        console.error("⚠️ Sheets sync error (background):", sheetErr.message);
       }
     })();
 
