@@ -428,24 +428,10 @@ export const confirmPayment = async (req, res) => {
       console.log("ℹ️ [PAYMENT] Payment already exists");
     }
 
-    // ========================================
-    // 🧺 CREATE ORDER ITEMS
-    // ========================================
-    console.log("\n🧺 [ITEMS] Creating order items...");
-
-    const existingItem = await OrderItem.findOne({
-      where: { orderId: order.id },
-      transaction: t,
-    });
-
-    if (!existingItem && Array.isArray(items) && items.length > 0) {
-      console.log("🧺 RAW ITEMS RECEIVED:", JSON.stringify(items, null, 2));
-
-      const itemsToCreate = items.map((item) => {
+    let formattedItems = [];
+    if (Array.isArray(items) && items.length > 0) {
+      formattedItems = items.map((item) => {
         const isParcelForThisItem = Boolean(item.isParcelSelected);
-
-        console.log(`🧺 Item: ${item.name}, isParcelSelected: ${item.isParcelSelected}, saved as: ${isParcelForThisItem}`);
-
         return {
           orderId: order.id,
           menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
@@ -457,15 +443,15 @@ export const confirmPayment = async (req, res) => {
         };
       });
 
-      await OrderItem.bulkCreate(itemsToCreate, { transaction: t });
+      const existingItem = await OrderItem.findOne({
+        where: { orderId: order.id },
+        transaction: t,
+      });
 
-      console.log(`✅ Created ${itemsToCreate.length} order items`);
-
-      const parcelItems = itemsToCreate.filter(i => i.isParcel);
-      if (parcelItems.length > 0) {
-        console.log(`📦 Items with parcel: ${parcelItems.map(i => i.name).join(', ')}`);
-      } else {
-        console.log(`📦 No items have parcel packaging`);
+      if (!existingItem) {
+        console.log("🧺 [ITEMS] Creating order items...");
+        await OrderItem.bulkCreate(formattedItems, { transaction: t });
+        console.log(`✅ Created ${formattedItems.length} order items`);
       }
     }
 
@@ -494,7 +480,7 @@ export const confirmPayment = async (req, res) => {
           isParcel: order.isParcel,
           parcelAmount: order.parcelAmount,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
-          items: itemsToCreate,
+          items: formattedItems,
           customerName: req.user.name || "Customer",
         });
 
