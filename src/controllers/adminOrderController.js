@@ -315,7 +315,7 @@
 // };
 
 
-import { sequelize, Order, CafeteriaQr, UserFcmToken } from "../models/index.js";
+import { sequelize, Order, CafeteriaQr, UserFcmToken, User } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -410,10 +410,14 @@ export const updateOrderStatus = async (req, res) => {
 
     if (status) status = status.toUpperCase();
 
-    const order = await Order.findByPk(id);
+    const order = await Order.findByPk(id, {
+      include: [{ model: User }]
+    });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+
+    const userName = order.User?.name || "User";
 
     // 🔔 Prepare update object
     const updateData = {
@@ -472,7 +476,7 @@ export const updateOrderStatus = async (req, res) => {
       parcelAmount: order.parcelAmount,
       netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
       items: parsedItems,
-      customerName: "Customer", // Ideally fetch user name if possible, but optional for now
+      customerName: userName,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
@@ -485,7 +489,6 @@ export const updateOrderStatus = async (req, res) => {
     });
     console.log("✅ User socket notification sent");
 
-    // 🔔 FCM → USER (BACKGROUND NOTIFICATION)
     // 🔔 FCM → USER (BACKGROUND - FIRE & FORGET)
     (async () => {
       try {
@@ -498,9 +501,13 @@ export const updateOrderStatus = async (req, res) => {
         if (userTokens.length > 0) {
           const token = userTokens[0].fcmToken;
 
-          let bodyText = `Your order is now ${order.status}`;
+          // Standardize Notification Message
+          let bodyText = `Hey ${userName}, your order #${order.id} is now ${order.status.toLowerCase()}.`;
+
           if (order.status === "READY") {
-            bodyText = `Your order is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
+            bodyText = `Hey ${userName}, your order #${order.id} is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
+          } else if (order.status === "PREPARING") {
+            bodyText = `Hey ${userName}, the cafeteria has accepted your order #${order.id} and is now preparing it.`;
           }
 
           try {
@@ -513,26 +520,40 @@ export const updateOrderStatus = async (req, res) => {
               data: {
                 orderId: String(order.id),
                 status: order.status,
+                type: "ORDER_STATUS_UPDATE",
                 etaMinutes: String(order.etaMinutes || 0),
               },
               android: {
                 priority: "high",
                 notification: {
                   channelId: "high_importance_channel",
+                  sound: "default",
+                  clickAction: "FLUTTER_NOTIFICATION_CLICK"
                 },
               },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                    badge: 1
+                  }
+                }
+              }
             });
-            console.log(`✅ FCM sent to most recent token for User ${order.studentId}`);
+            console.log(`✅ FCM (${order.status}) sent to User ${order.studentId} (${userName})`);
           } catch (sendError) {
             console.error("❌ FCM individual send error:", sendError.message);
-            if (sendError.code === 'messaging/registration-token-not-registered') {
+            if (sendError.code === 'messaging/registration-token-not-registered' ||
+              sendError.code === 'messaging/invalid-registration-token') {
               await UserFcmToken.destroy({ where: { fcmToken: token } });
               console.log("🗑️ Deleted invalid token");
             }
           }
+        } else {
+          console.warn(`⚠️ No FCM token found for User ${order.studentId} (${userName})`);
         }
       } catch (fcmError) {
-        console.error("❌ FCM Error (Background):", fcmError.message);
+        console.error("❌ FCM Notification Error:", fcmError.message);
       }
     })();
 
@@ -602,6 +623,13 @@ export const markOrderPaid = async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // 🛡️ PROTECT: Don't reset status if the order has already been acted on
+    const protectedStatuses = ["PREPARING", "READY", "PICKED_UP", "EXPIRED", "CANCELLED", "REFUND_INITIATED", "REFUND_SUCCESS"];
+    if (protectedStatuses.includes(order.status)) {
+      console.log(`🛡️ markOrderPaid: Order ${orderId} is already ${order.status}. Skipping reset to PAID.`);
+      return res.json({ success: true, message: `Order is already ${order.status}. Status not changed.` });
     }
 
     await order.update({ status: "PAID" });
