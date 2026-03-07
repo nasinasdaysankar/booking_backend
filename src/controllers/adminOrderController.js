@@ -352,7 +352,6 @@ export const getAdminOrders = async (req, res) => {
              orders."parcelamount" AS "parcelAmount",
              orders."platform_fee" AS "platformFee",
              orders."gst_amount" AS "gstAmount",
-             orders."created_at" AT TIME ZONE 'Asia/Kolkata' AS "createdAtIst",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
              orders."commission_amount" AS "commissionAmount",

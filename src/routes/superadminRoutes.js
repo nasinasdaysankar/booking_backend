@@ -365,7 +365,6 @@ router.get('/orders', superadminAuth, async (req, res) => {
                 orders."parcelamount" AS "parcelAmount",
                 orders."created_at" AS "createdAt",
                 orders."updated_at" AS "updatedAt",
-                orders."created_at" AT TIME ZONE 'Asia/Kolkata' AS "createdAtIst",
                 cafeterias.name AS "cafeteriaName"
             FROM orders
             LEFT JOIN cafeterias ON orders."cafeteriaid" = cafeterias.id
