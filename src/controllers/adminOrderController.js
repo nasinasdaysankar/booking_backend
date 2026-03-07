@@ -688,27 +688,24 @@ export const getAdminStats = async (req, res) => {
         dateFilter = { createdAt: { [Op.lte]: new Date(to) } };
       }
     } else {
-      // Use range-based filtering (IST = UTC+5:30)
+      // Use range-based filtering
       const now = new Date();
-      const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-      const istNow = new Date(now.getTime() + IST_OFFSET_MS);
 
       if (range === "daily") {
-        // Start of today in IST, converted back to UTC for DB query
-        const startOfDayIST = new Date(
-          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_OFFSET_MS
+        const startOfDay = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
         );
-        dateFilter = { createdAt: { [Op.gte]: startOfDayIST } };
+        dateFilter = { createdAt: { [Op.gte]: startOfDay } };
       } else if (range === "weekly") {
-        const startOfWeekIST = new Date(
-          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() - istNow.getUTCDay()) - IST_OFFSET_MS
-        );
-        dateFilter = { createdAt: { [Op.gte]: startOfWeekIST } };
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        dateFilter = { createdAt: { [Op.gte]: startOfWeek } };
       } else if (range === "monthly") {
-        const startOfMonthIST = new Date(
-          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - IST_OFFSET_MS
-        );
-        dateFilter = { createdAt: { [Op.gte]: startOfMonthIST } };
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateFilter = { createdAt: { [Op.gte]: startOfMonth } };
       }
       // "all" range has no date filter
     }

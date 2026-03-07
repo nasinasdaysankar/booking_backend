@@ -213,20 +213,17 @@ router.get('/stats', superadminAuth, async (req, res) => {
     try {
         const { cafeteriaId, period } = req.query;
 
-        // Get today's date at midnight (IST = UTC+5:30)
+        // Get today's date at midnight (IST)
         const now = new Date();
-        const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-        const istNow = new Date(now.getTime() + IST_OFFSET_MS);
-        const startOfDay = new Date(
-            Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_OFFSET_MS
-        );
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         // Calculate period start date
         let periodStart = null;
         if (period === 'daily') {
             periodStart = startOfDay;
         } else if (period === 'weekly') {
-            periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            periodStart = new Date(now);
+            periodStart.setDate(periodStart.getDate() - 7);
         } else if (period === 'monthly') {
             periodStart = new Date(now);
             periodStart.setMonth(periodStart.getMonth() - 1);
