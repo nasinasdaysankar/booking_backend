@@ -14,7 +14,7 @@ export const addMenuItem = async (req, res) => {
     if (!cafeteriaId || !name || !price)
       return res.status(400).json({ success: false, message: "Missing fields" });
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     const item = await MenuItem.create({
       cafeteriaId,
@@ -116,7 +116,7 @@ export const getMenuByCafeteria = async (req, res) => {
     }
 
     // 🔥 Clean expired today specials
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
     // await MenuItem.update(
     //   { isTodaySpecial: false, specialDate: null },
     //   {
@@ -319,7 +319,7 @@ export const updateMenuItem = async (req, res) => {
     const item = await MenuItem.findByPk(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     if (name) item.name = name;
     if (price) item.price = price;
@@ -415,7 +415,7 @@ export const getTodaySpecials = async (req, res) => {
       return res.json({ success: true, cached: true, ...cached });
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
     if (!cafeteria) {

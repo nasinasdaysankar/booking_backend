@@ -352,7 +352,7 @@ export const getAdminOrders = async (req, res) => {
              orders."parcelamount" AS "parcelAmount",
              orders."platform_fee" AS "platformFee",
              orders."gst_amount" AS "gstAmount",
-             orders."created_at" AT TIME ZONE 'UTC' AS "createdAtUtc",
+             orders."created_at" AT TIME ZONE 'Asia/Kolkata' AS "createdAtIst",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
              orders."commission_amount" AS "commissionAmount",
@@ -689,24 +689,27 @@ export const getAdminStats = async (req, res) => {
         dateFilter = { createdAt: { [Op.lte]: new Date(to) } };
       }
     } else {
-      // Use range-based filtering
+      // Use range-based filtering (IST = UTC+5:30)
       const now = new Date();
+      const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+      const istNow = new Date(now.getTime() + IST_OFFSET_MS);
 
       if (range === "daily") {
-        const startOfDay = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
+        // Start of today in IST, converted back to UTC for DB query
+        const startOfDayIST = new Date(
+          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_OFFSET_MS
         );
-        dateFilter = { createdAt: { [Op.gte]: startOfDay } };
+        dateFilter = { createdAt: { [Op.gte]: startOfDayIST } };
       } else if (range === "weekly") {
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-        dateFilter = { createdAt: { [Op.gte]: startOfWeek } };
+        const startOfWeekIST = new Date(
+          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate() - istNow.getUTCDay()) - IST_OFFSET_MS
+        );
+        dateFilter = { createdAt: { [Op.gte]: startOfWeekIST } };
       } else if (range === "monthly") {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        dateFilter = { createdAt: { [Op.gte]: startOfMonth } };
+        const startOfMonthIST = new Date(
+          Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), 1) - IST_OFFSET_MS
+        );
+        dateFilter = { createdAt: { [Op.gte]: startOfMonthIST } };
       }
       // "all" range has no date filter
     }
