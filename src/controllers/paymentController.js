@@ -488,8 +488,12 @@ export const confirmPayment = async (req, res) => {
           where: { cafeteriaId },
         });
 
+        console.log(`📊 Found ${adminTokens.length} FCM tokens for cafeteria ${cafeteriaId}`);
+
         if (adminTokens.length > 0) {
           const tokens = adminTokens.map((t) => t.fcmToken);
+
+          console.log(`🔔 Sending FCM to ${tokens.length} device(s)...`);
 
           const standardNotificationResponse = await admin.messaging().sendEachForMulticast({
             tokens,
@@ -497,24 +501,48 @@ export const confirmPayment = async (req, res) => {
               title: "🍽 New Order Received",
               body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
             },
+            data: {
+              type: "NEW_ORDER",
+              orderId: String(order.id),
+              kotNumber: order.kotNumber || "",
+              cafeteriaId: String(cafeteriaId),
+            },
             android: {
               priority: "high",
-              notification: { channelId: "high_importance_channel" },
+              notification: { channelId: "high_importance_channel", sound: "default" },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  alert: {
+                    title: "🍽 New Order Received",
+                    body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+                  },
+                  sound: "default",
+                  badge: 1,
+                  "content-available": 1,
+                },
+              },
             },
           });
 
-          console.log(`🔔 FCM sent to admins.`);
+          console.log(`🔔 FCM Result: ${standardNotificationResponse.successCount} success, ${standardNotificationResponse.failureCount} failed`);
 
           if (standardNotificationResponse.failureCount > 0) {
             const invalidTokens = [];
             standardNotificationResponse.responses.forEach((resp, idx) => {
-              if (!resp.success) invalidTokens.push(adminTokens[idx].fcmToken);
+              if (!resp.success) {
+                console.log(`  ❌ Token ${idx} failed:`, resp.error?.message);
+                invalidTokens.push(adminTokens[idx].fcmToken);
+              }
             });
             if (invalidTokens.length > 0) {
               await AdminFcmToken.destroy({ where: { fcmToken: invalidTokens } });
-              console.log("Deleted invalid admin tokens:", invalidTokens.length);
+              console.log("🧹 Cleaned up invalid admin tokens:", invalidTokens.length);
             }
           }
+        } else {
+          console.log("⚠️ No FCM tokens found for this cafeteria — admin won't receive push notification");
         }
       } catch (notifyErr) {
         console.error("⚠️ Notification error (background):", notifyErr);

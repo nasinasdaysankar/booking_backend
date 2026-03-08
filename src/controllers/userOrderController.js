@@ -7,6 +7,8 @@ import {
   OrderFeedback,
 } from "../models/index.js";
 import { Op } from "sequelize";
+import { emitAdminOrderUpdate } from "../socket.js";
+
 
 
 export const scanStaticCafeteriaQR = async (req, res) => {
@@ -138,26 +140,45 @@ export const confirmOrderPickup = async (req, res) => {
     console.log("✅ Order found, updating status to PICKED_UP");
     await order.update({ status: "PICKED_UP" });
 
-    const invoice = {
+    // 🖨️ Notify admin app via socket so thermal receipt auto-prints
+    emitAdminOrderUpdate(order.cafeteriaId, {
+      id: order.id,
       orderId: order.id,
       billId: order.billId,
-      cafeteria: order.Cafeteria?.name ?? "",
+      kotNumber: order.kotNumber,
+      status: "PICKED_UP",
+      customerName: req.user.name || "Guest",
+      totalAmount: order.totalAmount,
+      netAmount: order.totalAmount,
+      createdAt: order.createdAt,
       items: order.items.map((i) => ({
         name: i.menuItem?.name ?? "",
-        quantity: i.quantity,
+        quantity: String(i.quantity),
         price: i.menuItem?.price ?? 0,
-        total: i.quantity * (i.menuItem?.price ?? 0),
+        isParcel: i.isParcel || false,
       })),
-      totalAmount: order.totalAmount,
-      pickedAt: new Date(),
-    };
+    });
+    console.log("📢 Emitted PICKED_UP to admin for auto-print");
+
 
     console.log("🎉 Pickup confirmed successfully");
 
     return res.json({
       success: true,
       message: "🎉 Picked up successfully!",
-      invoice,
+      invoice: {
+        orderId: order.id,
+        billId: order.billId,
+        cafeteria: order.Cafeteria?.name ?? "",
+        items: order.items.map((i) => ({
+          name: i.menuItem?.name ?? "",
+          quantity: i.quantity,
+          price: i.menuItem?.price ?? 0,
+          total: i.quantity * (i.menuItem?.price ?? 0),
+        })),
+        totalAmount: order.totalAmount,
+        pickedAt: new Date(),
+      },
       showFeedback: true,
       orderId: order.id,
     });

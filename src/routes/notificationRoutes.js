@@ -25,36 +25,41 @@ router.post("/save-token", auth, async (req, res) => {
       return res.status(400).json({ message: "FCM token missing" });
     }
 
-    console.log("💾 Replacing FCM token in DB:", {
+    console.log("💾 Saving FCM token (multi-device support):", {
       adminId,
       cafeteriaId,
-      token,
+      token: token.substring(0, 20) + "...",
     });
 
     /**
-     * 🔥 IMPORTANT FIX
-     * Remove old tokens for this admin + cafeteria
-     * (prevents sending notifications to old phones)
+     * ✅ MULTI-DEVICE SUPPORT
+     * Each device has a unique FCM token, so we upsert by token.
+     * This allows the same admin to receive notifications on ALL devices.
+     * We do NOT delete old tokens — they stay until they become invalid
+     * (invalid tokens are cleaned up when FCM send fails).
      */
-    const deletedCount = await AdminFcmToken.destroy({
-      where: {
+    const [savedToken, created] = await AdminFcmToken.findOrCreate({
+      where: { fcmToken: token },
+      defaults: {
         adminId,
         cafeteriaId,
+        fcmToken: token,
       },
     });
 
-    console.log(`🧹 Removed ${deletedCount} old FCM tokens`);
+    if (!created) {
+      // Token already exists, just update the admin/cafeteria association
+      await savedToken.update({ adminId, cafeteriaId });
+      console.log("🔄 Existing FCM token updated");
+    } else {
+      console.log("✅ New FCM token saved for device");
+    }
 
-    /**
-     * ✅ Save fresh token
-     */
-    const savedToken = await AdminFcmToken.create({
-      adminId,
-      cafeteriaId,
-      fcmToken: token,
+    // Count total tokens for this cafeteria
+    const totalTokens = await AdminFcmToken.count({
+      where: { cafeteriaId },
     });
-
-    console.log("✅ New FCM token saved:", savedToken.dataValues);
+    console.log(`📊 Total FCM tokens for cafeteria ${cafeteriaId}: ${totalTokens}`);
 
     return res.json({ success: true });
   } catch (err) {
@@ -72,14 +77,18 @@ router.post("/save-token", auth, async (req, res) => {
 router.post("/remove-token", auth, async (req, res) => {
   try {
     const { id: adminId, cafeteriaId } = req.user;
+    const { token } = req.body;
 
     console.log("🧹 Removing FCM token for admin:", adminId);
 
+    // If a specific token is provided, only remove that device's token
+    // Otherwise, remove all tokens for this admin (full logout)
+    const whereClause = token
+      ? { fcmToken: token }
+      : { adminId, cafeteriaId };
+
     const deleted = await AdminFcmToken.destroy({
-      where: {
-        adminId,
-        cafeteriaId,
-      },
+      where: whereClause,
     });
 
     console.log(`🧹 Tokens removed: ${deleted}`);

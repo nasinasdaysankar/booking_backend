@@ -14,7 +14,7 @@ import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import vendorRoutes from "./routes/vendorRoutes.js"; // [NEW]
-import upiRoutes from "./routes/upiRoutes.js"; // [NEW] Auto Collect + UPI Intent
+// import upiRoutes from "./routes/upiRoutes.js"; // [NEW] Auto Collect + UPI Intent
 
 import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
@@ -130,7 +130,7 @@ app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
 app.use("/api/vendors", vendorRoutes); // ✅ VENDOR MANAGEMENT
-app.use("/api/upi", upiRoutes); // ✅ AUTO COLLECT + UPI INTENT
+// app.use("/api/upi", upiRoutes); // ✅ AUTO COLLECT + UPI INTENT
 
 
 logger.info("🔔 Notification routes mounted");
