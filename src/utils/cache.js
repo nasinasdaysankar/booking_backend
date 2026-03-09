@@ -12,8 +12,8 @@ import { getCache, setCache, delCache, delCachePattern } from "../config/redis.j
 const MENU_TTL = 60;         // 1 minute cache for menus
 const CAFETERIA_TTL = 300;   // 5 minutes for cafeteria list
 const BANNER_TTL = 300;      // 5 minutes for banners
-const ANALYTICS_TTL = 120;   // 2 minutes for analytics
-const STATS_TTL = 60;        // 1 minute for admin stats
+const ANALYTICS_TTL = 15;    // 15 seconds for analytics (real-time dashboard)
+const STATS_TTL = 10;        // 10 seconds for admin stats (real-time dashboard)
 
 // ============================================
 // 📦 CACHE PREFIXES (namespace keys in Redis)

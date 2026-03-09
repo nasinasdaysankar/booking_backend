@@ -3,6 +3,7 @@ import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken, UserStreak } from "../models/index.js";
+import { clearAnalyticsCache } from "../utils/cache.js";
 import dayjs from "dayjs";
 import axios from "axios";
 
@@ -464,6 +465,12 @@ export const confirmPayment = async (req, res) => {
 
     console.log("✅ Transaction committed successfully");
 
+    // 🗑️ INVALIDATE ANALYTICS CACHE immediately so admin dashboard
+    // shows updated top items / frequently ordered without delay
+    clearAnalyticsCache(cafeteriaId).catch(err =>
+      console.warn("⚠️ Analytics cache clear error (non-blocking):", err.message)
+    );
+
     // ========================================
     // 🔔 SEND NOTIFICATIONS (Async)
     // ========================================
@@ -763,6 +770,16 @@ export const syncFromWebhook = async (req, res) => {
     }
 
     await t.commit();
+
+    // 🗑️ INVALIDATE ANALYTICS CACHE on webhook sync
+    if (payment.orderId) {
+      const syncedOrder = await Order.findByPk(payment.orderId);
+      if (syncedOrder?.cafeteriaId) {
+        clearAnalyticsCache(syncedOrder.cafeteriaId).catch(err =>
+          console.warn("⚠️ Analytics cache clear error (webhook, non-blocking):", err.message)
+        );
+      }
+    }
 
     return res.json({
       success: true,

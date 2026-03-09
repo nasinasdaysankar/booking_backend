@@ -128,6 +128,7 @@
 
 import crypto from 'crypto';
 import { Order, OrderItem, MenuItem, OrderFeedback } from '../models/index.js';
+import { clearAnalyticsCache } from '../utils/cache.js';
 
 // --------------------------------------------------
 // HELPER: GENERATE CUSTOM BILL ID
@@ -201,6 +202,13 @@ export const createOrder = async (req, res) => {
     }
 
     await t.commit();
+
+    // 🗑️ INVALIDATE ANALYTICS CACHE immediately so admin dashboard
+    // shows updated top items / frequently ordered without delay
+    clearAnalyticsCache(cafeteriaId).catch(err =>
+      console.warn("⚠️ Analytics cache clear error (non-blocking):", err.message)
+    );
+
     return res.status(201).json({
       success: true,
       orderId: order.id,
