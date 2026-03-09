@@ -105,6 +105,11 @@ app.get("/", (req, res) => {
   });
 });
 
+// Lightweight health endpoint for mobile app connectivity checks
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // ================= PUBLIC ROUTES =================
 // 🔓 PUBLIC AUTH (LOGIN / REGISTER)
 app.use("/api/auth", authRoutes);
