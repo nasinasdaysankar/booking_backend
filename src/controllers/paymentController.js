@@ -1,4 +1,5 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
+import { Op } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -60,22 +61,33 @@ const generateRandomString = (length = 8) => {
 // --------------------------------------------------
 const generateKotNumber = async (cafeteriaId, transaction) => {
   try {
-    console.log(`🎯 [KOT] Generating unique KOT for cafeteria: ${cafeteriaId}`);
+    console.log(`🎯 [KOT] Calculating daily sequence for cafeteria: ${cafeteriaId}`);
 
-    // Get cafeteria prefix
+    const todayStart = dayjs().startOf("day").toDate();
+    const todayEnd = dayjs().endOf("day").toDate();
+
+    // 1. Count how many orders were already placed TODAY at this cafeteria
+    const count = await Order.count({
+      where: {
+        cafeteriaId,
+        createdAt: {
+          [Op.between]: [todayStart, todayEnd],
+        },
+      },
+      transaction,
+    });
+
+    const sequenceNum = count + 1;
     const prefix = getCafeteriaPrefix(cafeteriaId);
 
-    // Generate 8 random alphanumeric characters
-    const randomString = generateRandomString(8);
+    // 2. Format: {PREFIX}-{SEQUENCE} e.g. AA-1, AA-2, etc.
+    const kotNumber = `${prefix}-${sequenceNum}`;
 
-    // Combine: KOT-{PREFIX}-{RANDOM}
-    const kotNumber = `KOT-${prefix}-${randomString}`;
-
-    console.log(`🎫 [KOT] Generated KOT Number: ${kotNumber}`);
+    console.log(`🎫 [KOT] Generated Daily ID: ${kotNumber}`);
 
     return kotNumber;
   } catch (error) {
-    console.error("❌ [KOT] Error generating KOT number:", {
+    console.error("❌ [KOT] Error generating daily sequence:", {
       message: error.message,
       cafeteriaId,
     });
