@@ -61,33 +61,22 @@ const generateRandomString = (length = 8) => {
 // --------------------------------------------------
 const generateKotNumber = async (cafeteriaId, transaction) => {
   try {
-    console.log(`🎯 [KOT] Calculating daily sequence for cafeteria: ${cafeteriaId}`);
+    console.log(`🎯 [KOT] Generating unique KOT for cafeteria: ${cafeteriaId}`);
 
-    const todayStart = dayjs().startOf("day").toDate();
-    const todayEnd = dayjs().endOf("day").toDate();
-
-    // 1. Count how many orders were already placed TODAY at this cafeteria
-    const count = await Order.count({
-      where: {
-        cafeteriaId,
-        createdAt: {
-          [Op.between]: [todayStart, todayEnd],
-        },
-      },
-      transaction,
-    });
-
-    const sequenceNum = count + 1;
+    // Get cafeteria prefix
     const prefix = getCafeteriaPrefix(cafeteriaId);
 
-    // 2. Format: {PREFIX}-{SEQUENCE} e.g. AA-1, AA-2, etc.
-    const kotNumber = `${prefix}-${sequenceNum}`;
+    // Generate 8 random alphanumeric characters
+    const randomString = generateRandomString(8);
 
-    console.log(`🎫 [KOT] Generated Daily ID: ${kotNumber}`);
+    // Combine: KOT-{PREFIX}-{RANDOM}
+    const kotNumber = `KOT-${prefix}-${randomString}`;
+
+    console.log(`🎫 [KOT] Generated KOT Number: ${kotNumber}`);
 
     return kotNumber;
   } catch (error) {
-    console.error("❌ [KOT] Error generating daily sequence:", {
+    console.error("❌ [KOT] Error generating KOT number:", {
       message: error.message,
       cafeteriaId,
     });
