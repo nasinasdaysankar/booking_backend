@@ -356,7 +356,6 @@ export const getAdminOrders = async (req, res) => {
              orders."updated_at" AS "updatedAt",
              orders."commission_amount" AS "commissionAmount",
              orders."daily_order_number" AS "dailyOrderNumber",
-             orders."total_order_number" AS "totalOrderNumber",
              (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
       WHERE orders.status = :status
