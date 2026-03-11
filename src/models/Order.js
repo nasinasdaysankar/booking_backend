@@ -135,6 +135,12 @@ export default (sequelize) => {
         field: "daily_order_number",
       },
 
+      totalOrderNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "total_order_number",
+      },
+
       etaMinutes: {
         type: DataTypes.INTEGER,
         allowNull: true,
