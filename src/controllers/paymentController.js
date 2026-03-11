@@ -131,6 +131,33 @@ export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
   return results[0].counter;
 };
 
+export const generateTotalOrderNumber = async (transaction) => {
+  // 🛡️ Ensure table exists (Sequential counters)
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS total_order_counters (
+      counter_name VARCHAR(50) PRIMARY KEY,
+      counter INTEGER DEFAULT 0
+    );`,
+    { transaction }
+  );
+
+  const results = await sequelize.query(
+    `
+    INSERT INTO total_order_counters (counter_name, counter)
+    VALUES ('global_order_count', 1)
+    ON CONFLICT (counter_name)
+    DO UPDATE SET counter = total_order_counters.counter + 1
+    RETURNING counter;
+    `,
+    {
+      transaction,
+      type: QueryTypes.SELECT,
+    }
+  );
+
+  return results[0].counter;
+};
+
 // --------------------------------------------------
 // 🆕 HELPER: UPDATE USER STREAK
 // --------------------------------------------------
@@ -378,14 +405,16 @@ export const confirmPayment = async (req, res) => {
 
     let kotNumber = null;
     let dailyOrderNumber = null;
+    let totalOrderNumber = null;
 
     let billId = null;
     if (!order) {
       console.log("📝 [DATABASE] Order not found, creating new one");
       kotNumber = await generateKotNumber(cafeteriaId, t);
       dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+      totalOrderNumber = await generateTotalOrderNumber(t);
       billId = await generateBillId(cafeteriaId, t);
-      console.log(`✅ [KOT]: ${kotNumber}, [DAILY]: ${dailyOrderNumber}, [BILL]: ${billId}`);
+      console.log(`✅ [KOT]: ${kotNumber}, [DAILY]: ${dailyOrderNumber}, [TOTAL]: ${totalOrderNumber}, [BILL]: ${billId}`);
 
       try {
         order = await Order.create(
@@ -399,6 +428,7 @@ export const confirmPayment = async (req, res) => {
             paymentStatus: "SUCCESS",
             kotNumber,
             dailyOrderNumber,
+            totalOrderNumber,
             isParcel: Boolean(isParcel),
             parcelAmount: Number(parcelAmount) || 0,
             platformFee: Number(platformFee) || 0,
@@ -449,6 +479,11 @@ export const confirmPayment = async (req, res) => {
       if (!order.dailyOrderNumber) {
         dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
         updateData.dailyOrderNumber = dailyOrderNumber;
+      }
+
+      if (!order.totalOrderNumber) {
+        totalOrderNumber = await generateTotalOrderNumber(t);
+        updateData.totalOrderNumber = totalOrderNumber;
       }
 
       if (!order.billId || order.billId.includes('TEMP')) {
@@ -550,6 +585,7 @@ export const confirmPayment = async (req, res) => {
           parcelAmount: order.parcelAmount,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
           dailyOrderNumber: order.dailyOrderNumber,
+          totalOrderNumber: totalOrderNumber || order.totalOrderNumber,
           items: formattedItems,
           customerName: req.user.name || "Customer",
         });
@@ -638,6 +674,7 @@ export const confirmPayment = async (req, res) => {
           paymentStatus: order.paymentStatus,
           kotNumber: order.kotNumber,
           dailyOrderNumber: order.dailyOrderNumber,
+          totalOrderNumber: order.totalOrderNumber,
           createdAt: order.createdAt
         });
       } catch (sheetErr) {
@@ -652,6 +689,7 @@ export const confirmPayment = async (req, res) => {
       success: true,
       dbOrderId: order.id,
       dailyOrderNumber: dailyOrderNumber || order.dailyOrderNumber,
+      totalOrderNumber: totalOrderNumber || order.totalOrderNumber,
       billId: billId || order.billId,
       kotNumber,
       message: "Payment confirmed successfully. Order sent to cafeteria.",
