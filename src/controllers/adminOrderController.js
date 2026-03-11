@@ -336,62 +336,49 @@ export const getAdminOrders = async (req, res) => {
     const cafeteriaId = req.user.cafeteriaId;
     const statusList = status ? status.split(',') : ["PAID"];
 
-    const orders = await sequelize.query(
-      `
-      SELECT orders.id,
-             orders."cashfreeorderid" AS "cashfreeOrderId",
-             orders."billid" AS "billId",
-             orders."studentid" AS "studentId",
-             orders."cafeteriaid" AS "cafeteriaId",
-             orders."totalamount" AS "totalAmount",
-             orders.status,
-             orders."paymentstatus" AS "paymentStatus",
-             orders."etaminutes" AS "etaMinutes",
-             orders."kotnumber" AS "kotNumber",
-             orders."israted" AS "isRated",
-             orders."isparcel" AS "isParcel",
-             orders."parcelamount" AS "parcelAmount",
-             orders."platform_fee" AS "platformFee",
-             orders."gst_amount" AS "gstAmount",
-             orders."created_at" AS "createdAt",
-             orders."updated_at" AS "updatedAt",
-             orders."commission_amount" AS "commissionAmount",
-             (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
-      FROM orders
-      WHERE orders.status IN (:statusList)
-      AND orders."cafeteriaid" = :cafeteriaId
-      ORDER BY orders."created_at" DESC
-      `,
-      {
-        replacements: { statusList, cafeteriaId },
-        type: QueryTypes.SELECT,
-      }
-    );
-
+    const orders = await Order.findAll({
+      where: {
+        cafeteriaId,
+        status: { [Op.in]: statusList }
+      },
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'name', 'email', 'phone']
+        },
+        {
+          model: OrderItem,
+          as: 'items'
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     if (orders.length === 0) return res.json([]);
 
-    const orderIds = orders.map((o) => o.id);
+    // 🕊 Map to match Flutter's expected field names and derived values
+    const combinedData = orders.map((order) => {
+      const orderJson = order.toJSON();
 
-    const allItems = await sequelize.query(
-      `SELECT id,
-              "orderid" AS "orderId",
-              "name",
-              "imageurl" AS "imageUrl",
-              "quantity",
-              "priceatorder" AS "priceAtOrder",
-              "isparcel" AS "isParcel"
-       FROM order_items WHERE "orderid" IN (:ids)`,
-      {
-        replacements: { ids: orderIds },
-        type: QueryTypes.SELECT,
-      }
-    );
+      // Ensure prices are numbers for calculations
+      const totalAmount = Number(orderJson.totalAmount) || 0;
+      const platformFee = Number(orderJson.platformFee) || 0;
+      const commissionAmount = Number(orderJson.commissionAmount) || 0;
 
-    const combinedData = orders.map((order) => ({
-      ...order,
-      items: allItems.filter((item) => item.orderId === order.id),
-    }));
+      return {
+        ...orderJson,
+        customerName: orderJson.User?.name || "User",
+        customerEmail: orderJson.User?.email,
+        customerPhone: orderJson.User?.phone,
+        netAmount: totalAmount - platformFee - commissionAmount,
+        // Explicitly map nested items to ensure property names match
+        items: (orderJson.items || []).map(item => ({
+          ...item,
+          // Ensure isParcel is a boolean for Flutter
+          isParcel: !!item.isParcel
+        }))
+      };
+    });
 
     return res.json(combinedData);
   } catch (err) {
