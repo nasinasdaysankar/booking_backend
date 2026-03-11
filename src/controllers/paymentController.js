@@ -651,6 +651,7 @@ export const confirmPayment = async (req, res) => {
     return res.json({
       success: true,
       dbOrderId: order.id,
+      dailyOrderNumber: order.dailyOrderNumber,
       billId: order.billId,
       kotNumber,
       message: "Payment confirmed successfully. Order sent to cafeteria.",

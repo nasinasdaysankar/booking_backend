@@ -27,6 +27,7 @@
 
 // export default router;
 import express from "express";
+import { UserActivity } from "../models/index.js";
 import { auth } from "../middleware/auth.js";
 import {
   scanStaticCafeteriaQR,
@@ -60,5 +61,32 @@ router.delete("/delete-account", auth, deleteAccount);
 
 // REFUND HISTORY
 router.get("/refunds/history", auth, getUserRefundHistory);
+
+// ============================================
+// 📊 ACTIVITY LOGGING
+// ============================================
+router.post("/activity", auth, async (req, res) => {
+  try {
+    const { activityType, sessionId, durationSeconds, metadata } = req.body;
+    const userId = req.user.id;
+
+    if (!activityType) {
+      return res.status(400).json({ success: false, message: "activityType is required" });
+    }
+
+    await UserActivity.create({
+      userId,
+      activityType,
+      sessionId,
+      durationSeconds,
+      metadata,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error logging activity:", error);
+    res.status(500).json({ success: false, message: "Failed to log activity" });
+  }
+});
 
 export default router;

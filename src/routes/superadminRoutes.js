@@ -1,7 +1,7 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback, UserActivity } from '../models/index.js';
 import { superadminAuth } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -1101,6 +1101,192 @@ router.get('/app-feedback', superadminAuth, async (req, res) => {
     } catch (error) {
         console.error('❌ getAllAppFeedback ERROR:', error.message);
         res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// ============================================
+// GET ADVANCED ANALYTICS (SUPERADMIN)
+// ============================================
+router.get('/analytics/advanced', superadminAuth, async (req, res) => {
+    try {
+        const { cafeteriaId, days = 30 } = req.query;
+        const periodDays = parseInt(days);
+
+        const now = new Date();
+        const periodStart = new Date(now);
+        periodStart.setDate(periodStart.getDate() - periodDays);
+
+        const cafeteriaFilter = cafeteriaId ? `AND "cafeteriaid" = :cafeteriaId` : '';
+        const orderCafeteriaFilter = cafeteriaId ? `AND o."cafeteriaid" = :cafeteriaId` : '';
+
+        // 1. DAU (Daily Active Users) - Trend for the period
+        const dauTrend = await sequelize.query(
+            `
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(DISTINCT userid) as count
+            FROM user_activities
+            WHERE activitytype = 'APP_OPEN'
+            AND created_at >= NOW() - INTERVAL '${periodDays} days'
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            `,
+            { type: QueryTypes.SELECT }
+        );
+
+        // 2. MAU (Monthly Active Users) - Single value for last 30 days
+        const mauResult = await sequelize.query(
+            `
+            SELECT COUNT(DISTINCT userid) as count
+            FROM user_activities
+            WHERE activitytype = 'APP_OPEN'
+            AND created_at >= NOW() - INTERVAL '30 days'
+            `,
+            { type: QueryTypes.SELECT }
+        );
+        const mau = parseInt(mauResult[0].count) || 0;
+
+        // 3. Peak Order Times
+        const peakTimes = await sequelize.query(
+            `
+            SELECT 
+                EXTRACT(HOUR FROM created_at) as hour,
+                COUNT(*) as count
+            FROM orders
+            WHERE paymentstatus = 'SUCCESS'
+            AND created_at >= NOW() - INTERVAL '${periodDays} days'
+            ${cafeteriaFilter}
+            GROUP BY hour
+            ORDER BY count DESC
+            `,
+            {
+                replacements: { cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        // 4. Conversion Rate (Opens vs Success Orders)
+        const totalOpensResult = await sequelize.query(
+            `
+            SELECT COUNT(*) as count
+            FROM user_activities
+            WHERE activitytype = 'APP_OPEN'
+            AND created_at >= NOW() - INTERVAL '${periodDays} days'
+            `,
+            { type: QueryTypes.SELECT }
+        );
+        const totalOpens = parseInt(totalOpensResult[0].count) || 1; // Avoid division by zero
+
+        const totalOrdersResult = await sequelize.query(
+            `
+            SELECT COUNT(*) as count
+            FROM orders
+            WHERE paymentstatus = 'SUCCESS'
+            AND created_at >= NOW() - INTERVAL '${periodDays} days'
+            ${cafeteriaFilter}
+            `,
+            {
+                replacements: { cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null },
+                type: QueryTypes.SELECT
+            }
+        );
+        const totalOrders = parseInt(totalOrdersResult[0].count) || 0;
+        const conversionRate = (totalOrders / totalOpens) * 100;
+
+        // 5. Returning vs New Users
+        // New users in this period
+        const newUsersCount = await User.count({
+            where: {
+                createdAt: { [Op.gte]: periodStart }
+            }
+        });
+
+        // Returning users (Users who ordered in this period and also had orders before this period)
+        const returningUsersResult = await sequelize.query(
+            `
+            SELECT COUNT(DISTINCT o_current.studentid) as count
+            FROM orders o_current
+            WHERE o_current.paymentstatus = 'SUCCESS'
+            AND o_current.created_at >= :periodStart
+            AND EXISTS (
+                SELECT 1 FROM orders o_past
+                WHERE o_past.studentid = o_current.studentid
+                AND o_past.paymentstatus = 'SUCCESS'
+                AND o_past.created_at < :periodStart
+            )
+            `,
+            {
+                replacements: { periodStart },
+                type: QueryTypes.SELECT
+            }
+        );
+        const returningUsers = parseInt(returningUsersResult[0].count) || 0;
+
+        // 6. Payment Success vs Failed
+        const paymentStats = await sequelize.query(
+            `
+            SELECT 
+                paymentstatus,
+                COUNT(*) as count
+            FROM orders
+            WHERE created_at >= NOW() - INTERVAL '${periodDays} days'
+            ${cafeteriaFilter}
+            GROUP BY paymentstatus
+            `,
+            {
+                replacements: { cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        // 7. Orders & Revenue per Cafeteria
+        const cafeteriaStats = await sequelize.query(
+            `
+            SELECT 
+                c.id,
+                c.name,
+                COUNT(o.id) as orders,
+                COALESCE(SUM(o.totalamount), 0) as revenue
+            FROM cafeterias c
+            LEFT JOIN orders o ON c.id = o.cafeteriaid AND o.paymentstatus = 'SUCCESS' AND o.created_at >= NOW() - INTERVAL '${periodDays} days'
+            GROUP BY c.id, c.name
+            ORDER BY revenue DESC
+            `,
+            { type: QueryTypes.SELECT }
+        );
+
+        // 8. User Session Duration (Average)
+        const avgSessionDurationResult = await sequelize.query(
+            `
+            SELECT AVG(durationseconds) as avg_duration
+            FROM user_activities
+            WHERE activitytype = 'SESSION_END'
+            AND created_at >= NOW() - INTERVAL '${periodDays} days'
+            `,
+            { type: QueryTypes.SELECT }
+        );
+        const avgSessionDuration = parseFloat(avgSessionDurationResult[0].avg_duration) || 0;
+
+        res.json({
+            success: true,
+            data: {
+                dauTrend,
+                mau,
+                peakTimes,
+                conversionRate: parseFloat(conversionRate.toFixed(2)),
+                userStats: {
+                    newUsers: newUsersCount,
+                    returningUsers
+                },
+                paymentStats,
+                cafeteriaStats,
+                avgSessionDuration: Math.round(avgSessionDuration)
+            }
+        });
+
+    } catch (error) {
+        console.error('Advanced analytics error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch advanced analytics' });
     }
 });
 

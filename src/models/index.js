@@ -22,6 +22,7 @@ import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 import AppFeedbackModel from "./AppFeedback.js";
+import UserActivityModel from "./UserActivity.js";
 
 import app from "../app.js";
 import http from "http";
@@ -66,6 +67,7 @@ const UserStreak = UserStreakModel(sequelize);
 // ⭐ FEEDBACK MODEL
 const OrderFeedback = OrderFeedbackModel(sequelize);
 const AppFeedback = AppFeedbackModel(sequelize);
+const UserActivity = UserActivityModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -141,6 +143,10 @@ UserStreak.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 Cafeteria.hasMany(UserStreak, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
+// User → Activity
+User.hasMany(UserActivity, { foreignKey: { name: "userId", field: "userid" } });
+UserActivity.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
+
 // ================= SYSTEM RELATIONS =================
 SystemAlert.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
 Cafeteria.hasMany(SystemAlert, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "alerts" });
@@ -175,5 +181,6 @@ export {
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
   AppFeedback,
+  UserActivity,
   UpiPayment, // [NEW] Auto Collect
 };
