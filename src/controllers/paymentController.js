@@ -255,7 +255,6 @@ export const confirmPayment = async (req, res) => {
     // ========================================
     console.log("✅ [VALIDATE] Checking required fields:");
     console.log(`  - cashfreeOrderId: ${cashfreeOrderId}`);
-    console.log(`  - billId: ${billId}`);
     console.log(`  - cafeteriaId: ${cafeteriaId}`);
     console.log(`  - amount: ${amount}`);
     console.log(`  - authenticatedStudentId: ${authenticatedStudentId}`);
@@ -436,6 +435,16 @@ export const confirmPayment = async (req, res) => {
       kotNumber = order.kotNumber;
       billId = order.billId;
       dailyOrderNumber = order.dailyOrderNumber;
+
+      const updateData = {
+        status: "PAID",
+        paymentStatus: "SUCCESS",
+        isParcel: Boolean(isParcel),
+        parcelAmount: Number(parcelAmount) || 0,
+        platformFee: Number(platformFee) || 0,
+        commissionAmount: Number(commissionAmount) || 0,
+        gstAmount: Number(gstAmount) || 0,
+      };
 
       if (!order.dailyOrderNumber) {
         dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
