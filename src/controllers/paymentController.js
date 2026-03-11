@@ -651,8 +651,8 @@ export const confirmPayment = async (req, res) => {
     return res.json({
       success: true,
       dbOrderId: order.id,
-      dailyOrderNumber: order.dailyOrderNumber,
-      billId: order.billId,
+      dailyOrderNumber: dailyOrderNumber || order.dailyOrderNumber,
+      billId: billId || order.billId,
       kotNumber,
       message: "Payment confirmed successfully. Order sent to cafeteria.",
     });
@@ -698,7 +698,7 @@ export const verifyPaymentStatus = async (req, res) => {
 
     console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+
 
     let paymentStatus = "";
     let orderStatus = "";
