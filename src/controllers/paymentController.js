@@ -89,7 +89,7 @@ export const generateBillId = async (cafeteriaId, transaction) => {
   const prefix = getCafeteriaPrefix(cafeteriaId);
   const randomStr = Math.random().toString(36).substring(2, 7).toUpperCase();
 
-  const [result] = await sequelize.query(
+  const results = await sequelize.query(
     `
     INSERT INTO bill_counters (cafeteria_id, counter)
     VALUES (:cafeteriaId, 1)
@@ -100,21 +100,20 @@ export const generateBillId = async (cafeteriaId, transaction) => {
     {
       replacements: { cafeteriaId },
       transaction,
-      type: QueryTypes.INSERT,
+      type: QueryTypes.SELECT,
     }
   );
 
-  const counter = result[0].counter;
+  const counter = results[0].counter;
   const sequence = String(counter).padStart(2, "0");
 
-  // Format: AR-UVMVCVNV01
   return `${prefix}-${randomStr}${sequence}`;
 };
 
 export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = dayjs().format('YYYY-MM-DD');
 
-  const [result] = await sequelize.query(
+  const results = await sequelize.query(
     `
     INSERT INTO daily_order_counters (cafeteria_id, date, counter)
     VALUES (:cafeteriaId, :today, 1)
@@ -125,11 +124,11 @@ export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
     {
       replacements: { cafeteriaId, today },
       transaction,
-      type: QueryTypes.INSERT,
+      type: QueryTypes.SELECT,
     }
   );
 
-  return result[0].counter;
+  return results[0].counter;
 };
 
 // --------------------------------------------------
@@ -375,7 +374,7 @@ export const confirmPayment = async (req, res) => {
     let order = await Order.findOne({
       where: { cashfreeOrderId },
       transaction: t,
-      lock: t.LOCK.UPDATE,
+      // Removed lock to avoid deadlocks; sequential IDs are generated atomically via separate tables
     });
 
     let kotNumber = null;
@@ -435,22 +434,17 @@ export const confirmPayment = async (req, res) => {
     } else {
       console.log("📝 [DATABASE] Order already exists, updating it");
       kotNumber = order.kotNumber;
-      const updateData = {
-        status: "PAID",
-        paymentStatus: "SUCCESS",
-        isParcel: Boolean(isParcel),
-        parcelAmount: Number(parcelAmount) || 0,
-        platformFee: Number(platformFee) || 0,
-        commissionAmount: Number(commissionAmount) || 0,
-        gstAmount: Number(gstAmount) || 0,
-      };
+      billId = order.billId;
+      dailyOrderNumber = order.dailyOrderNumber;
 
       if (!order.dailyOrderNumber) {
-        updateData.dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+        dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+        updateData.dailyOrderNumber = dailyOrderNumber;
       }
 
       if (!order.billId || order.billId.includes('TEMP')) {
-        updateData.billId = await generateBillId(cafeteriaId, t);
+        billId = await generateBillId(cafeteriaId, t);
+        updateData.billId = billId;
       }
 
       await order.update(updateData, { transaction: t });
@@ -823,7 +817,7 @@ export const syncFromWebhook = async (req, res) => {
     );
 
     if (payment.orderId) {
-      const order = await Order.findByPk(payment.orderId, { transaction: t, lock: t.LOCK.UPDATE });
+      const order = await Order.findByPk(payment.orderId, { transaction: t });
       if (order) {
         const updateData = { status: "PAID", paymentStatus: "SUCCESS" };
 
