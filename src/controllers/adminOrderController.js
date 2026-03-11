@@ -334,6 +334,7 @@ export const getAdminOrders = async (req, res) => {
   try {
     const { status } = req.query;
     const cafeteriaId = req.user.cafeteriaId;
+    const statusList = status ? status.split(',') : ["PAID"];
 
     const orders = await sequelize.query(
       `
@@ -357,12 +358,12 @@ export const getAdminOrders = async (req, res) => {
              orders."commission_amount" AS "commissionAmount",
              (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
-      WHERE orders.status = :status
+      WHERE orders.status IN (:statusList)
       AND orders."cafeteriaid" = :cafeteriaId
       ORDER BY orders."created_at" DESC
       `,
       {
-        replacements: { status: status || "PAID", cafeteriaId },
+        replacements: { statusList, cafeteriaId },
         type: QueryTypes.SELECT,
       }
     );
