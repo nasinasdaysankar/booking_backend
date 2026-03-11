@@ -17,7 +17,8 @@ import {
   getRefundHistory,
   checkWebhookStatus
 } from '../controllers/adminRefundController.js';
-import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';  // ✅ ADD THIS
+import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';
+import { verifyPaymentStatus } from '../controllers/paymentController.js';
 
 const router = express.Router();
 
@@ -151,17 +152,23 @@ router.get(
   checkRefundStatus
 );
 
-/**
- * GET /api/admin/refunds/history
- * Get refund history for admin's cafeteria
- * Query: ?status=REFUND_SUCCESS (optional)
- * Response: { count, data: [{ orderId, billId, refundId, ... }] }
- */
 router.get(
   "/refunds/history",
   auth,
   requireRole(['admin']),
   getRefundHistory
+);
+
+/**
+ * POST /api/admin/orders/verify-payment
+ * Manually trigger Cashfree verification for a pending order
+ * Body: { orderId: "CASHFREE_ID" }
+ */
+router.post(
+  "/orders/verify-payment",
+  auth,
+  requireRole(['admin']),
+  verifyPaymentStatus
 );
 
 

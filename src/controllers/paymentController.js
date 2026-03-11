@@ -155,34 +155,179 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
   await streak.save({ transaction });
 }
 
+// --------------------------------------------------
+// 🆕 HELPER: FINALIZE ORDER AND NOTIFY (REUSABLE)
+// --------------------------------------------------
+async function finalizeOrderAndNotify(order, transactionId, t, options = {}) {
+  const { isManual = false, isParcel = false, parcelAmount = 0, platformFee = 0, commissionAmount = 0, gstAmount = 0, items = [] } = options;
+
+  console.log(`🎯 [FINALIZE] Finalizing Order #${order.id} (Status: ${order.status})`);
+
+  // 1. Only update if not already PAID
+  if (order.status !== "PAID") {
+    const kotNumber = await generateKotNumber(order.cafeteriaId, t);
+    const dailyOrderNumber = await generateDailyOrderNumber(order.cafeteriaId, t);
+
+    console.log(`✅ [GENERATE] KOT: ${kotNumber}, Daily: ${dailyOrderNumber}`);
+
+    await order.update({
+      status: "PAID",
+      paymentStatus: "SUCCESS",
+      kotNumber,
+      dailyOrderNumber,
+      isParcel: Boolean(isParcel) || order.isParcel,
+      parcelAmount: Number(parcelAmount) || order.parcelAmount,
+      platformFee: Number(platformFee) || order.platformFee,
+      commissionAmount: Number(commissionAmount) || order.commissionAmount,
+      gstAmount: Number(gstAmount) || order.gstAmount,
+    }, { transaction: t });
+  }
+
+  // 2. Create Payment record if missing
+  const existingPayment = await Payment.findOne({
+    where: { cashfreeOrderId: order.cashfreeOrderId },
+    transaction: t,
+  });
+
+  if (!existingPayment) {
+    await Payment.create({
+      orderId: order.id,
+      billId: order.billId,
+      cafeteriaId: order.cafeteriaId,
+      paymentGateway: "CASHFREE",
+      cashfreeOrderId: order.cashfreeOrderId,
+      transactionId: transactionId || order.cashfreeOrderId,
+      amount: order.totalAmount,
+      status: "SUCCESS",
+      paidAt: new Date(),
+    }, { transaction: t });
+    console.log("💳 [PAYMENT] Record created");
+  }
+
+  // 3. Update Streak
+  await updateUserStreak(order.studentId, order.cafeteriaId, t);
+
+  // 4. Send Notifications (Async after commit logic usually, but we'll trigger here)
+  // We need the items for the socket/sheets. If not provided, fetch them.
+  let finalItems = items;
+  if (finalItems.length === 0) {
+    const dbItems = await OrderItem.findAll({ where: { orderId: order.id }, transaction: t });
+    finalItems = dbItems.map(i => ({
+      name: i.name,
+      quantity: i.quantity,
+      price: i.priceAtOrder,
+      imageUrl: i.imageUrl,
+      isParcelSelected: i.isParcel,
+    }));
+  }
+
+  // Fetch student name if not provided
+  let studentName = "Customer";
+  const student = await order.getUser({ transaction: t });
+  if (student) studentName = student.name || student.email || "Customer";
+
+  // Trigger non-blocking notifications
+  setTimeout(async () => {
+    try {
+      console.log(`🔔 [NOTIFY] Sending notifications for Order #${order.id}`);
+
+      emitNewOrder(order.cafeteriaId, {
+        orderId: order.id,
+        id: order.id,
+        billId: order.billId,
+        kotNumber: order.kotNumber,
+        totalAmount: order.totalAmount,
+        status: "PAID",
+        createdAt: order.createdAt,
+        isParcel: order.isParcel,
+        parcelAmount: order.parcelAmount,
+        netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
+        items: finalItems,
+        customerName: studentName,
+      });
+
+      // Admin Push Notifications
+      const adminTokens = await AdminFcmToken.findAll({ where: { cafeteriaId: order.cafeteriaId } });
+      if (adminTokens.length > 0) {
+        const tokens = adminTokens.map((t) => t.fcmToken);
+        await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: "🍽 New Order Received",
+            body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
+          },
+          data: {
+            type: "NEW_ORDER",
+            orderId: String(order.id),
+            kotNumber: order.kotNumber || "",
+            cafeteriaId: String(order.cafeteriaId),
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "high_importance_channel", sound: "default" },
+          },
+        });
+      }
+
+      // Sheets Sync
+      appendOrderToSheet({
+        id: order.id,
+        cashfreeOrderId: order.cashfreeOrderId,
+        billId: order.billId,
+        studentId: order.studentId,
+        customerName: studentName,
+        cafeteriaId: order.cafeteriaId,
+        totalAmount: order.totalAmount,
+        platformFee: order.platformFee,
+        gstAmount: order.gstAmount,
+        commissionAmount: order.commissionAmount,
+        isParcel: order.isParcel,
+        parcelAmount: order.parcelAmount,
+        items: finalItems,
+        status: "PAID",
+        paymentStatus: "SUCCESS",
+        kotNumber: order.kotNumber,
+        createdAt: order.createdAt
+      }).catch(e => console.error("⚠️ Sheets error:", e.message));
+
+      clearAnalyticsCache(order.cafeteriaId).catch(() => { });
+    } catch (e) {
+      console.error("⚠️ Async notification error:", e.message);
+    }
+  }, 0);
+
+  return order;
+}
+
 // ===================================================================
 // ✅ CREATE CASHFREE ORDER (PROXY TO FINANCE BACKEND)
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
 
     const payload = req.body;
+    const {
+      orderId: cashfreeOrderId,
+      cafeteriaId,
+      items,
+      isParcel,
+      parcelAmount,
+      platformFee,
+      commissionAmount,
+      gstAmount,
+      orderAmount
+    } = payload;
+
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
     const internalApiKey = process.env.WEBHOOK_API_KEY;
 
-    console.log(`🔗 [PROXY] Finance URL: ${financeBackendUrl}`);
-    console.log(`🔑 [PROXY] API Key set: ${!!internalApiKey}, length: ${internalApiKey?.length || 0}`);
-
     if (!financeBackendUrl) {
-      return res.status(500).json({
-        success: false,
-        message: "Finance backend URL not configured",
-      });
+      throw new Error("Finance backend URL not configured");
     }
 
-    if (!internalApiKey) {
-      return res.status(500).json({
-        success: false,
-        message: "Internal API key not configured",
-      });
-    }
-
+    // 1. Forward to Finance Backend
     const response = await axios.post(financeBackendUrl, payload, {
       headers: {
         "Content-Type": "application/json",
@@ -191,13 +336,50 @@ export const createCashfreeOrder = async (req, res) => {
       timeout: 15000,
     });
 
-    console.log("✅ [PROXY] Order created successfully via Finance Backend");
-    return res.status(200).json(response.data);
+    const cfData = response.data;
+    const billId = cfData.billId;
+
+    console.log(`✅ [PROXY] Order created at gateway. BillID: ${billId}`);
+
+    // 2. Pre-create local Order record (Status: PENDING_PAYMENT)
+    const order = await Order.create({
+      cashfreeOrderId,
+      billId,
+      studentId: req.user.id,
+      cafeteriaId,
+      totalAmount: orderAmount,
+      status: "PENDING_PAYMENT",
+      paymentStatus: "PENDING",
+      isParcel: !!isParcel,
+      parcelAmount: Number(parcelAmount) || 0,
+      platformFee: Number(platformFee) || 0,
+      commissionAmount: Number(commissionAmount) || 0,
+      gstAmount: Number(gstAmount) || 0,
+    }, { transaction: t });
+
+    // 3. Create OrderItems
+    if (items && Array.isArray(items)) {
+      const formattedItems = items.map(item => ({
+        orderId: order.id,
+        name: item.name,
+        quantity: item.quantity,
+        priceAtOrder: item.price,
+        imageUrl: item.imageUrl,
+        isParcel: !!item.isParcelSelected,
+      }));
+      await OrderItem.bulkCreate(formattedItems, { transaction: t });
+    }
+
+    await t.commit();
+    console.log(`💾 [DATABASE] Pending Order #${order.id} pre-created.`);
+
+    return res.status(200).json(cfData);
   } catch (error) {
-    console.error("❌ [PROXY] Error creating Cashfree order:", error?.response?.data || error.message);
+    if (!t.finished) await t.rollback();
+    console.error("❌ [PROXY] Error initiating Cashfree order:", error?.response?.data || error.message);
     return res.status(error?.response?.status || 500).json({
       success: false,
-      message: "Failed to create Cashfree order via proxy",
+      message: "Failed to initiate payment",
       error: error?.response?.data?.error || error.message,
     });
   }
@@ -351,296 +533,46 @@ export const confirmPayment = async (req, res) => {
     }
 
     // ========================================
-    // 🔍 DEBUG SECTION 4: Database Operations
+    // 💾 [DATABASE] Finalize Order Status
     // ========================================
-    console.log("\n💾 [DATABASE] Creating/updating order records...");
-
     let order = await Order.findOne({
       where: { cashfreeOrderId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    let kotNumber = null;
-    let dailyOrderNumber = null;
-
     if (!order) {
-      console.log("📝 [DATABASE] Order not found, creating new one");
-      kotNumber = await generateKotNumber(cafeteriaId, t);
-      dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
-      console.log(`✅ [KOT] Generated: ${kotNumber}, [DAILY]: ${dailyOrderNumber}`);
-
-      try {
-        order = await Order.create(
-          {
-            cashfreeOrderId,
-            billId,
-            studentId: authenticatedStudentId,
-            cafeteriaId,
-            totalAmount: amount,
-            status: "PAID",
-            paymentStatus: "SUCCESS",
-            kotNumber,
-            dailyOrderNumber,
-            isParcel: Boolean(isParcel),
-            parcelAmount: Number(parcelAmount) || 0,
-            platformFee: Number(platformFee) || 0,
-            commissionAmount: Number(commissionAmount) || 0,
-            gstAmount: Number(gstAmount) || 0,
-          },
-          { transaction: t }
-        );
-
-        console.log(`✅ [DATABASE] Order created with ID: ${order.id}`);
-      } catch (createErr) {
-        console.error("❌ [DATABASE CREATE ERROR]:", {
-          name: createErr.name,
-          message: createErr.message,
-          sql: createErr.sql,
-          fields: createErr.fields,
-        });
-
-        await t.rollback();
-
-        return res.status(500).json({
-          success: false,
-          message: "Failed to create order in database",
-          error: createErr.message,
-          debug: {
-            errorName: createErr.name,
-            sql: createErr.sql,
-            fields: createErr.fields,
-          },
-        });
-      }
-    } else {
-      console.log("📝 [DATABASE] Order already exists, updating it");
-      kotNumber = order.kotNumber;
-      await order.update(
-        {
-          status: "PAID",
-          paymentStatus: "SUCCESS",
-          isParcel: Boolean(isParcel),
-          parcelAmount: Number(parcelAmount) || 0,
-          platformFee: Number(platformFee) || 0,
-          commissionAmount: Number(commissionAmount) || 0,
-          gstAmount: Number(gstAmount) || 0,
-        },
-        { transaction: t }
-      );
-      console.log(`✅ [DATABASE] Order updated: ${order.id}`);
+      console.error("❌ [DATABASE] Order record not found! Pre-creation must have failed.");
+      await t.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Order record not found. Please contact support if amount was deducted.",
+      });
     }
 
-    // ========================================
-    // 💳 CREATE PAYMENT RECORD
-    // ========================================
-    console.log("\n💳 [PAYMENT] Creating payment record...");
-
-    const existingPayment = await Payment.findOne({
-      where: { cashfreeOrderId },
-      transaction: t,
+    await finalizeOrderAndNotify(order, transactionId, t, {
+      items,
+      isParcel,
+      parcelAmount,
+      platformFee,
+      commissionAmount,
+      gstAmount
     });
 
-    if (!existingPayment) {
-      await Payment.create(
-        {
-          orderId: order.id,
-          billId,
-          cafeteriaId,
-          paymentGateway: "CASHFREE",
-          cashfreeOrderId,
-          transactionId,
-          amount,
-          status: "SUCCESS",
-          paidAt: new Date(),
-        },
-        { transaction: t }
-      );
-
-      console.log("✅ [PAYMENT] Payment record created");
-    } else {
-      console.log("ℹ️ [PAYMENT] Payment already exists");
-    }
-
-    let formattedItems = [];
-    if (Array.isArray(items) && items.length > 0) {
-      formattedItems = items.map((item) => {
-        const isParcelForThisItem = Boolean(item.isParcelSelected);
-        return {
-          orderId: order.id,
-          menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
-          name: item.name,
-          quantity: item.quantity || item.qty,
-          priceAtOrder: item.price,
-          imageUrl: item.imageUrl || item.img || null,
-          isParcel: isParcelForThisItem,
-        };
-      });
-
-      const existingItem = await OrderItem.findOne({
-        where: { orderId: order.id },
-        transaction: t,
-      });
-
-      if (!existingItem) {
-        console.log("🧺 [ITEMS] Creating order items...");
-        await OrderItem.bulkCreate(formattedItems, { transaction: t });
-        console.log(`✅ Created ${formattedItems.length} order items`);
-      }
-    }
-
-    // ========================================
-    // 🎯 UPDATE USER STREAK
-    // ========================================
-    await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
-
     await t.commit();
+    console.log("✅ Transaction committed successfully (Manual Confirmation)");
 
-    console.log("✅ Transaction committed successfully");
-
-    // 🗑️ INVALIDATE ANALYTICS CACHE immediately so admin dashboard
-    // shows updated top items / frequently ordered without delay
-    clearAnalyticsCache(cafeteriaId).catch(err =>
-      console.warn("⚠️ Analytics cache clear error (non-blocking):", err.message)
-    );
-
-    // ========================================
-    // 🔔 SEND NOTIFICATIONS (Async)
-    // ========================================
-    (async () => {
-      try {
-        emitNewOrder(cafeteriaId, {
-          orderId: order.id,
-          id: order.id,
-          billId: order.billId,
-          kotNumber: order.kotNumber,
-          totalAmount: order.totalAmount,
-          status: order.status,
-          createdAt: order.createdAt,
-          isParcel: order.isParcel,
-          parcelAmount: order.parcelAmount,
-          netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
-          items: formattedItems,
-          customerName: req.user.name || "Customer",
-        });
-
-        const adminTokens = await AdminFcmToken.findAll({
-          where: { cafeteriaId },
-        });
-
-        console.log(`📊 Found ${adminTokens.length} FCM tokens for cafeteria ${cafeteriaId}`);
-
-        if (adminTokens.length > 0) {
-          const tokens = adminTokens.map((t) => t.fcmToken);
-
-          console.log(`🔔 Sending FCM to ${tokens.length} device(s)...`);
-
-          const standardNotificationResponse = await admin.messaging().sendEachForMulticast({
-            tokens,
-            notification: {
-              title: "🍽 New Order Received",
-              body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-            },
-            data: {
-              type: "NEW_ORDER",
-              orderId: String(order.id),
-              kotNumber: order.kotNumber || "",
-              cafeteriaId: String(cafeteriaId),
-            },
-            android: {
-              priority: "high",
-              notification: { channelId: "high_importance_channel", sound: "default" },
-            },
-            apns: {
-              payload: {
-                aps: {
-                  alert: {
-                    title: "🍽 New Order Received",
-                    body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
-                  },
-                  sound: "default",
-                  badge: 1,
-                  "content-available": 1,
-                },
-              },
-            },
-          });
-
-          console.log(`🔔 FCM Result: ${standardNotificationResponse.successCount} success, ${standardNotificationResponse.failureCount} failed`);
-
-          if (standardNotificationResponse.failureCount > 0) {
-            const invalidTokens = [];
-            standardNotificationResponse.responses.forEach((resp, idx) => {
-              if (!resp.success) {
-                console.log(`  ❌ Token ${idx} failed:`, resp.error?.message);
-                invalidTokens.push(adminTokens[idx].fcmToken);
-              }
-            });
-            if (invalidTokens.length > 0) {
-              await AdminFcmToken.destroy({ where: { fcmToken: invalidTokens } });
-              console.log("🧹 Cleaned up invalid admin tokens:", invalidTokens.length);
-            }
-          }
-        } else {
-          console.log("⚠️ No FCM tokens found for this cafeteria — admin won't receive push notification");
-        }
-      } catch (notifyErr) {
-        console.error("⚠️ Notification error (background):", notifyErr);
-      }
-
-      // 📊 GOOGLE SHEETS SYNC
-      try {
-        await appendOrderToSheet({
-          id: order.id,
-          cashfreeOrderId: order.cashfreeOrderId,
-          billId: order.billId,
-          studentId: order.studentId,
-          customerName: req.user.name || "Customer",
-          cafeteriaId: order.cafeteriaId,
-          totalAmount: order.totalAmount,
-          platformFee: order.platformFee,
-          gstAmount: order.gstAmount,
-          commissionAmount: order.commissionAmount,
-          isParcel: order.isParcel,
-          parcelAmount: order.parcelAmount,
-          items: items,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          kotNumber: order.kotNumber,
-          createdAt: order.createdAt
-        });
-      } catch (sheetErr) {
-        console.error("⚠️ Sheets sync error (background):", sheetErr.message);
-      }
-    })();
-
-    // ========================================
-    // ✅ RETURN SUCCESS RESPONSE
-    // ========================================
     return res.json({
       success: true,
       dbOrderId: order.id,
       billId: order.billId,
-      kotNumber,
-      message: "Payment confirmed successfully. Order sent to cafeteria.",
+      kotNumber: order.kotNumber,
+      message: "Order placed successfully.",
     });
   } catch (err) {
-    if (!t.finished) {
-      await t.rollback();
-    }
-
-    console.error("❌ [FATAL ERROR] confirmPayment failed:", {
-      message: err.message,
-      stack: err.stack,
-      name: err.name,
-    });
-
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-      errorName: err.name,
-      debug: process.env.NODE_ENV === "development" ? { stack: err.stack } : undefined,
-    });
+    if (!t.finished) await t.rollback();
+    console.error("❌ [CONFIRM] Error:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 
@@ -712,6 +644,22 @@ export const verifyPaymentStatus = async (req, res) => {
 
     console.log(`📊 [VERIFY] orderStatus=${orderStatus}, paymentStatus=${paymentStatus}, isSuccess=${isSuccess}`);
 
+    // ✅ ROBUSTNESS: If verified as SUCCESS, ensure order is finalized in our DB
+    if (isSuccess) {
+      const order = await Order.findOne({ where: { cashfreeOrderId: orderId } });
+      if (order && order.status === "PENDING_PAYMENT") {
+        console.log(`🛠 [VERIFY] Order ${orderId} is PENDING_PAYMENT in DB but SUCCESS in Cashfree. Finalizing now...`);
+        const t = await sequelize.transaction();
+        try {
+          await finalizeOrderAndNotify(order, null, t);
+          await t.commit();
+        } catch (finalizeErr) {
+          if (!t.finished) await t.rollback();
+          console.error("❌ [VERIFY] Finalization error:", finalizeErr.message);
+        }
+      }
+    }
+
     return res.json({
       success: true,
       paymentStatus: isSuccess ? "SUCCESS" : (paymentStatus || orderStatus || "UNKNOWN"),
@@ -745,89 +693,47 @@ export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-    const { cashfreeOrderId, paymentId, orderStatus, paymentStatus } = req.body;
+    const { cashfreeOrderId, paymentId, paymentStatus } = req.body;
 
     if (!cashfreeOrderId || !paymentId) {
       await t.rollback();
-      return res.json({
-        success: true,
-        message: "Invalid webhook (missing orderId or paymentId)",
-      });
+      return res.json({ success: true, message: "Invalid webhook" });
     }
 
     if (paymentStatus !== "SUCCESS") {
       await t.rollback();
-      return res.json({
-        success: true,
-        message: `Ignoring ${paymentStatus} payment`,
-      });
+      return res.json({ success: true, message: `Ignoring ${paymentStatus}` });
     }
 
-    const payment = await Payment.findOne({
+    // 1. Find the order (should have been pre-created)
+    const order = await Order.findOne({
       where: { cashfreeOrderId },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
 
-    if (!payment) {
+    if (!order) {
+      console.warn(`⚠️ [WEBHOOK] Order ${cashfreeOrderId} not found in DB! Creating link in pending_webhooks.`);
       await sequelize.query(
-        `
-        INSERT INTO pending_webhooks (cashfree_order_id, payment_id)
-        VALUES (:orderId, :paymentId)
-        ON CONFLICT (cashfree_order_id)
-        DO UPDATE SET payment_id = EXCLUDED.payment_id
-        `,
-        {
-          replacements: { orderId: cashfreeOrderId, paymentId },
-          transaction: t,
-        }
+        `INSERT INTO pending_webhooks (cashfree_order_id, payment_id) VALUES (:orderId, :paymentId)
+         ON CONFLICT (cashfree_order_id) DO UPDATE SET payment_id = EXCLUDED.payment_id`,
+        { replacements: { orderId: cashfreeOrderId, paymentId }, transaction: t }
       );
-
       await t.commit();
-      return res.json({
-        success: true,
-        message: "Webhook saved. Will be linked when /confirm runs.",
-      });
+      return res.json({ success: true, message: "Webhook saved (Order not yet in DB)" });
     }
 
-    await payment.update(
-      { paymentId, status: "SUCCESS", paidAt: new Date() },
-      { transaction: t }
-    );
-
-    if (payment.orderId) {
-      await Order.update(
-        { status: "PAID", paymentStatus: "SUCCESS" },
-        { where: { id: payment.orderId }, transaction: t }
-      );
-    }
+    // 2. Finalize using the same logic as manual confirmation
+    await finalizeOrderAndNotify(order, paymentId, t);
 
     await t.commit();
+    console.log(`✅ [WEBHOOK] Order #${order.id} finalized via Webhook sync.`);
 
-    // 🗑️ INVALIDATE ANALYTICS CACHE on webhook sync
-    if (payment.orderId) {
-      const syncedOrder = await Order.findByPk(payment.orderId);
-      if (syncedOrder?.cafeteriaId) {
-        clearAnalyticsCache(syncedOrder.cafeteriaId).catch(err =>
-          console.warn("⚠️ Analytics cache clear error (webhook, non-blocking):", err.message)
-        );
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: "Webhook processed and linked",
-      cashfreeOrderId,
-      paymentId,
-    });
+    return res.json({ success: true, message: "Webhook processed successfully" });
   } catch (err) {
     if (!t.finished) await t.rollback();
-    console.error("❌ [WEBHOOK] Error:", err);
-
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+    console.error("❌ [WEBHOOK] Sync Error:", err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 
