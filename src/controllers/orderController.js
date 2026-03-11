@@ -126,22 +126,12 @@
 //   }
 // };
 
-import crypto from 'crypto';
-import { Order, OrderItem, MenuItem, OrderFeedback } from '../models/index.js';
+import { Order, OrderItem, MenuItem, OrderFeedback, sequelize } from '../models/index.js';
 import { clearAnalyticsCache } from '../utils/cache.js';
+import { generateBillId, generateDailyOrderNumber } from './paymentController.js';
+import { Op } from 'sequelize';
 
-// --------------------------------------------------
-// HELPER: GENERATE CUSTOM BILL ID
-// Format: AA-8F3A9C2D
-// --------------------------------------------------
-const generateBillId = (cafeteriaId) => {
-  let prefix = "GEN";
-  const mapping = { 1: "AA", 2: "AR", 3: "DP", 4: "FC" };
-  prefix = mapping[Number(cafeteriaId)] || "GEN";
-
-  const randomString = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `${prefix}-${randomString}`;
-};
+// Helpers moved to paymentController.js for sharing
 
 // --------------------------------------------------
 // ETA CALCULATOR
@@ -179,14 +169,18 @@ export const createOrder = async (req, res) => {
       });
     }
 
+    const billId = await generateBillId(cafeteriaId, t);
+    const dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+
     const order = await Order.create(
       {
-        billId: generateBillId(cafeteriaId),
+        billId,
         studentId: userId,
         cafeteriaId,
         totalAmount: total.toFixed(2),
         status: "PAID",
         paymentStatus: "SUCCESS",
+        dailyOrderNumber,
       },
       { transaction: t }
     );

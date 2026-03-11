@@ -146,6 +146,7 @@ export const confirmOrderPickup = async (req, res) => {
       orderId: order.id,
       billId: order.billId,
       kotNumber: order.kotNumber,
+      dailyOrderNumber: order.dailyOrderNumber,
       status: "PICKED_UP",
       customerName: req.user.name || "Guest",
       totalAmount: order.totalAmount,

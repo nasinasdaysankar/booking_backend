@@ -1,5 +1,5 @@
 import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -32,7 +32,7 @@ const getCashfreeCredentials = () => {
 // --------------------------------------------------
 // 🆕 HELPER: GET CAFETERIA PREFIX
 // --------------------------------------------------
-const getCafeteriaPrefix = (cafeteriaId) => {
+export const getCafeteriaPrefix = (cafeteriaId) => {
   if (!cafeteriaId) return "GEN";
   switch (Number(cafeteriaId)) {
     case 1: return "AA";  // Anathahara
@@ -85,32 +85,51 @@ const generateKotNumber = async (cafeteriaId, transaction) => {
 };
 
 // --------------------------------------------------
-// 🆕 HELPER: GENERATE DAILY ORDER NUMBER (RESETS EVERY DAY)
-// --------------------------------------------------
-const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
-  try {
-    // We use dayjs local time to define "today"
-    const todayStart = dayjs().startOf("day").toDate();
-    const todayEnd = dayjs().endOf("day").toDate();
+export const generateBillId = async (cafeteriaId, transaction) => {
+  const prefix = getCafeteriaPrefix(cafeteriaId);
+  const randomStr = Math.random().toString(36).substring(2, 7).toUpperCase();
 
-    // Use max + 1 to avoid sequence issues and ensure it's truly sequential for that day
-    const maxVal = await Order.max("dailyOrderNumber", {
-      where: {
-        cafeteriaId,
-        createdAt: {
-          [Op.between]: [todayStart, todayEnd],
-        },
-      },
+  const [result] = await sequelize.query(
+    `
+    INSERT INTO bill_counters (cafeteria_id, counter)
+    VALUES (:cafeteriaId, 1)
+    ON CONFLICT (cafeteria_id)
+    DO UPDATE SET counter = bill_counters.counter + 1
+    RETURNING counter;
+    `,
+    {
+      replacements: { cafeteriaId },
       transaction,
-    });
+      type: QueryTypes.INSERT,
+    }
+  );
 
-    const dailyNumber = (Number(maxVal) || 0) + 1;
-    console.log(`🔢 [DAILY] Generated Daily Order Number: ${dailyNumber}`);
-    return dailyNumber;
-  } catch (error) {
-    console.error("❌ [DAILY] Error generating daily order number:", error.message);
-    return 1; // Fallback
-  }
+  const counter = result[0].counter;
+  const sequence = String(counter).padStart(2, "0");
+
+  // Format: AR-UVMVCVNV01
+  return `${prefix}-${randomStr}${sequence}`;
+};
+
+export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const [result] = await sequelize.query(
+    `
+    INSERT INTO daily_order_counters (cafeteria_id, date, counter)
+    VALUES (:cafeteriaId, :today, 1)
+    ON CONFLICT (cafeteria_id, date)
+    DO UPDATE SET counter = daily_order_counters.counter + 1
+    RETURNING counter;
+    `,
+    {
+      replacements: { cafeteriaId, today },
+      transaction,
+      type: QueryTypes.INSERT,
+    }
+  );
+
+  return result[0].counter;
 };
 
 // --------------------------------------------------
@@ -219,7 +238,6 @@ export const confirmPayment = async (req, res) => {
 
     const {
       orderId: cashfreeOrderId,
-      billId,
       cafeteriaId,
       transactionId,
       amount,
@@ -244,7 +262,7 @@ export const confirmPayment = async (req, res) => {
     console.log(`  - authenticatedStudentId: ${authenticatedStudentId}`);
     console.log(`  - transactionId: ${transactionId}`);
 
-    if (!cashfreeOrderId || !billId || !cafeteriaId || !amount || !transactionId) {
+    if (!cashfreeOrderId || !cafeteriaId || !amount || !transactionId) {
       console.error("❌ [VALIDATE] Missing required fields!");
       await t.rollback();
       return res.status(400).json({
@@ -252,7 +270,6 @@ export const confirmPayment = async (req, res) => {
         message: "Missing required payment fields.",
         missing: {
           cashfreeOrderId: !cashfreeOrderId,
-          billId: !billId,
           cafeteriaId: !cafeteriaId,
           amount: !amount,
           transactionId: !transactionId,
@@ -364,11 +381,13 @@ export const confirmPayment = async (req, res) => {
     let kotNumber = null;
     let dailyOrderNumber = null;
 
+    let billId = null;
     if (!order) {
       console.log("📝 [DATABASE] Order not found, creating new one");
       kotNumber = await generateKotNumber(cafeteriaId, t);
       dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
-      console.log(`✅ [KOT] Generated: ${kotNumber}, [DAILY]: ${dailyOrderNumber}`);
+      billId = await generateBillId(cafeteriaId, t);
+      console.log(`✅ [KOT]: ${kotNumber}, [DAILY]: ${dailyOrderNumber}, [BILL]: ${billId}`);
 
       try {
         order = await Order.create(
@@ -428,6 +447,10 @@ export const confirmPayment = async (req, res) => {
 
       if (!order.dailyOrderNumber) {
         updateData.dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+      }
+
+      if (!order.billId || order.billId.includes('TEMP')) {
+        updateData.billId = await generateBillId(cafeteriaId, t);
       }
 
       await order.update(updateData, { transaction: t });
@@ -800,10 +823,24 @@ export const syncFromWebhook = async (req, res) => {
     );
 
     if (payment.orderId) {
-      await Order.update(
-        { status: "PAID", paymentStatus: "SUCCESS" },
-        { where: { id: payment.orderId }, transaction: t }
-      );
+      const order = await Order.findByPk(payment.orderId, { transaction: t, lock: t.LOCK.UPDATE });
+      if (order) {
+        const updateData = { status: "PAID", paymentStatus: "SUCCESS" };
+
+        // Use the helpers already defined in this file
+        if (!order.kotNumber) {
+          updateData.kotNumber = await generateKotNumber(order.cafeteriaId, t);
+        }
+        if (!order.dailyOrderNumber) {
+          updateData.dailyOrderNumber = await generateDailyOrderNumber(order.cafeteriaId, t);
+        }
+        if (!order.billId || order.billId.includes('TEMP')) {
+          updateData.billId = await generateBillId(order.cafeteriaId, t);
+        }
+
+        await order.update(updateData, { transaction: t });
+        console.log(`✅ [WEBHOOK] Order ${order.id} updated with sequential IDs`);
+      }
     }
 
     await t.commit();
