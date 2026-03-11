@@ -85,6 +85,35 @@ const generateKotNumber = async (cafeteriaId, transaction) => {
 };
 
 // --------------------------------------------------
+// 🆕 HELPER: GENERATE DAILY ORDER NUMBER (RESETS EVERY DAY)
+// --------------------------------------------------
+const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
+  try {
+    // We use dayjs local time to define "today"
+    const todayStart = dayjs().startOf("day").toDate();
+    const todayEnd = dayjs().endOf("day").toDate();
+
+    // Use max + 1 to avoid sequence issues and ensure it's truly sequential for that day
+    const maxVal = await Order.max("dailyOrderNumber", {
+      where: {
+        cafeteriaId,
+        createdAt: {
+          [Op.between]: [todayStart, todayEnd],
+        },
+      },
+      transaction,
+    });
+
+    const dailyNumber = (Number(maxVal) || 0) + 1;
+    console.log(`🔢 [DAILY] Generated Daily Order Number: ${dailyNumber}`);
+    return dailyNumber;
+  } catch (error) {
+    console.error("❌ [DAILY] Error generating daily order number:", error.message);
+    return 1; // Fallback
+  }
+};
+
+// --------------------------------------------------
 // 🆕 HELPER: UPDATE USER STREAK
 // --------------------------------------------------
 async function updateUserStreak(userId, cafeteriaId, transaction) {
@@ -333,11 +362,13 @@ export const confirmPayment = async (req, res) => {
     });
 
     let kotNumber = null;
+    let dailyOrderNumber = null;
 
     if (!order) {
       console.log("📝 [DATABASE] Order not found, creating new one");
       kotNumber = await generateKotNumber(cafeteriaId, t);
-      console.log(`✅ [KOT] Generated: ${kotNumber}`);
+      dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+      console.log(`✅ [KOT] Generated: ${kotNumber}, [DAILY]: ${dailyOrderNumber}`);
 
       try {
         order = await Order.create(
@@ -350,6 +381,7 @@ export const confirmPayment = async (req, res) => {
             status: "PAID",
             paymentStatus: "SUCCESS",
             kotNumber,
+            dailyOrderNumber,
             isParcel: Boolean(isParcel),
             parcelAmount: Number(parcelAmount) || 0,
             platformFee: Number(platformFee) || 0,
