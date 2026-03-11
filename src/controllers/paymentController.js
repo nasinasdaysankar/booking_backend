@@ -416,18 +416,21 @@ export const confirmPayment = async (req, res) => {
     } else {
       console.log("📝 [DATABASE] Order already exists, updating it");
       kotNumber = order.kotNumber;
-      await order.update(
-        {
-          status: "PAID",
-          paymentStatus: "SUCCESS",
-          isParcel: Boolean(isParcel),
-          parcelAmount: Number(parcelAmount) || 0,
-          platformFee: Number(platformFee) || 0,
-          commissionAmount: Number(commissionAmount) || 0,
-          gstAmount: Number(gstAmount) || 0,
-        },
-        { transaction: t }
-      );
+      const updateData = {
+        status: "PAID",
+        paymentStatus: "SUCCESS",
+        isParcel: Boolean(isParcel),
+        parcelAmount: Number(parcelAmount) || 0,
+        platformFee: Number(platformFee) || 0,
+        commissionAmount: Number(commissionAmount) || 0,
+        gstAmount: Number(gstAmount) || 0,
+      };
+
+      if (!order.dailyOrderNumber) {
+        updateData.dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+      }
+
+      await order.update(updateData, { transaction: t });
       console.log(`✅ [DATABASE] Order updated: ${order.id}`);
     }
 
@@ -520,6 +523,7 @@ export const confirmPayment = async (req, res) => {
           isParcel: order.isParcel,
           parcelAmount: order.parcelAmount,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
+          dailyOrderNumber: order.dailyOrderNumber,
           items: formattedItems,
           customerName: req.user.name || "Customer",
         });

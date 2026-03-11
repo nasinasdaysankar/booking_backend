@@ -56,7 +56,7 @@ export const initNotificationScheduler = () => {
                             token,
                             notification: {
                                 title: "⏳ 10 Minutes Left!",
-                                body: `Hurry! Order #${order.id} is waiting. Please pick it up soon.`,
+                                body: `Hurry! Order #${order.dailyOrderNumber ?? order.id} is waiting. Please pick it up soon.`,
                             },
                             data: { orderId: String(order.id), status: "READY" },
                             android: { priority: "high" },

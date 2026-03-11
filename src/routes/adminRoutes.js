@@ -277,11 +277,12 @@ router.post(
       return res.json({
         success: true,
         orderId: order.id,
+        dailyOrderNumber: order.dailyOrderNumber,
         billId: order.billId,
         status: order.status,
         totalAmount: order.totalAmount,
         kotNumber: order.kotNumber,
-        message: `Order #${order.id} verified - Status: ${order.status}`
+        message: `Order #${order.dailyOrderNumber ?? order.id} verified - Status: ${order.status}`
       });
 
     } catch (error) {

@@ -355,6 +355,7 @@ export const getAdminOrders = async (req, res) => {
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
              orders."commission_amount" AS "commissionAmount",
+             orders."daily_order_number" AS "dailyOrderNumber",
              (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
       WHERE orders.status = :status
@@ -475,6 +476,7 @@ export const updateOrderStatus = async (req, res) => {
       isParcel: order.isParcel,
       parcelAmount: order.parcelAmount,
       netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
+      dailyOrderNumber: order.dailyOrderNumber,
       items: parsedItems,
       customerName: userName,
     });
@@ -502,12 +504,12 @@ export const updateOrderStatus = async (req, res) => {
           const token = userTokens[0].fcmToken;
 
           // Standardize Notification Message
-          let bodyText = `Hey ${userName}, your order #${order.id} is now ${order.status.toLowerCase()}.`;
+          let bodyText = `Hey ${userName}, your order #${order.dailyOrderNumber ?? order.id} is now ${order.status.toLowerCase()}.`;
 
           if (order.status === "READY") {
-            bodyText = `Hey ${userName}, your order #${order.id} is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
+            bodyText = `Hey ${userName}, your order #${order.dailyOrderNumber ?? order.id} is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
           } else if (order.status === "PREPARING") {
-            bodyText = `Hey ${userName}, the cafeteria has accepted your order #${order.id} and is now preparing it.`;
+            bodyText = `Hey ${userName}, the cafeteria has accepted your order #${order.dailyOrderNumber ?? order.id} and is now preparing it.`;
           }
 
           try {

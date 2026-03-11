@@ -178,7 +178,7 @@ export const refundOrder = async (req, res) => {
       {
         refund_amount: Number(order.totalAmount),
         refund_id: refundId,
-        refund_note: `Order #${order.id} declined by cafeteria ${cafeteriaId}`,
+        refund_note: `Order #${order.dailyOrderNumber ?? order.id} declined by cafeteria ${cafeteriaId}`,
       },
       {
         headers: {
@@ -230,7 +230,7 @@ export const refundOrder = async (req, res) => {
             tokens,
             notification: {
               title: "❌ Order Cancelled",
-              body: `Refund of ₹${order.totalAmount} initiated.`,
+              body: `Refund of ₹${order.totalAmount} initiated for Order #${order.dailyOrderNumber ?? order.id}.`,
             },
             data: {
               orderId: String(order.id),
@@ -363,7 +363,7 @@ export const checkRefundStatus = async (req, res) => {
               tokens,
               notification: {
                 title: "💰 Refund Processed",
-                body: `Your refund of ₹${refundAmount} for Order #${orderId} is successful.`,
+                body: `Your refund of ₹${refundAmount} for Order #${order.dailyOrderNumber ?? orderId} is successful.`,
               },
               data: {
                 orderId: String(orderId),
@@ -430,6 +430,7 @@ export const getRefundHistory = async (req, res) => {
         p.status as "refundStatus",
         p."refundedat",
         o.id as "orderId",
+        o."daily_order_number" AS "dailyOrderNumber",
         o."billid" AS "billId",
         o."totalamount" AS "totalAmount",
         o.status as "orderStatus",
@@ -484,6 +485,7 @@ export const getUserRefundHistory = async (req, res) => {
         p.status AS "refundStatus",
         p."refundedat",
         o.id AS "orderId",
+        o."daily_order_number" AS "dailyOrderNumber",
         o."billid" AS "billId",
         o."totalamount" AS "totalAmount",
         o.status AS "orderStatus",
