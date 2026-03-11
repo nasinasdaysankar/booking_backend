@@ -77,18 +77,9 @@ export const getCafeteriaOrders = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
     const { status } = req.query;
-    const where = {
-      cafeteriaId,
-      status: { [Sequelize.Op.notIn]: ['CANCELLED', 'EXPIRED'] } // Default filter
-    };
 
-    if (status) {
-      if (status.includes(',')) {
-        where.status = { [Sequelize.Op.in]: status.split(',') };
-      } else {
-        where.status = status;
-      }
-    }
+    const where = { cafeteriaId };
+    if (status) where.status = status;
 
     const orders = await Order.findAll({
       where,
