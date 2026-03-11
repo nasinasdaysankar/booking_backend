@@ -74,6 +74,7 @@ export const scanStaticCafeteriaQR = async (req, res) => {
       orders: [
         {
           orderId: order.id,
+          dailyOrderNumber: order.dailyOrderNumber,
           billId: order.billId,
           status: order.status,
           kotNumber: order.kotNumber,

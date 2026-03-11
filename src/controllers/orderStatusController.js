@@ -62,6 +62,7 @@ export const getActiveOrders = async (req, res) => {
     return res.status(200).json({
       data: {
         id: order.id,
+        dailyOrderNumber: order.dailyOrderNumber,
         billId: order.billId,
         status: order.status,
         totalAmount: order.totalAmount,
