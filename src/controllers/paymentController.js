@@ -637,6 +637,7 @@ export const confirmPayment = async (req, res) => {
           status: order.status,
           paymentStatus: order.paymentStatus,
           kotNumber: order.kotNumber,
+          dailyOrderNumber: order.dailyOrderNumber,
           createdAt: order.createdAt
         });
       } catch (sheetErr) {
@@ -856,6 +857,40 @@ export const syncFromWebhook = async (req, res) => {
           console.warn("⚠️ Analytics cache clear error (webhook, non-blocking):", err.message)
         );
       }
+    }
+
+    // 📊 GOOGLE SHEETS SYNC on webhook
+    if (payment.orderId) {
+      (async () => {
+        try {
+          const syncedOrder = await Order.findByPk(payment.orderId, {
+            include: [{ model: OrderItem, as: 'items' }]
+          });
+
+          if (syncedOrder) {
+            // Find student to get name
+            const student = await sequelize.models.User.findByPk(syncedOrder.studentId);
+
+            await appendOrderToSheet({
+              id: syncedOrder.id,
+              dailyOrderNumber: syncedOrder.dailyOrderNumber,
+              billId: syncedOrder.billId,
+              studentId: syncedOrder.studentId,
+              customerName: student?.name || "Customer",
+              cafeteriaId: syncedOrder.cafeteriaId,
+              totalAmount: syncedOrder.totalAmount,
+              items: syncedOrder.items,
+              status: syncedOrder.status,
+              paymentStatus: syncedOrder.paymentStatus,
+              kotNumber: syncedOrder.kotNumber,
+              createdAt: syncedOrder.createdAt
+            });
+            console.log(`📊 [WEBHOOK] Order #${syncedOrder.id} synced to Sheets`);
+          }
+        } catch (sheetErr) {
+          console.error("⚠️ Sheets sync error (webhook):", sheetErr.message);
+        }
+      })();
     }
 
     return res.json({

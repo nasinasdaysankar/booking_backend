@@ -130,6 +130,7 @@ import { Order, OrderItem, MenuItem, OrderFeedback, sequelize } from '../models/
 import { clearAnalyticsCache } from '../utils/cache.js';
 import { generateBillId, generateDailyOrderNumber } from './paymentController.js';
 import { Op } from 'sequelize';
+import { appendOrderToSheet } from '../utils/googleSheets.js';
 
 // Helpers moved to paymentController.js for sharing
 
@@ -202,6 +203,27 @@ export const createOrder = async (req, res) => {
     clearAnalyticsCache(cafeteriaId).catch(err =>
       console.warn("⚠️ Analytics cache clear error (non-blocking):", err.message)
     );
+
+    // 📊 GOOGLE SHEETS SYNC (Async, non-blocking)
+    (async () => {
+      try {
+        await appendOrderToSheet({
+          id: order.id,
+          dailyOrderNumber: order.dailyOrderNumber,
+          billId: order.billId,
+          studentId: order.studentId,
+          customerName: req.user.name || "Customer",
+          cafeteriaId: order.cafeteriaId,
+          totalAmount: order.totalAmount,
+          items: finalItems, // items formatted for sheet
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          createdAt: order.createdAt
+        });
+      } catch (sheetErr) {
+        console.error("⚠️ Sheets sync error (offline order):", sheetErr.message);
+      }
+    })();
 
     return res.status(201).json({
       success: true,

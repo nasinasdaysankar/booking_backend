@@ -40,6 +40,7 @@ export const appendOrderToSheet = async (orderData) => {
             status,
             paymentStatus,
             kotNumber,
+            dailyOrderNumber,
             createdAt
         } = orderData;
 
@@ -60,28 +61,29 @@ export const appendOrderToSheet = async (orderData) => {
         const Values = [
             [
                 new Date(createdAt || Date.now()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), // Column A: Date
-                id,                                         // Column B: ID
-                cashfreeOrderId || 'N/A',                   // Column C: Cashfree Order ID
-                billId,                                     // Column D: Bill ID
-                studentId,                                  // Column E: Student ID
-                customerName || 'Guest',                    // Column F: Customer Name
-                getCafeteriaName(cafeteriaId),             // Column G: Cafeteria Name
-                itemsString,                                // Column H: Items
-                totalAmount,                                // Column I: Total Amount
-                platformFee || 0,                           // Column J: Platform Fee
-                gstAmount || 0,                             // Column K: GST Amount
-                commissionAmount || 0,                      // Column L: Commission Amount
-                isParcel ? 'Yes' : 'No',                    // Column M: Is Parcel
-                parcelAmount || 0,                          // Column N: Parcel Amount
-                status || 'PAID',                           // Column O: Order Status
-                paymentStatus || 'SUCCESS',                 // Column P: Payment Status
-                kotNumber || 'N/A'                          // Column Q: KOT Number
+                dailyOrderNumber || 'N/A',                  // Column B: Daily Order # (Changed from ID)
+                id,                                         // Column C: Database ID
+                cashfreeOrderId || 'N/A',                   // Column D: Cashfree Order ID
+                billId,                                     // Column E: Bill ID
+                studentId,                                  // Column F: Student ID
+                customerName || 'Guest',                    // Column G: Customer Name
+                getCafeteriaName(cafeteriaId),             // Column H: Cafeteria Name
+                itemsString,                                // Column I: Items
+                totalAmount,                                // Column J: Total Amount
+                platformFee || 0,                           // Column K: Platform Fee
+                gstAmount || 0,                             // Column L: GST Amount
+                commissionAmount || 0,                      // Column M: Commission Amount
+                isParcel ? 'Yes' : 'No',                    // Column N: Is Parcel
+                parcelAmount || 0,                          // Column O: Parcel Amount
+                status || 'PAID',                           // Column P: Order Status
+                paymentStatus || 'SUCCESS',                 // Column Q: Payment Status
+                kotNumber || 'N/A'                          // Column R: KOT Number
             ]
         ];
 
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'Sheet1!A:Q',
+            range: 'Sheet1!A:R',
             valueInputOption: 'USER_ENTERED',
             resource: { values: Values },
         });
