@@ -537,14 +537,19 @@ export const updateOrderStatus = async (req, res) => {
                 notification: {
                   channelId: "high_importance_channel",
                   sound: "default",
-                  clickAction: "FLUTTER_NOTIFICATION_CLICK"
+                  clickAction: "FLUTTER_NOTIFICATION_CLICK",
+                  body: bodyText,
                 },
               },
               apns: {
                 payload: {
                   aps: {
                     sound: "default",
-                    badge: 1
+                    badge: 1,
+                    alert: {
+                      title: order.status === "READY" ? "✅ Order Ready!" : "📦 Order Update",
+                      body: bodyText,
+                    },
                   }
                 }
               }

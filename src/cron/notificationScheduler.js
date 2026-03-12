@@ -53,14 +53,21 @@ export const initNotificationScheduler = () => {
 
                     if (userTokens.length > 0) {
                         const token = userTokens[0].fcmToken;
+                        const reminderBody = `Hurry! Order #${order.dailyOrderNumber ?? order.id} is waiting. Please pick it up soon.`;
                         await admin.messaging().send({
                             token,
                             notification: {
                                 title: "⏳ 10 Minutes Left!",
-                                body: `Hurry! Order #${order.dailyOrderNumber ?? order.id} is waiting. Please pick it up soon.`,
+                                body: reminderBody,
                             },
                             data: { orderId: String(order.id), status: "READY" },
-                            android: { priority: "high" },
+                            android: {
+                                priority: "high",
+                                notification: {
+                                    channelId: "high_importance_channel",
+                                    body: reminderBody,
+                                },
+                            },
                         });
                         console.log(`🔔 Sent 10-min reminder for Order #${order.id}`);
                     }
@@ -112,18 +119,25 @@ export const initNotificationScheduler = () => {
 
                     if (userTokens.length > 0) {
                         const token = userTokens[0].fcmToken;
+                        const expiredBody = "You didn't pick up the order within 20 mins. As per policy, no refund is provided.";
                         await admin.messaging().send({
                             token,
                             notification: {
                                 title: "⏳ Pickup Window Closed",
-                                body: "You didn't pick up the order within 20 mins. As per policy, no refund is provided.",
+                                body: expiredBody,
                             },
                             data: {
                                 orderId: String(order.id),
                                 status: "READY",
                                 type: "ORDER_EXPIRED"
                             },
-                            android: { priority: "high" },
+                            android: {
+                                priority: "high",
+                                notification: {
+                                    channelId: "high_importance_channel",
+                                    body: expiredBody,
+                                },
+                            },
                         });
                         console.log(`🔔 Sent expiration alert for Order #${order.id}`);
                     }

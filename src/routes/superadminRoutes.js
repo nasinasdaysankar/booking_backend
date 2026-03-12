@@ -946,7 +946,20 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
             android: {
                 priority: "high",
                 notification: {
-                    channelId: "high_importance_channel"
+                    channelId: "high_importance_channel",
+                    body: body,
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                        alert: {
+                            title: title,
+                            body: body,
+                        },
+                    }
                 }
             }
         });
