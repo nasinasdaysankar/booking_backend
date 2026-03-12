@@ -1,6 +1,7 @@
 import { Payment, Order, sequelize, UserFcmToken } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 import { emitOrderStatusToUser } from "../socket.js";
+import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
 // ===================================================================
 // 🔧 HELPER: Get Cashfree credentials based on environment
@@ -218,6 +219,11 @@ export const refundOrder = async (req, res) => {
       refundReason: reason || "Declined by cafeteria",
     });
 
+    // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+    updateOrderStatusInSheet(order.id, "REFUND_INITIATED").catch(err => 
+       console.error("⚠️ Sheets refund update error:", err.message)
+    );
+
     console.log("✅ Refund saved in DB");
 
     // 🔔 NOTIFY USER OF CANCELLATION
@@ -349,6 +355,11 @@ export const checkRefundStatus = async (req, res) => {
       await Order.update(
         { status: "REFUND_SUCCESS" },
         { where: { id: orderId } }
+      );
+
+      // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+      updateOrderStatusInSheet(orderId, "REFUND_SUCCESS").catch(err => 
+        console.error("⚠️ Sheets refund success update error:", err.message)
       );
 
       console.log(`✅ [REFUND SUCCESS] Updated in DB`);

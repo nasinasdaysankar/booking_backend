@@ -320,6 +320,7 @@ import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
+import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
@@ -436,6 +437,11 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     await order.update(updateData);
+    
+    // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+    updateOrderStatusInSheet(order.id, status).catch(err => 
+       console.error("⚠️ Sheets dynamic update error:", err.message)
+    );
 
     console.log(`📝 Order ${order.id} updated to status: ${status}`);
 
@@ -636,6 +642,11 @@ export const markOrderPaid = async (req, res) => {
     }
 
     await order.update({ status: "PAID" });
+
+    // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+    updateOrderStatusInSheet(orderId, "PAID").catch(err => 
+        console.error("⚠️ Sheets mark paid update error:", err.message)
+    );
 
     // 🗑️ INVALIDATE ANALYTICS/STATS CACHE
     await clearAnalyticsCache(order.cafeteriaId);

@@ -3,6 +3,7 @@ import cron from "node-cron";
 import { Order, UserFcmToken, sequelize } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 import { Op, Transaction } from "sequelize";
+import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
 export const initNotificationScheduler = () => {
     console.log("⏰ Notification Scheduler Initialized (Cron)");
@@ -89,6 +90,12 @@ export const initNotificationScheduler = () => {
                     console.log(`☠️ Found ${expiredOrders.length} expired orders (>20 mins)`);
                     for (const order of expiredOrders) {
                         await order.update({ status: "EXPIRED", expirationNotificationSent: true }, { silent: true, transaction: t });
+                        
+                        // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+                        updateOrderStatusInSheet(order.id, "EXPIRED").catch(err => 
+                            console.error("⚠️ Sheets expiration update error:", err.message)
+                        );
+
                         ordersToExpire.push(order);
                     }
                 }

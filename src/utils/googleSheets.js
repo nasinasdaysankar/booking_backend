@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'firebase-admin.json');
 const SPREADSHEET_ID = '1eX9wOWKrFdBlh33ZfxTQMYWCBAC0jyAx_8q4YNFCWHA';
 
-// Initialize Sheets API
 const auth = new google.auth.GoogleAuth({
     keyFile: SERVICE_ACCOUNT_PATH,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -32,7 +31,7 @@ const HEADERS = [
     "Commission Amount",        // Column L
     "Is Parcel",                // Column M
     "Parcel Amount",            // Column N
-    "Order Status",             // Column O
+    "Order Status",             // Column O (Updated dynamically)
     "Payment Status",           // Column P
     "KOT Number",               // Column Q
     "Daily Order #",            // Column R
@@ -44,7 +43,7 @@ const HEADERS = [
 ];
 
 /**
- * Ensures the header row exists in the spreadsheet
+ * Ensures the header row exists and is correct
  */
 const ensureHeaders = async () => {
     try {
@@ -55,30 +54,26 @@ const ensureHeaders = async () => {
 
         const firstCell = response.data.values?.[0]?.[0];
         
-        // If A1 is empty OR it doesn't contain "Order ID", we need to write/fix headers
-        if (!firstCell || firstCell !== "Order ID") {
-            // Note: This updates A1:W1. If there was data there, it will be overwritten by headers.
-            // This is usually what's desired if headers are missing.
+        if (firstCell !== "Order ID") {
+            // Aggressively set headers in the first row
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
                 range: 'Sheet1!A1:W1',
                 valueInputOption: 'USER_ENTERED',
                 resource: { values: [HEADERS] },
             });
-            console.log("✅ [GOOGLE SHEETS] Header row created/corrected");
+            console.log("✅ [GOOGLE SHEETS] Header row synced/corrected");
         }
     } catch (err) {
-        console.error("⚠️ [GOOGLE SHEETS] Error checking/creating headers:", err.message);
+        console.error("⚠️ [GOOGLE SHEETS] Error syncing headers:", err.message);
     }
 };
 
 /**
- * Appends a new order row to Google Sheets with all available fields
- * @param {Object} orderData - The complete order details
+ * Appends a new order row to Google Sheets
  */
 export const appendOrderToSheet = async (orderData) => {
     try {
-        // First, make sure headers exist
         await ensureHeaders();
 
         const {
@@ -106,10 +101,8 @@ export const appendOrderToSheet = async (orderData) => {
             updatedAt
         } = orderData;
 
-        // Format items as a string: "2x Coffee, 1x Tea"
         const itemsString = items?.map(item => `${item.quantity || item.qty}x ${item.name}`).join(', ') || 'N/A';
 
-        // Convert cafeteria ID to name
         const getCafeteriaName = (id) => {
             switch (Number(id)) {
                 case 1: return "Anathahara";
@@ -122,29 +115,29 @@ export const appendOrderToSheet = async (orderData) => {
 
         const Values = [
             [
-                id,                                         // Column A: Order ID
-                cashfreeOrderId || 'N/A',                   // Column B: Cashfree Order ID
-                billId,                                     // Column C: Bill ID
-                studentId,                                  // Column D: Student ID
-                customerName || 'Guest',                    // Column E: Customer Name
-                cafeteriaId,                                // Column F: Cafeteria ID
-                getCafeteriaName(cafeteriaId),             // Column G: Cafeteria Name
-                itemsString,                                // Column H: Items
-                totalAmount,                                // Column I: Total Amount
-                platformFee || 0,                           // Column J: Platform Fee
-                gstAmount || 0,                             // Column K: GST Amount
-                commissionAmount || 0,                      // Column L: Commission Amount
-                isParcel ? 'Yes' : 'No',                    // Column M: Is Parcel
-                parcelAmount || 0,                          // Column N: Parcel Amount
-                status || 'PAID',                           // Column O: Order Status
-                paymentStatus || 'SUCCESS',                 // Column P: Payment Status
-                kotNumber || 'N/A',                         // Column Q: KOT Number
-                dailyOrderNumber || 'N/A',                  // Column R: Daily Order #
-                totalOrderNumber || 'N/A',                  // Column S: Total Order #
-                etaMinutes || 0,                            // Column T: ETA
-                isRated ? 'Yes' : 'No',                    // Column U: Is Rated
-                new Date(createdAt || Date.now()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), // Column V: Created At
-                new Date(updatedAt || Date.now()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })  // Column W: Updated At
+                id,                                         // Column A
+                cashfreeOrderId || 'N/A',                   // Column B
+                billId,                                     // Column C
+                studentId,                                  // Column D
+                customerName || 'Guest',                    // Column E
+                cafeteriaId,                                // Column F
+                getCafeteriaName(cafeteriaId),             // Column G
+                itemsString,                                // Column H
+                totalAmount,                                // Column I
+                platformFee || 0,                           // Column J
+                gstAmount || 0,                             // Column K
+                commissionAmount || 0,                      // Column L
+                isParcel ? 'Yes' : 'No',                    // Column M
+                parcelAmount || 0,                          // Column N
+                status || 'PAID',                           // Column O
+                paymentStatus || 'SUCCESS',                 // Column P
+                kotNumber || 'N/A',                         // Column Q
+                dailyOrderNumber || 'N/A',                  // Column R
+                totalOrderNumber || 'N/A',                  // Column S
+                etaMinutes || 0,                            // Column T
+                isRated ? 'Yes' : 'No',                    // Column U
+                new Date(createdAt || Date.now()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+                new Date(updatedAt || Date.now()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
             ]
         ];
 
@@ -155,8 +148,54 @@ export const appendOrderToSheet = async (orderData) => {
             resource: { values: Values },
         });
 
-        console.log(`📊 [GOOGLE SHEETS] Order #${id} synced with all 23 fields`);
+        console.log(`📊 [GOOGLE SHEETS] Order #${id} appended successfully.`);
     } catch (error) {
         console.error('❌ [GOOGLE SHEETS ERR]:', error.message);
+    }
+};
+
+/**
+ * Updates the status of an existing order row dynamically
+ */
+export const updateOrderStatusInSheet = async (orderId, newStatus) => {
+    try {
+        if (!orderId) return;
+
+        // 1. Find the row index by searching for Order ID in Column A
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Sheet1!A:A',
+        });
+
+        const rows = response.data.values || [];
+        const rowIndex = rows.findIndex(row => String(row[0]) === String(orderId));
+
+        if (rowIndex === -1) {
+            console.warn(`⚠️ [GOOGLE SHEETS] Order #${orderId} not found in sheet for status update.`);
+            return;
+        }
+
+        const spreadsheetRow = rowIndex + 1; // 1-indexed for Sheets API
+        
+        // 2. Update Column O (Order Status) which is the 15th column
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Sheet1!O${spreadsheetRow}`, // Column O
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[newStatus]] },
+        });
+
+        // 3. Update the "Updated At" timestamp (Column W - 23rd column)
+        const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Sheet1!W${spreadsheetRow}`, // Column W
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[timestamp]] },
+        });
+
+        console.log(`🔄 [GOOGLE SHEETS] Order #${orderId} status updated to ${newStatus} dynamically.`);
+    } catch (error) {
+        console.error('❌ [GOOGLE SHEETS UPDATE ERR]:', error.message);
     }
 };
