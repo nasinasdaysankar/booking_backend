@@ -11,7 +11,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
-import { uploadCafeteriaMedia, deleteCafeteriaMedia } from "../controllers/superadminController.js";
+import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics } from "../controllers/superadminController.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
 
 const router = express.Router();
@@ -362,9 +362,12 @@ router.get('/orders', superadminAuth, async (req, res) => {
                 orders."parcelamount" AS "parcelAmount",
                 orders."created_at" AS "createdAt",
                 orders."updated_at" AS "updatedAt",
-                cafeterias.name AS "cafeteriaName"
+                cafeterias.name AS "cafeteriaName",
+                users.name AS "userName",
+                users.email AS "userEmail"
             FROM orders
             LEFT JOIN cafeterias ON orders."cafeteriaid" = cafeterias.id
+            LEFT JOIN users ON orders."studentid" = users.id
             WHERE orders."paymentstatus" = 'SUCCESS'
             ${status ? `AND orders.status = :status` : ''}
             ${cafeteriaId ? `AND orders."cafeteriaid" = :cafeteriaId` : ''}
@@ -637,6 +640,11 @@ router.get('/top-items', superadminAuth, async (req, res) => {
 });
 
 // ============================================
+// GET ADVANCED ANALYTICS (SUPERADMIN)
+// ============================================
+router.get('/advanced-analytics', superadminAuth, getAdvancedAnalytics);
+
+// ============================================
 // GET ALL CUSTOMERS (SUPERADMIN)
 // ============================================
 router.get('/customers', superadminAuth, async (req, res) => {
@@ -647,21 +655,19 @@ router.get('/customers', superadminAuth, async (req, res) => {
         if (cafeteriaId) {
             const customers = await sequelize.query(
                 `
-                SELECT DISTINCT 
+                SELECT 
                     u.id,
                     u.name,
                     u.email,
                     u.phone,
                     u."created_at" AS "createdAt",
                     u."updated_at" AS "updatedAt",
-                    COUNT(DISTINCT o.id) as "orderCount",
-                    COALESCE(SUM(o."totalamount"), 0) as "totalSpent"
+                    (SELECT COUNT(*) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS' AND o.cafeteriaid = :cafeteriaId) as "orderCount",
+                    (SELECT COALESCE(SUM(totalamount), 0) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS' AND o.cafeteriaid = :cafeteriaId) as "totalSpent",
+                    (SELECT COALESCE(SUM(durationseconds), 0) FROM user_activities ua WHERE ua.userid = u.id AND ua.activitytype = 'SESSION_END') as "totalUsageSeconds"
                 FROM users u
-                INNER JOIN orders o ON u.id = o."studentid"
-                WHERE o."cafeteriaid" = :cafeteriaId
-                AND o."paymentstatus" = 'SUCCESS'
+                WHERE EXISTS (SELECT 1 FROM orders o WHERE o.studentid = u.id AND o.cafeteriaid = :cafeteriaId)
                 ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-                GROUP BY u.id, u.name, u.email, u.phone, u."created_at", u."updated_at"
                 ORDER BY u."created_at" DESC
                 LIMIT :limit OFFSET :offset
                 `,
@@ -712,12 +718,11 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 u.phone,
                 u."created_at" AS "createdAt",
                 u."updated_at" AS "updatedAt",
-                COUNT(DISTINCT o.id) as "orderCount",
-                COALESCE(SUM(CASE WHEN o."paymentstatus" = 'SUCCESS' THEN o."totalamount" ELSE 0 END), 0) as "totalSpent"
+                (SELECT COUNT(*) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS') as "orderCount",
+                (SELECT COALESCE(SUM(totalamount), 0) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS') as "totalSpent",
+                (SELECT COALESCE(SUM(durationseconds), 0) FROM user_activities ua WHERE ua.userid = u.id AND ua.activitytype = 'SESSION_END') as "totalUsageSeconds"
             FROM users u
-            LEFT JOIN orders o ON u.id = o."studentid" AND o."paymentstatus" = 'SUCCESS'
             ${search ? `WHERE (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-            GROUP BY u.id, u.name, u.email, u.phone, u."created_at", u."updated_at"
             ORDER BY u."created_at" DESC
             LIMIT :limit OFFSET :offset
             `,

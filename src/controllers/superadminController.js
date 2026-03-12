@@ -156,3 +156,234 @@ export const deleteCafeteriaMedia = async (req, res) => {
         });
     }
 };
+
+/**
+ * 📈 GET ADVANCED ANALYTICS (SUPERADMIN)
+ */
+export const getAdvancedAnalytics = async (req, res) => {
+    try {
+        const { period = "weekly", cafeteriaId } = req.query; // 'daily', 'weekly', 'monthly', 'yearly'
+        
+        // Define date filter
+        let dateFilter = '';
+        if (period === 'daily') {
+            dateFilter = `AND "created_at" >= CURRENT_DATE`;
+        } else if (period === 'weekly') {
+            dateFilter = `AND "created_at" >= CURRENT_DATE - INTERVAL '7 days'`;
+        } else if (period === 'monthly') {
+            dateFilter = `AND "created_at" >= CURRENT_DATE - INTERVAL '30 days'`;
+        } else if (period === 'yearly') {
+            dateFilter = `AND "created_at" >= CURRENT_DATE - INTERVAL '365 days'`;
+        }
+        
+        let cafeteriaFilter = '';
+        if (cafeteriaId) {
+            cafeteriaFilter = `AND "cafeteriaid" = ${parseInt(cafeteriaId)}`;
+        }
+
+        const metrics = {};
+        
+        // Helper to apply table alias to filters
+        const applyFilters = (filters, alias) => {
+            let res = filters;
+            if (alias) {
+                res = res.replace(/"created_at"/g, `${alias}."created_at"`)
+                         .replace(/"cafeteriaid"/g, `${alias}."cafeteriaid"`)
+                         .replace(/"paymentstatus"/g, `${alias}."paymentstatus"`);
+            }
+            return res;
+        };
+
+        // 1. DAU: Daily Active Users
+        const dauQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(DISTINCT "userid") as dau
+            FROM user_activities ua
+            WHERE ua."activitytype" = 'APP_OPEN'
+            AND ua."created_at" >= CURRENT_DATE
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.dau = parseInt(dauQuery[0]?.dau || 0);
+
+        // 2. MAU: Monthly Active Users
+        const mauQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(DISTINCT "userid") as mau
+            FROM user_activities ua
+            WHERE ua."activitytype" = 'APP_OPEN'
+            AND ua."created_at" >= CURRENT_DATE - INTERVAL '30 days'
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.mau = parseInt(mauQuery[0]?.mau || 0);
+
+        // 3. User Session Duration (average in seconds for the selected period)
+        const sessionQuery = await Cafeteria.sequelize.query(`
+            SELECT AVG("durationseconds") as avg_duration
+            FROM user_activities ua
+            WHERE ua."activitytype" = 'SESSION_END'
+            AND ua."durationseconds" IS NOT NULL
+            ${applyFilters(dateFilter, 'ua')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.avgSessionDuration = parseFloat(sessionQuery[0]?.avg_duration || 0).toFixed(2);
+
+        // 4. Conversion Rate (App Opens vs Successful Orders)
+        const appOpensQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(id) as opens
+            FROM user_activities ua
+            WHERE ua."activitytype" = 'APP_OPEN'
+            ${applyFilters(dateFilter, 'ua')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        const appOpens = parseInt(appOpensQuery[0]?.opens || 0);
+
+        const ordersCountQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(id) as orders
+            FROM orders o
+            WHERE o."paymentstatus" = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        const successfulOrders = parseInt(ordersCountQuery[0]?.orders || 0);
+
+        metrics.conversionRate = appOpens > 0 ? ((successfulOrders / appOpens) * 100).toFixed(2) : 0;
+
+        // 5. Peak Order Time (Hours with most orders)
+        const peakTimeQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                EXTRACT(HOUR FROM COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at"))::INT as hour,
+                COUNT(id) as order_count
+            FROM orders o
+            WHERE o."paymentstatus" = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+            GROUP BY hour
+            ORDER BY order_count DESC
+            LIMIT 5
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.peakOrderTimes = peakTimeQuery;
+
+        // 6. Orders Per Cafeteria (Performance)
+        if (!cafeteriaId) {
+            const performanceQuery = await Cafeteria.sequelize.query(`
+                SELECT 
+                    c.name as cafeteria_name,
+                    COUNT(o.id) as order_count,
+                    COALESCE(SUM(o."totalamount" - o."platform_fee" - o."commission_amount"), 0) as revenue
+                FROM orders o
+                JOIN cafeterias c ON o."cafeteriaid" = c.id
+                WHERE o."paymentstatus" = 'SUCCESS'
+                ${applyFilters(dateFilter, 'o')}
+                GROUP BY c.name
+                ORDER BY revenue DESC
+            `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+            metrics.cafeteriaPerformance = performanceQuery;
+        }
+
+        // 7. Payment Success vs Failed (Using orders table as proxy if no separate payment logs)
+        const paymentsQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                "paymentstatus",
+                COUNT(id) as count
+            FROM orders o
+            WHERE 1=1
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+            GROUP BY o."paymentstatus"
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.paymentStatus = paymentsQuery;
+
+        // 8. Returning vs New Users
+        // Users who made their first order in this period (New) vs those who made an order before (Returning)
+        const usersQuery = await Cafeteria.sequelize.query(`
+            WITH user_first_order AS (
+                SELECT "studentid", MIN("created_at") as first_order_date
+                FROM orders
+                WHERE "paymentstatus" = 'SUCCESS'
+                GROUP BY "studentid"
+            )
+            SELECT 
+                COUNT(DISTINCT CASE WHEN ufo.first_order_date >= (CURRENT_DATE - INTERVAL '30 days') THEN o."studentid" END) as new_users,
+                COUNT(DISTINCT CASE WHEN ufo.first_order_date < (CURRENT_DATE - INTERVAL '30 days') THEN o."studentid" END) as returning_users
+            FROM orders o
+            JOIN user_first_order ufo ON o."studentid" = ufo."studentid"
+            WHERE o."paymentstatus" = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.userRetention = usersQuery[0] || { new_users: 0, returning_users: 0 };
+        
+        // 9. Top Ordered Items
+        const topItemsQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                oi.name,
+                SUM(oi.quantity::INT) as total_qty,
+                COUNT(DISTINCT o.id) as order_count
+            FROM order_items oi
+            JOIN orders o ON oi.orderid = o.id
+            WHERE o.paymentstatus = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+            GROUP BY oi.name
+            ORDER BY total_qty DESC
+            LIMIT 10
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.topSellingItems = topItemsQuery;
+
+        // 10. Daily Trends (Orders and Revenue)
+        const dailyTrendQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                DATE(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at")) as date,
+                COUNT(o.id) as order_count,
+                COALESCE(SUM(o."totalamount"), 0) as total_revenue
+            FROM orders o
+            WHERE o."paymentstatus" = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+            GROUP BY date
+            ORDER BY date ASC
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.dailyTrend = dailyTrendQuery;
+
+        // 11. Top Active Users (by Session Duration)
+        const topUsersQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                u.name,
+                u.email,
+                SUM(ua."durationseconds") as total_session_time,
+                COUNT(ua.id) as sessions
+            FROM user_activities ua
+            JOIN users u ON ua."userid" = u.id
+            WHERE ua."activitytype" = 'SESSION_END'
+            ${applyFilters(dateFilter, 'ua')}
+            GROUP BY u.id, u.name, u.email
+            ORDER BY total_session_time DESC
+            LIMIT 10
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.topActiveUsers = topUsersQuery;
+
+        // 12. Recent Engagement Activities
+        const recentActivitiesQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                ua.id,
+                ua."activitytype" AS "activityType",
+                ua."durationseconds" AS "durationSeconds",
+                ua.metadata,
+                ua."created_at" AS "createdAt",
+                u.name as user_name,
+                u.email as user_email
+            FROM user_activities ua
+            LEFT JOIN users u ON ua."userid" = u.id
+            WHERE 1=1
+            ${applyFilters(dateFilter, 'ua')}
+            ORDER BY ua."created_at" DESC
+            LIMIT 50
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.recentActivities = recentActivitiesQuery;
+
+        return res.json({
+            success: true,
+            data: metrics
+        });
+    } catch (err) {
+        console.error("Advanced analytics error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch advanced analytics",
+            error: err.message
+        });
+    }
+};
