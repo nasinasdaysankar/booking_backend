@@ -1,40 +1,70 @@
 import { SupportTicket, User } from "../models/index.js";
 
 // ============================================
-// PREDEFINED SUPPORT CATEGORIES & QUESTIONS
-// These are served to the user app so they can only select from these
+// PREDEFINED SUPPORT CATEGORIES, QUESTIONS & SOLUTIONS
 // ============================================
 const SUPPORT_CATEGORIES = {
     "Order Issues": [
-        "My order is delayed",
-        "I received the wrong items",
-        "My order was not delivered",
-        "I want to cancel my order",
-        "Order shows delivered but I didn't receive it",
+        {
+            question: "My order is delayed",
+            solution: "Orders usually take 15-20 minutes depending on the cafeteria load. If it's taking unusually long, please ensure your payment was successful. Our cafeteria partners are working hard to prepare your meal quickly!",
+        },
+        {
+            question: "I received the wrong items",
+            solution: "We apologize for the mix-up! Please double-check your order receipt. If the items received don't match your bill, you can submit a ticket below and our team will resolve it.",
+        },
+        {
+            question: "My order was not delivered",
+            solution: "Please check your order status in the app. If it says 'Delivered' but you haven't received it, check with the cafeteria counter immediately. If you still need help, open a ticket below.",
+        },
+        {
+            question: "I want to cancel my order",
+            solution: "Orders can only be canceled within a very short window before the kitchen starts preparation. If the status is already 'Preparing', cancellation is no longer possible.",
+        },
     ],
     "Payment Issues": [
-        "Payment was deducted but order not placed",
-        "I was charged twice",
-        "Refund not received",
-        "Payment failed but amount deducted",
-        "UPI payment stuck",
+        {
+            question: "Payment was deducted but order not placed",
+            solution: "Don't worry! This usually happens due to a bank delay. The amount will be automatically refunded to your original payment method within 3-5 business days. IF you need urgent help, please submit a ticket.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "I was charged twice",
+            solution: "Duplicate charges are automatically voided by the payment gateway and refunded within 3-5 working days. Please check your bank statement after a few days.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "Refund not received",
+            solution: "Refunds typically take 5-7 business days to reflect in your account depending on your bank. If it has been more than 7 days, please let us know.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "UPI payment stuck",
+            solution: "UPI payments can sometimes hit network issues. If your amount was deducted, it will either succeed in a few minutes or be refunded by your bank within 48 hours.",
+            requiresContactDetails: true,
+        },
     ],
     "Account Issues": [
-        "Unable to login",
-        "OTP not received",
-        "Want to change my phone number",
-        "Want to change my email",
-        "Account is locked/blocked",
+        {
+            question: "Unable to login",
+            solution: "Please ensure you are using the correct email/phone number. If you changed your device, try clearing the app cache and logging in again.",
+        },
+        {
+            question: "Want to change my phone number or email",
+            solution: "Currently, you cannot change your primary email/phone from the app yourself. Please submit a request, and our support team will update it for you.",
+        },
     ],
     "App Issues": [
-        "App is crashing",
-        "App is very slow",
-        "Unable to load menu",
-        "Notification not received",
-        "QR Scanner not working",
+        {
+            question: "App is crashing or slow",
+            solution: "Please try clearing the app cache or updating the app to the latest version from the Play Store/App Store. Restarting your phone can also help.",
+        },
     ],
     "Other": [
-        "I have a different issue (describe below)",
+        {
+            question: "I have a different issue (describe below)",
+            solution: "Please describe your issue in the text box below. Our support team will review it and get back to you as soon as possible.",
+        },
     ],
 };
 
@@ -77,7 +107,8 @@ export const createSupportTicket = async (req, res) => {
         }
 
         // Validate question exists in category
-        if (!SUPPORT_CATEGORIES[category].includes(question)) {
+        const questionObj = SUPPORT_CATEGORIES[category].find(q => q.question === question);
+        if (!questionObj) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid question for this category",
