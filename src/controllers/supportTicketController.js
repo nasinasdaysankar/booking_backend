@@ -6,21 +6,21 @@ import { SupportTicket, User } from "../models/index.js";
 const SUPPORT_CATEGORIES = {
     "Order Issues": [
         {
-            question: "My order is delayed",
-            solution: "Orders usually take 15-20 minutes depending on the cafeteria load. If it's taking unusually long, please ensure your payment was successful. Our cafeteria partners are working hard to prepare your meal quickly!",
+            question: "Order not received?",
+            solution: "Our application is tailored for dine-in experiences. Once your order status changes to 'Ready' or 'Completed', please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
         },
         {
-            question: "I received the wrong items",
-            solution: "We apologize for the mix-up! Please double-check your order receipt. If the items received don't match your bill, you can submit a ticket below and our team will resolve it.",
+            question: "Received the wrong item?",
+            solution: "We sincerely apologize for the oversight! If the item you collected does not match your digital receipt, please show your bill to the cafeteria staff immediately. They will gladly replace it for you on the spot.",
         },
         {
-            question: "My order was not delivered",
-            solution: "Please check your order status in the app. If it says 'Delivered' but you haven't received it, check with the cafeteria counter immediately. If you still need help, open a ticket below.",
+            question: "I want to cancel the order?",
+            solution: "To cancel an order, please contact the cafeteria staff at the counter immediately. They can cancel it for you, provided the kitchen hasn't started preparing your food. Cancellations cannot be processed once preparation has begun.",
         },
         {
-            question: "I want to cancel my order",
-            solution: "Orders can only be canceled within a very short window before the kitchen starts preparation. If the status is already 'Preparing', cancellation is no longer possible.",
-        },
+            question: "There is a missing item in my order",
+            solution: "Please cross-verify your tray contents with your digital receipt. If an item is missing, simply return to the counter and notify the staff. They will provide the missing item to you right away.",
+        }
     ],
     "Payment Issues": [
         {
@@ -46,24 +46,36 @@ const SUPPORT_CATEGORIES = {
     ],
     "Account Issues": [
         {
-            question: "Unable to login",
-            solution: "Please ensure you are using the correct email/phone number. If you changed your device, try clearing the app cache and logging in again.",
+            question: "Unable to login to my account",
+            solution: "Please ensure your internet connection is stable and you are using the correct credentials. If the issue persists, try clearing the application's cache data or reinstalling the app for a fresh instance.",
         },
         {
-            question: "Want to change my phone number or email",
-            solution: "Currently, you cannot change your primary email/phone from the app yourself. Please submit a request, and our support team will update it for you.",
+            question: "Need to update phone number or email",
+            solution: "For maximum security, modifying your primary contact details requires administrative verification. Please submit a request below, and our support infrastructure team will manually process the update.",
         },
     ],
     "App Issues": [
         {
-            question: "App is crashing or slow",
+            question: "App is crashing",
             solution: "Please try clearing the app cache or updating the app to the latest version from the Play Store/App Store. Restarting your phone can also help.",
         },
+        {
+            question: "Menu not loading",
+            solution: "This usually happens due to a poor internet connection. Try turning your Wi-Fi or mobile data off and on again, or pull down to refresh the page.",
+        },
+        {
+            question: "QR Scanner not working",
+            solution: "Ensure you have granted camera permissions to the app. You can verify this in your phone's settings under Apps > Booking App > Permissions.",
+        },
+        {
+            question: "Location not detecting",
+            solution: "Please check if your device's GPS/Location service is turned on and that the app has permission to access your location.",
+        }
     ],
     "Other": [
         {
             question: "I have a different issue (describe below)",
-            solution: "Please describe your issue in the text box below. Our support team will review it and get back to you as soon as possible.",
+            solution: "Our intelligent support system is here to help! Please describe your issue in the text box below. Our dedicated support team will review your ticket and provide a tailored resolution promptly.",
         },
     ],
 };
