@@ -25,22 +25,22 @@ const SUPPORT_CATEGORIES = {
     "Payment Issues": [
         {
             question: "Payment was deducted but order not placed",
-            solution: "Don't worry! This usually happens due to a bank delay. The amount will be automatically refunded to your original payment method within 3-5 business days. IF you need urgent help, please submit a ticket.",
+            solution: "Since this is a payment issue, our team will need to manually check this and issue a refund if applicable. Please provide your email and phone number below so we can contact you to resolve this.",
             requiresContactDetails: true,
         },
         {
             question: "I was charged twice",
-            solution: "Duplicate charges are automatically voided by the payment gateway and refunded within 3-5 working days. Please check your bank statement after a few days.",
+            solution: "Since you were charged twice, our team will need to verify the transactions and issue a refund manually. Please provide your contact details below.",
             requiresContactDetails: true,
         },
         {
             question: "Refund not received",
-            solution: "Refunds typically take 5-7 business days to reflect in your account depending on your bank. If it has been more than 7 days, please let us know.",
+            solution: "To check the status of your refund, our team needs your contact details. Please provide your email and phone number below so we can assist you.",
             requiresContactDetails: true,
         },
         {
             question: "UPI payment stuck",
-            solution: "UPI payments can sometimes hit network issues. If your amount was deducted, it will either succeed in a few minutes or be refunded by your bank within 48 hours.",
+            solution: "If your UPI payment is stuck, we will need to check the payment gateway logs. Please provide your contact details below so we can issue a refund if it failed.",
             requiresContactDetails: true,
         },
     ],
@@ -199,7 +199,7 @@ export const getAllTickets = async (req, res) => {
 export const resolveTicket = async (req, res) => {
     try {
         const { id } = req.params;
-        const { adminResponse, status } = req.body;
+        const { adminResponse, status, ownerRequestedConfirmation } = req.body;
 
         const ticket = await SupportTicket.findByPk(id);
         if (!ticket) {
@@ -211,9 +211,16 @@ export const resolveTicket = async (req, res) => {
 
         // Update ticket
         ticket.adminResponse = adminResponse || ticket.adminResponse;
+        
+        if (ownerRequestedConfirmation !== undefined) {
+             ticket.ownerRequestedConfirmation = ownerRequestedConfirmation;
+        }
+
         ticket.status = status || "resolved";
         if (status === "resolved" || (!status && adminResponse)) {
-            ticket.resolvedAt = new Date();
+            if (ticket.status !== "resolved") {
+                ticket.resolvedAt = new Date();
+            }
             ticket.status = "resolved";
         }
         await ticket.save();
@@ -227,6 +234,55 @@ export const resolveTicket = async (req, res) => {
         });
     } catch (error) {
         console.error("❌ resolveTicket ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// VERIFY TICKET RESOLUTION (user response to admin)
+// ============================================
+export const verifyTicketResolution = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isSolved, email, phone } = req.body;
+        const userId = req.user.id;
+
+        const ticket = await SupportTicket.findOne({ where: { id, userId } });
+        if (!ticket) {
+            return res.status(404).json({
+                success: false,
+                message: "Ticket not found",
+            });
+        }
+
+        // Only allow if admin asked for confirmation
+        if (!ticket.ownerRequestedConfirmation) {
+            return res.status(400).json({
+                success: false,
+                message: "Confirmation not requested for this ticket",
+            });
+        }
+
+        if (isSolved) {
+            ticket.status = "resolved";
+            ticket.ownerRequestedConfirmation = false;
+        } else {
+            ticket.status = "open"; // Or in_progress
+            ticket.ownerRequestedConfirmation = false;
+            if (email) ticket.userEmail = email;
+            if (phone) ticket.userPhone = phone;
+        }
+
+        await ticket.save();
+
+        return res.json({
+            success: true,
+            message: "Feedback submitted successfully",
+            ticket,
+        });
+
+    } catch (error) {
+        console.error("❌ verifyTicketResolution ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

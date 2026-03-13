@@ -5,6 +5,7 @@ import {
     getMyTickets,
     getAllTickets,
     resolveTicket,
+    verifyTicketResolution,
 } from "../controllers/supportTicketController.js";
 import { auth, requireRole } from "../middleware/auth.js";
 
@@ -22,6 +23,9 @@ router.post("/create", auth, createSupportTicket);
 
 // Get my support tickets
 router.get("/my-tickets", auth, getMyTickets);
+
+// Verify/submit feedback on a resolved ticket
+router.put("/my-tickets/:id/verify-resolution", auth, verifyTicketResolution);
 
 // ============================================
 // ADMIN/OWNER ROUTES (superadmin only)

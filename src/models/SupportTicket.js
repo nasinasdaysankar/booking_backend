@@ -45,6 +45,24 @@ export default (sequelize) => {
                 allowNull: true,
                 field: "resolved_at",
             },
+            ownerRequestedConfirmation: {
+                type: DataTypes.BOOLEAN,
+                defaultValue: false,
+                field: "owner_requested_confirmation",
+                comment: "If true, owner asked the user if the problem is solved",
+            },
+            userEmail: {
+                type: DataTypes.STRING,
+                allowNull: true,
+                field: "user_email",
+                comment: "Email provided by user if problem not solved",
+            },
+            userPhone: {
+                type: DataTypes.STRING,
+                allowNull: true,
+                field: "user_phone",
+                comment: "Phone provided by user if problem not solved",
+            },
             platform: {
                 type: DataTypes.STRING,
                 allowNull: true,
