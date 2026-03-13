@@ -6,8 +6,8 @@ import { SupportTicket, User } from "../models/index.js";
 const SUPPORT_CATEGORIES = {
     "Order Issues": [
         {
-            question: "Order not received?",
-            solution: "Our application is tailored for dine-in experiences. Once your order status changes to 'Ready' or 'Completed', please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
+            question: "Item not received?",
+            solution: "Once your order status changes to 'Ready' or 'Completed',You need to take the order with in 20 Min from the time of order.If you reached before in time please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
         },
         {
             question: "Received the wrong item?",
