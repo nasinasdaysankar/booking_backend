@@ -1,7 +1,7 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback, UserActivity } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback, UserActivity, SupportTicket } from '../models/index.js';
 import { superadminAuth } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -1305,6 +1305,77 @@ router.get('/analytics/advanced', superadminAuth, async (req, res) => {
     } catch (error) {
         console.error('Advanced analytics error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch advanced analytics' });
+    }
+});
+
+// ============================================
+// GET ALL SUPPORT TICKETS (SUPERADMIN)
+// ============================================
+router.get('/support-tickets', superadminAuth, async (req, res) => {
+    try {
+        const { status, category } = req.query;
+
+        const where = {};
+        if (status) where.status = status;
+        if (category) where.category = category;
+
+        const tickets = await SupportTicket.findAll({
+            where,
+            include: [
+                {
+                    model: User,
+                    as: "user",
+                    attributes: ["id", "name", "email", "phone"],
+                },
+            ],
+            order: [["createdAt", "DESC"]],
+        });
+
+        return res.json({
+            success: true,
+            count: tickets.length,
+            data: tickets,
+        });
+    } catch (error) {
+        console.error("❌ getSupportTickets ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// ============================================
+// RESOLVE SUPPORT TICKET (SUPERADMIN)
+// ============================================
+router.put('/support-tickets/:id/resolve', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { adminResponse, status } = req.body;
+
+        const ticket = await SupportTicket.findByPk(id);
+        if (!ticket) {
+            return res.status(404).json({
+                success: false,
+                message: "Ticket not found",
+            });
+        }
+
+        ticket.adminResponse = adminResponse || ticket.adminResponse;
+        ticket.status = status || "resolved";
+        if (status === "resolved" || (!status && adminResponse)) {
+            ticket.resolvedAt = new Date();
+            ticket.status = "resolved";
+        }
+        await ticket.save();
+
+        console.log(`✅ Support ticket #${id} ${ticket.status} by superadmin`);
+
+        return res.json({
+            success: true,
+            message: `Ticket ${ticket.status} successfully`,
+            ticket,
+        });
+    } catch (error) {
+        console.error("❌ resolveTicket ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
     }
 });
 

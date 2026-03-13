@@ -23,6 +23,7 @@ import UserStreakModel from "./UserStreak.js";
 import OrderFeedbackModel from "./OrderFeedback.js";
 import AppFeedbackModel from "./AppFeedback.js";
 import UserActivityModel from "./UserActivity.js";
+import SupportTicketModel from "./SupportTicket.js";
 
 import app from "../app.js";
 import http from "http";
@@ -68,6 +69,7 @@ const UserStreak = UserStreakModel(sequelize);
 const OrderFeedback = OrderFeedbackModel(sequelize);
 const AppFeedback = AppFeedbackModel(sequelize);
 const UserActivity = UserActivityModel(sequelize);
+const SupportTicket = SupportTicketModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -147,6 +149,10 @@ UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "caf
 User.hasMany(UserActivity, { foreignKey: { name: "userId", field: "userid" } });
 UserActivity.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
+// User → Support Tickets
+User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" } });
+SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user" });
+
 // ================= SYSTEM RELATIONS =================
 SystemAlert.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
 Cafeteria.hasMany(SystemAlert, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "alerts" });
@@ -183,4 +189,5 @@ export {
   AppFeedback,
   UserActivity,
   UpiPayment, // [NEW] Auto Collect
+  SupportTicket, // 🎫 SUPPORT TICKETS
 };

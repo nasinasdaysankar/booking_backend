@@ -20,6 +20,7 @@ import userNotificationRoutes from "./routes/userNotificationRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"; // ✅ ADDED
 import superadminRoutes from "./routes/superadminRoutes.js"; // ✅ SUPERADMIN
 import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
+import supportTicketRoutes from "./routes/supportTicketRoutes.js";
 
 
 
@@ -147,6 +148,9 @@ logger.info("✅ Superadmin routes mounted");
 
 app.use("/api/feedback", appFeedbackRoutes);
 logger.info("✅ App feedback routes mounted");
+
+app.use("/api/support", supportTicketRoutes);
+logger.info("✅ Support ticket routes mounted");
 
 
 
