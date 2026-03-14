@@ -126,6 +126,11 @@ export default (sequelize) => {
         defaultValue: true,
         field: "show_commission",
       },
+      fssaiLicense: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        field: "fssai_license",
+      },
     },
     {
       tableName: "cafeterias",

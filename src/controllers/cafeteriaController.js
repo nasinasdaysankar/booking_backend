@@ -39,7 +39,8 @@ export const getCafeterias = async (req, res) => {
         'promoImageUrl',
         'showGst',
         'showPlatformFee',
-        'showCommission'
+        'showCommission',
+        'fssaiLicense'
       ],
       order: [['id', 'ASC']]
     });

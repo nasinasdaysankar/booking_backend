@@ -886,7 +886,22 @@ export const syncFromWebhook = async (req, res) => {
                       status: "REFUND_SUCCESS",
                       type: "REFUND_UPDATE"
                     },
-                    android: { priority: "high" }
+                    android: {
+                      priority: "high",
+                      notification: {
+                        channelId: "high_importance_channel",
+                        sound: "default",
+                        clickAction: "FLUTTER_NOTIFICATION_CLICK"
+                      }
+                    },
+                    apns: {
+                      payload: {
+                        aps: {
+                          sound: "default",
+                          badge: 1
+                        }
+                      }
+                    }
                   });
                   console.log("🔔 User notified of refund success via webhook sync");
                 }

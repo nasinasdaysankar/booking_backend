@@ -243,7 +243,22 @@ export const refundOrder = async (req, res) => {
               status: "CANCELLED",
               type: "ORDER_CANCELLED"
             },
-            android: { priority: "high" }
+            android: {
+              priority: "high",
+              notification: {
+                channelId: "high_importance_channel",
+                sound: "default",
+                clickAction: "FLUTTER_NOTIFICATION_CLICK"
+              }
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: "default",
+                  badge: 1
+                }
+              }
+            }
           });
           console.log("🔔 User notified of cancellation");
         }
@@ -380,6 +395,22 @@ export const checkRefundStatus = async (req, res) => {
                 orderId: String(orderId),
                 status: "REFUND_SUCCESS",
                 type: "REFUND_UPDATE"
+              },
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: "high_importance_channel",
+                  sound: "default",
+                  clickAction: "FLUTTER_NOTIFICATION_CLICK"
+                }
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                    badge: 1
+                  }
+                }
               }
             });
             console.log("🔔 User notified of refund success");
