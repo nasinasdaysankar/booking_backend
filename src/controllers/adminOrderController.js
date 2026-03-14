@@ -355,6 +355,7 @@ export const getAdminOrders = async (req, res) => {
              orders."gst_amount" AS "gstAmount",
              orders."created_at" AS "createdAt",
              orders."updated_at" AS "updatedAt",
+             orders."picked_up_at" AS "pickedUpAt",
              orders."commission_amount" AS "commissionAmount",
              orders."daily_order_number" AS "dailyOrderNumber",
              orders."total_order_number" AS "totalOrderNumber",
@@ -436,6 +437,12 @@ export const updateOrderStatus = async (req, res) => {
       console.log(`🔔 Resetting notification flags for Order #${id} (status: READY)`);
     }
 
+    // ✅ Set pickedUpAt timestamp
+    if (status === "PICKED_UP") {
+      updateData.pickedUpAt = new Date();
+      console.log(`🚚 Setting Picked Up timestamp for Order #${id}`);
+    }
+
     await order.update(updateData);
     
     // 📊 GOOGLE SHEETS DYNAMIC UPDATE
@@ -486,6 +493,7 @@ export const updateOrderStatus = async (req, res) => {
       dailyOrderNumber: order.dailyOrderNumber,
       items: parsedItems,
       customerName: userName,
+      pickedUpAt: order.pickedUpAt,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
