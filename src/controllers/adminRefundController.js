@@ -439,13 +439,18 @@ export const getRefundHistory = async (req, res) => {
         p."refundid" AS "refundId",
         p."refundamount" AS "refundAmount",
         p.status as "refundStatus",
-        p."refundedat",
+        p."refundedat" AS "refundedAt",
         o.id as "orderId",
         o."daily_order_number" AS "dailyOrderNumber",
         o."billid" AS "billId",
         o."totalamount" AS "totalAmount",
         o.status as "orderStatus",
-        o."created_at"
+        o."created_at" AS "createdAt",
+        (
+          SELECT string_agg(oi.name || ' (x' || oi.quantity || ')', ', ')
+          FROM order_items oi
+          WHERE oi.orderid = o.id
+        ) AS "itemsSummary"
       FROM payments p
       JOIN orders o 
         ON p."orderid" = o.id
@@ -494,13 +499,18 @@ export const getUserRefundHistory = async (req, res) => {
         p."refundid" AS "refundId",
         p."refundamount" AS "refundAmount",
         p.status AS "refundStatus",
-        p."refundedat",
+        p."refundedat" AS "refundedAt",
         o.id AS "orderId",
         o."daily_order_number" AS "dailyOrderNumber",
         o."billid" AS "billId",
         o."totalamount" AS "totalAmount",
         o.status AS "orderStatus",
-        o."created_at"
+        o."created_at" AS "createdAt",
+        (
+          SELECT string_agg(oi.name || ' (x' || oi.quantity || ')', ', ')
+          FROM order_items oi
+          WHERE oi.orderid = o.id
+        ) AS "itemsSummary"
       FROM payments p
       JOIN orders o ON p."orderid" = o.id
       WHERE 
