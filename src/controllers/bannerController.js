@@ -2,7 +2,7 @@ import { Banner } from "../models/index.js";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
-import { bannerCacheGet, bannerCacheSet, CACHE_KEYS, clearBannerCache } from "../utils/cache.js";
+import { bannerCacheGet, bannerCacheSet, CACHE_KEYS, clearBannerCache, clearMenuCache } from "../utils/cache.js";
 
 // ==================== GET ALL BANNERS (REDIS CACHED) ====================
 export const getBanners = async (req, res) => {
@@ -64,10 +64,12 @@ export const uploadBanner = async (req, res) => {
       name,
       cafeteriaId,
       imageUrl,
+      isVisible: true, // Default to true on upload
     });
 
     // 🗑️ INVALIDATE BANNER CACHE
     await clearBannerCache();
+    await clearMenuCache();
 
     return res.json({
       success: true,
@@ -118,6 +120,7 @@ export const deleteBanner = async (req, res) => {
 
     // 🗑️ INVALIDATE BANNER CACHE
     await clearBannerCache();
+    await clearMenuCache();
 
     return res.json({
       success: true,
@@ -135,7 +138,7 @@ export const deleteBanner = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, cafeteriaId } = req.body;
+    const { name, cafeteriaId, isVisible } = req.body;
 
     const banner = await Banner.findByPk(id);
     if (!banner) {
@@ -145,6 +148,7 @@ export const updateBanner = async (req, res) => {
     // Update basic fields if provided
     if (name) banner.name = name;
     if (cafeteriaId) banner.cafeteriaId = cafeteriaId;
+    if (isVisible !== undefined) banner.isVisible = isVisible === "true" || isVisible === true;
 
     // Handle Image Replacement if a new file is uploaded
     if (req.file) {
@@ -191,6 +195,7 @@ export const updateBanner = async (req, res) => {
 
     // 🗑️ INVALIDATE BANNER CACHE
     await clearBannerCache();
+    await clearMenuCache();
 
     return res.json({
       success: true,

@@ -1,4 +1,4 @@
-import { MenuItem, sequelize } from "../models/index.js";
+import { MenuItem, sequelize, Banner } from "../models/index.js";
 import { Op } from "sequelize";
 import { menuCacheGet, menuCacheSet, analyticsCacheGet, analyticsCacheSet, CACHE_KEYS, clearMenuCache } from "../utils/cache.js";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -63,7 +63,24 @@ export const addBulkMenuItems = async (req, res) => {
 export const getAllMenuItems = async (req, res) => {
   try {
     const items = await MenuItem.findAll();
-    res.json({ success: true, count: items.length, data: items });
+
+    // 🚀 FILTER BY HIDDEN CATEGORIES
+    const hiddenBanners = await Banner.findAll({ where: { isVisible: false } });
+    const hiddenMap = {}; // cafeteriaId -> set of categoryNames
+    hiddenBanners.forEach(b => {
+      const cid = Number(b.cafeteriaId);
+      if (!hiddenMap[cid]) hiddenMap[cid] = new Set();
+      hiddenMap[cid].add(b.name.toLowerCase().trim());
+    });
+
+    const filtered = items.filter(item => {
+      const cid = Number(item.cafeteriaId);
+      if (!hiddenMap[cid]) return true;
+      const cat = item.category?.toLowerCase().trim();
+      return !hiddenMap[cid].has(cat);
+    });
+
+    res.json({ success: true, count: filtered.length, data: filtered });
   } catch (err) {
     res.status(500).json({ success: false, message: "Fetch failed", error: err.message });
   }
@@ -73,10 +90,26 @@ export const getAllMenuItems = async (req, res) => {
 /* ================== SEARCH BY CATEGORY ================== */
 export const getBeveragesMenu = async (req, res) => {
   try {
-    const category = req.params.category;
-    const items = await MenuItem.findAll({ where: { category } });
+    const categoryName = req.params.category;
+    const items = await MenuItem.findAll({ where: { category: categoryName } });
 
-    res.json({ success: true, category, count: items.length, data: items });
+    // 🚀 FILTER BY HIDDEN CATEGORIES
+    const hiddenBanners = await Banner.findAll({ where: { isVisible: false } });
+    const hiddenMap = {}; 
+    hiddenBanners.forEach(b => {
+      const cid = Number(b.cafeteriaId);
+      if (!hiddenMap[cid]) hiddenMap[cid] = new Set();
+      hiddenMap[cid].add(b.name.toLowerCase().trim());
+    });
+
+    const filtered = items.filter(item => {
+      const cid = Number(item.cafeteriaId);
+      if (!hiddenMap[cid]) return true;
+      const cat = item.category?.toLowerCase().trim();
+      return !hiddenMap[cid].has(cat);
+    });
+
+    res.json({ success: true, category: categoryName, count: filtered.length, data: filtered });
 
   } catch (err) {
     res.status(500).json({ success: false, message: "Category fetch failed", error: err.message });
@@ -128,7 +161,7 @@ export const getMenuByCafeteria = async (req, res) => {
     // );
 
     // ✅ FETCH MENU ITEMS FIRST
-    const items = await MenuItem.findAll({
+    let items = await MenuItem.findAll({
       where: {
         cafeteriaId,
         isDeleted: false,
@@ -139,6 +172,19 @@ export const getMenuByCafeteria = async (req, res) => {
         ["name", "ASC"],
       ],
     });
+
+    // 🚀 FILTER BY HIDDEN CATEGORIES
+    const hiddenBanners = await Banner.findAll({
+      where: { cafeteriaId, isVisible: false }
+    });
+    const hiddenNames = new Set(hiddenBanners.map(b => b.name.toLowerCase().trim()));
+
+    if (hiddenNames.size > 0) {
+      items = items.filter(item => {
+        const cat = item.category?.toLowerCase().trim();
+        return !hiddenNames.has(cat);
+      });
+    }
 
     // ✅ DEBUG LOG (SAFE)
     items.forEach(item => {
@@ -370,6 +416,7 @@ export const getMostLovedItems = async (req, res) => {
         mi.id,
         mi.name,
         mi.price,
+        mi.category,
         mi."imageurl" AS "imageUrl",
         CAST(mi."cafeteriaid" AS INTEGER) AS "cafeteriaId",
         COUNT(oi.id) AS "orderCount"
@@ -382,14 +429,36 @@ export const getMostLovedItems = async (req, res) => {
       JOIN orders o ON o.id = oi."orderid"
       WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'PICKED_UP', 'COMPLETED')
       ${cafeteriaFilter}
-      GROUP BY mi.id
+      GROUP BY mi.id, mi.name, mi.price, mi.category, mi.imageurl, mi.cafeteriaid
       ORDER BY "orderCount" DESC
       LIMIT 10
     `);
 
     // ✅ SAVE TO REDIS (5 min TTL)
     if (items.length > 0) {
-      await analyticsCacheSet(cacheKey, items);
+      // 🚀 FILTER BY HIDDEN CATEGORIES
+      const hiddenBanners = await Banner.findAll({ where: { isVisible: false } });
+      const hiddenMap = {};
+      hiddenBanners.forEach(b => {
+        const cid = Number(b.cafeteriaId);
+        if (!hiddenMap[cid]) hiddenMap[cid] = new Set();
+        hiddenMap[cid].add(b.name.toLowerCase().trim());
+      });
+
+      const filtered = items.filter(item => {
+        const cid = Number(item.cafeteriaId);
+        if (!hiddenMap[cid]) return true;
+        const cat = item.category?.toLowerCase().trim();
+        return !hiddenMap[cid].has(cat);
+      });
+      
+      await analyticsCacheSet(cacheKey, filtered);
+      
+      return res.json({
+        success: true,
+        cached: false,
+        data: filtered,
+      });
     }
 
     res.json({
@@ -434,7 +503,7 @@ export const getTodaySpecials = async (req, res) => {
       });
     }
 
-    const items = await MenuItem.findAll({
+    let items = await MenuItem.findAll({
       where: {
         cafeteriaId,
         isTodaySpecial: true,
@@ -443,6 +512,19 @@ export const getTodaySpecials = async (req, res) => {
         isDeleted: false,
       },
     });
+
+    // 🚀 FILTER BY HIDDEN CATEGORIES
+    const hiddenBanners = await Banner.findAll({
+      where: { cafeteriaId, isVisible: false }
+    });
+    const hiddenNames = new Set(hiddenBanners.map(b => b.name.toLowerCase().trim()));
+
+    if (hiddenNames.size > 0) {
+      items = items.filter(item => {
+        const cat = item.category?.toLowerCase().trim();
+        return !hiddenNames.has(cat);
+      });
+    }
 
     const response = { cafeteriaOpen: true, data: items };
 
@@ -543,7 +625,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     }
 
     // ✅ FETCH MENU (INDEX-FRIENDLY QUERY)
-    const items = await MenuItem.findAll({
+    let items = await MenuItem.findAll({
       where: {
         cafeteriaId,
         isAvailable: true,
@@ -563,6 +645,19 @@ export const getPublicMenuByCafeteria = async (req, res) => {
         ["name", "ASC"],
       ],
     });
+
+    // 🚀 FILTER BY HIDDEN CATEGORIES
+    const hiddenBanners = await Banner.findAll({
+      where: { cafeteriaId, isVisible: false }
+    });
+    const hiddenNames = new Set(hiddenBanners.map(b => b.name.toLowerCase().trim()));
+
+    if (hiddenNames.size > 0) {
+      items = items.filter(item => {
+        const cat = item.category?.toLowerCase().trim();
+        return !hiddenNames.has(cat);
+      });
+    }
 
     // ✅ BUILD RESPONSE OBJECT
     const response = {

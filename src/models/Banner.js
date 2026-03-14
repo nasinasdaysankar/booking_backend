@@ -5,7 +5,8 @@ export default (sequelize) => {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     name: { type: DataTypes.STRING, allowNull: false },
     imageUrl: { type: DataTypes.STRING, allowNull: false, field: "imageurl" },
-    cafeteriaId: { type: DataTypes.INTEGER, allowNull: false, field: "cafeteriaid" }, // NEW FIELD
+    cafeteriaId: { type: DataTypes.INTEGER, allowNull: false, field: "cafeteriaid" },
+    isVisible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: "is_visible" },
 
     createdAt: {
       type: DataTypes.DATE,
