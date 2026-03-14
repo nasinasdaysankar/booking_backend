@@ -3,7 +3,7 @@ import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
-import { AdminFcmToken, UserStreak } from "../models/index.js";
+import { AdminFcmToken, UserStreak, UserFcmToken } from "../models/index.js";
 import { clearAnalyticsCache } from "../utils/cache.js";
 import dayjs from "dayjs";
 import axios from "axios";
@@ -815,8 +815,96 @@ export const syncFromWebhook = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-    const { cashfreeOrderId, paymentId, orderStatus, paymentStatus } = req.body;
+    const { 
+      cashfreeOrderId, 
+      paymentId, 
+      orderStatus, 
+      paymentStatus,
+      refundStatus,
+      refundId,
+      eventType 
+    } = req.body;
 
+    console.log(`📥 [WEBHOOK SYNC] Type: ${eventType || 'PAYMENT'}, Order: ${cashfreeOrderId}`);
+
+    // ==========================================
+    // 1️⃣ HANDLE REFUND WEBHOOKS
+    // ==========================================
+    if (eventType?.startsWith("REFUND_") || refundStatus) {
+      if (!cashfreeOrderId || (!refundId && !paymentId)) {
+        await t.rollback();
+        return res.json({ success: true, message: "Invalid refund webhook" });
+      }
+
+      const payment = await Payment.findOne({
+        where: { cashfreeOrderId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (!payment) {
+        await t.rollback();
+        return res.json({ success: true, message: "Payment record for refund not found" });
+      }
+
+      const finalRefundStatus = eventType === "REFUND_SUCCESS" || refundStatus === "SUCCESS" ? "SUCCESS" : "FAILED";
+      
+      console.log(`💸 [WEBHOOK REFUND] Updating to: ${finalRefundStatus}`);
+
+      await payment.update(
+        { status: finalRefundStatus, refundId: refundId || payment.refundId },
+        { transaction: t }
+      );
+
+      if (payment.orderId) {
+        const order = await Order.findByPk(payment.orderId, { transaction: t });
+        if (order) {
+          // For Order status, we can use REFUND_SUCCESS as it's more specific in the order history, 
+          // but the payment status 'SUCCESS' is what the refund screen looks at.
+          await order.update({ status: "REFUND_SUCCESS" }, { transaction: t });
+          
+          // 📊 GOOGLE SHEETS DYNAMIC UPDATE
+          updateOrderStatusInSheet(order.id, "REFUND_SUCCESS").catch(err => 
+            console.error("⚠️ Sheets refund update error:", err.message)
+          );
+
+          // 🔔 NOTIFY USER OF REFUND STATUS
+          if (finalRefundStatus === "SUCCESS") {
+            (async () => {
+              try {
+                const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+                if (userTokens.length > 0) {
+                  const tokens = userTokens.map(t => t.fcmToken);
+                  await admin.messaging().sendEachForMulticast({
+                    tokens,
+                    notification: {
+                      title: "💰 Refund Processed",
+                      body: `Your refund of ₹${order.totalAmount} for Order #${order.dailyOrderNumber ?? order.id} is successful.`,
+                    },
+                    data: {
+                      orderId: String(order.id),
+                      status: "REFUND_SUCCESS",
+                      type: "REFUND_UPDATE"
+                    },
+                    android: { priority: "high" }
+                  });
+                  console.log("🔔 User notified of refund success via webhook sync");
+                }
+              } catch (e) {
+                console.error("⚠️ Failed to notify user of refund via sync:", e.message);
+              }
+            })();
+          }
+        }
+      }
+
+      await t.commit();
+      return res.json({ success: true, message: `Refund sync successful: ${finalRefundStatus}` });
+    }
+
+    // ==========================================
+    // 2️⃣ HANDLE PAYMENT WEBHOOKS (Existing Logic)
+    // ==========================================
     if (!cashfreeOrderId || !paymentId) {
       await t.rollback();
       return res.json({
@@ -870,7 +958,6 @@ export const syncFromWebhook = async (req, res) => {
       if (order) {
         const updateData = { status: "PAID", paymentStatus: "SUCCESS" };
 
-        // Use the helpers already defined in this file
         if (!order.kotNumber) {
           updateData.kotNumber = await generateKotNumber(order.cafeteriaId, t);
         }
@@ -888,7 +975,7 @@ export const syncFromWebhook = async (req, res) => {
 
     await t.commit();
 
-    // 🗑️ INVALIDATE ANALYTICS CACHE on webhook sync
+    // 🗑️ INVALIDATE ANALYTICS CACHE
     if (payment.orderId) {
       const syncedOrder = await Order.findByPk(payment.orderId);
       if (syncedOrder?.cafeteriaId) {
@@ -898,7 +985,7 @@ export const syncFromWebhook = async (req, res) => {
       }
     }
 
-    // 📊 GOOGLE SHEETS SYNC on webhook
+    // 📊 GOOGLE SHEETS SYNC
     if (payment.orderId) {
       (async () => {
         try {
@@ -907,7 +994,6 @@ export const syncFromWebhook = async (req, res) => {
           });
 
           if (syncedOrder) {
-            // Find student to get name
             const student = await sequelize.models.User.findByPk(syncedOrder.studentId);
 
             await appendOrderToSheet({
