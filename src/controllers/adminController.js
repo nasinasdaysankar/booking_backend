@@ -105,6 +105,9 @@ export const updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     order.status = status;
+    if (status === "PICKED_UP") {
+      order.pickedUpAt = new Date();
+    }
     await order.save();
 
     res.json({ message: 'Status updated', order });
@@ -139,6 +142,7 @@ export const verifyOrderPickup = async (req, res) => {
     }
 
     order.status = 'PICKED_UP';
+    order.pickedUpAt = new Date();
     await order.save();
 
     res.json({

@@ -139,7 +139,8 @@ export const confirmOrderPickup = async (req, res) => {
     }
 
     console.log("✅ Order found, updating status to PICKED_UP");
-    await order.update({ status: "PICKED_UP" });
+    const now = new Date();
+    await order.update({ status: "PICKED_UP", pickedUpAt: now });
 
     // 🖨️ Notify admin app via socket so thermal receipt auto-prints
     emitAdminOrderUpdate(order.cafeteriaId, {
@@ -150,6 +151,7 @@ export const confirmOrderPickup = async (req, res) => {
       dailyOrderNumber: order.dailyOrderNumber,
       status: "PICKED_UP",
       customerName: req.user.name || "Guest",
+      pickedUpAt: now,
       totalAmount: order.totalAmount,
       netAmount: order.totalAmount,
       createdAt: order.createdAt,
