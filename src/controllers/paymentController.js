@@ -847,20 +847,20 @@ export const syncFromWebhook = async (req, res) => {
         return res.json({ success: true, message: "Payment record for refund not found" });
       }
 
-      const finalRefundStatus = eventType === "REFUND_SUCCESS" || refundStatus === "SUCCESS" ? "SUCCESS" : "FAILED";
+      const isSuccess = eventType === "REFUND_SUCCESS" || refundStatus === "SUCCESS";
+      const isFailed = eventType === "REFUND_FAILED" || refundStatus === "FAILED" || eventType === "REFUND_REJECTED";
+      const finalRefundStatus = isSuccess ? "SUCCESS" : (isFailed ? "FAILED" : "PENDING");
       
-      console.log(`💸 [WEBHOOK REFUND] Updating to: ${finalRefundStatus}`);
+      console.log(`💸 [WEBHOOK REFUND] Type: ${eventType}, Status: ${refundStatus} -> Final: ${finalRefundStatus}`);
 
       await payment.update(
         { status: finalRefundStatus, refundId: refundId || payment.refundId },
         { transaction: t }
       );
 
-      if (payment.orderId) {
+      if (payment.orderId && isSuccess) {
         const order = await Order.findByPk(payment.orderId, { transaction: t });
         if (order) {
-          // For Order status, we can use REFUND_SUCCESS as it's more specific in the order history, 
-          // but the payment status 'SUCCESS' is what the refund screen looks at.
           await order.update({ status: "REFUND_SUCCESS" }, { transaction: t });
           
           // 📊 GOOGLE SHEETS DYNAMIC UPDATE
@@ -869,8 +869,7 @@ export const syncFromWebhook = async (req, res) => {
           );
 
           // 🔔 NOTIFY USER OF REFUND STATUS
-          if (finalRefundStatus === "SUCCESS") {
-            (async () => {
+          (async () => {
               try {
                 const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
                 if (userTokens.length > 0) {
@@ -909,7 +908,6 @@ export const syncFromWebhook = async (req, res) => {
                 console.error("⚠️ Failed to notify user of refund via sync:", e.message);
               }
             })();
-          }
         }
       }
 
