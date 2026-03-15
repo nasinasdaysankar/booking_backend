@@ -1,4 +1,5 @@
 import { Payment, Order, sequelize, UserFcmToken } from "../models/index.js";
+import axios from "axios";
 import admin from "../config/firebaseAdmin.js";
 import { emitOrderStatusToUser } from "../socket.js";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
@@ -454,6 +455,44 @@ export const checkRefundStatus = async (req, res) => {
 };
 
 // ===================================================================
+// 🔧 INTERNAL HELPER: Verify and Sync Refund Status with Cashfree
+// ===================================================================
+const verifyAndSyncRefundInternal = async (orderId) => {
+  try {
+    const payment = await Payment.findOne({ where: { orderId } });
+    if (!payment || !payment.refundId || payment.status === "SUCCESS") return;
+
+    const { clientId, clientSecret, baseUrl } = getCashfreeCredentials();
+    if (!clientId || !clientSecret) return;
+
+    console.log(`📡 [AUTO-SYNC] Verifying Refund ${payment.refundId} for Order ${orderId}...`);
+
+    const refundResponse = await axios.get(
+      `${baseUrl}/orders/${payment.cashfreeOrderId}/refunds/${payment.refundId}`,
+      {
+        headers: {
+          "x-api-version": "2023-08-01",
+          "x-client-id": clientId,
+          "x-client-secret": clientSecret,
+        },
+        timeout: 5000,
+      }
+    );
+
+    const refundStatus = refundResponse.data?.refund_status;
+    if (refundStatus === "SUCCESS") {
+      await Payment.update({ status: "SUCCESS" }, { where: { id: payment.id } });
+      await Order.update({ status: "REFUND_SUCCESS" }, { where: { id: orderId } });
+      
+      updateOrderStatusInSheet(orderId, "REFUND_SUCCESS").catch(() => {});
+      console.log(`✅ [AUTO-SYNC] Order ${orderId} synced to SUCCESS`);
+    }
+  } catch (e) {
+    console.warn(`⚠️ [AUTO-SYNC] Failed for Order ${orderId}:`, e.message);
+  }
+};
+
+// ===================================================================
 // ✅ GET REFUND HISTORY (FIXED)
 // ===================================================================
 export const getRefundHistory = async (req, res) => {
@@ -461,6 +500,18 @@ export const getRefundHistory = async (req, res) => {
     const cafeteriaId = req.user.cafeteriaId;
 
     console.log(`📋 [REFUND HISTORY] Fetching for cafeteria: ${cafeteriaId}`);
+
+    // 🔄 Step 0: Proactively sync any pending refunds (Optimization: only most recent few)
+    const pendingRefunds = await Payment.findAll({
+      where: { status: "PENDING", cafeteriaId },
+      limit: 5,
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (pendingRefunds.length > 0) {
+      console.log(`🔄 Auto-syncing ${pendingRefunds.length} pending refunds before fetch...`);
+      await Promise.all(pendingRefunds.map(p => verifyAndSyncRefundInternal(p.orderId)));
+    }
 
     // ✅ Use exact column names from database
     const refunds = await sequelize.query(
@@ -522,6 +573,21 @@ export const getUserRefundHistory = async (req, res) => {
     const userId = req.user.id;   // this is studentId
 
     console.log("📋 [USER REFUNDS] Fetching for user:", userId);
+
+    // 🔄 Step 0: Proactively sync any pending refunds for this user
+    const pendingRefunds = await Payment.findAll({
+      include: [{
+        model: Order,
+        where: { studentId: userId }
+      }],
+      where: { status: "PENDING" },
+      limit: 3
+    });
+
+    if (pendingRefunds.length > 0) {
+      console.log(`🔄 Auto-syncing ${pendingRefunds.length} pending refunds for user ${userId}...`);
+      await Promise.all(pendingRefunds.map(p => verifyAndSyncRefundInternal(p.orderId)));
+    }
 
     const refunds = await sequelize.query(
       `
