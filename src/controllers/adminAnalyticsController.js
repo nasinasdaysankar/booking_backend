@@ -65,7 +65,7 @@ export const getTrendData = async (req, res) => {
     const query = `
       SELECT 
         ${dateExpr} AS date,
-        (SUM("totalamount") - COUNT(id))::FLOAT AS revenue,
+        (SUM("totalamount") - SUM(COALESCE(platform_fee, 0)) - SUM(COALESCE(commission_amount, 0)))::FLOAT AS revenue,
         COUNT(id)::INT AS orders
       FROM orders
       WHERE 
@@ -150,17 +150,16 @@ export const getTopItems = async (req, res) => {
 
     const query = `
       SELECT 
-        mi.name AS label,
+        oi.name AS label,
         SUM(oi.quantity)::INT AS count,
-        SUM(oi.quantity * mi.price)::FLOAT AS revenue
+        SUM(oi.quantity * oi.priceatorder)::FLOAT AS revenue
       FROM order_items oi
       JOIN orders o ON o.id = oi."orderid"
-      JOIN menu_items mi ON mi.id = oi."menuitemid"
       WHERE 
         o."cafeteriaid" = :cafeteriaId
         AND o."paymentstatus" = 'SUCCESS'
         ${whereDate}
-      GROUP BY mi.name
+      GROUP BY oi.name
       ORDER BY revenue DESC
       LIMIT 6
     `;

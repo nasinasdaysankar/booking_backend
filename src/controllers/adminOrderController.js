@@ -749,16 +749,28 @@ export const getAdminStats = async (req, res) => {
 
     const totalOrders = orders.length;
 
-    const totalRevenue = orders.reduce(
-      (sum, order) => sum + (Number(order.totalAmount) || 0),
+    // 💰 GROSS SALES (What the owner sold = Total Student Paid - Platform Fee)
+    const grossRevenue = orders.reduce(
+      (sum, order) => sum + (Number(order.totalAmount || 0) - Number(order.platformFee || 0)),
       0
     );
 
-    // 🔥 DEDUCT PLATFORM FEE & COMMISSION
+    // 🔥 NET EARNINGS (What the owner gets = Gross Sales - Commission)
     const netRevenue = orders.reduce(
-      (sum, order) => sum + (Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0)),
+      (sum, order) => sum + (Number(order.totalAmount || 0) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0)),
       0
     );
+
+    // 📅 TODAY'S CALCULATIONS (for header card consistency)
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // This is valid but we can also filter from the 'orders' list if it's currently fetched for 'all' or 'weekly'
+    // However, it's safer to just filter the 'orders' variable we already have if range is large, 
+    // OR just use what we have if range is 'daily'.
+    const todayOrders = orders.filter(o => new Date(o.createdAt) >= startOfToday);
+    const grossRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0)), 0);
+    const netRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0) - Number(o.commissionAmount || 0)), 0);
 
     // 👥 TOTAL CUSTOMERS (UNIQUE STUDENTS)
     const uniqueCustomers = new Set(
@@ -770,11 +782,15 @@ export const getAdminStats = async (req, res) => {
       (o) => o.status === "PAID" || o.status === "PREPARING"
     ).length;
 
-    const avgOrderValue =
-      totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    // Avg value is usually calculated on Gross Sales
+    const avgOrderValue = totalOrders > 0 ? grossRevenue / totalOrders : 0;
 
     const statsResult = {
-      totalRevenue: Number(netRevenue.toFixed(2)),
+      totalRevenue: Number(netRevenue.toFixed(2)), // Keep for backward compatibility (mapped to NET)
+      grossRevenue: Number(grossRevenue.toFixed(2)),
+      netRevenue: Number(netRevenue.toFixed(2)),
+      grossRevenueToday: Number(grossRevenueToday.toFixed(2)),
+      netRevenueToday: Number(netRevenueToday.toFixed(2)),
       totalOrders,
       totalCustomers,
       pendingOrders,
