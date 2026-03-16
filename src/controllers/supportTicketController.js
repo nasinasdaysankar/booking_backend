@@ -81,6 +81,93 @@ const SUPPORT_CATEGORIES = {
 };
 
 // ============================================
+// ADMIN-SPECIFIC SUPPORT CATEGORIES
+// ============================================
+const ADMIN_SUPPORT_CATEGORIES = {
+    "Order Management": [
+        {
+            question: "Customer says order not received but status shows completed",
+            solution: "Please verify the order timeline in the Order History section. If the order was marked as 'Completed' or 'Ready', the customer should have collected it within 20 minutes. Check the pickup timestamp and confirm with your cafeteria staff if the order was physically collected.",
+        },
+        {
+            question: "How to cancel a customer's order?",
+            solution: "Go to the active orders section, find the customer's order, and tap the cancel button. You can only cancel orders that haven't started preparation. Once the kitchen has begun preparing, cancellation is not possible through the app.",
+        },
+        {
+            question: "Order stuck in 'Preparing' status",
+            solution: "This usually happens when the order status wasn't updated after preparation. Go to the order and manually update its status to 'Ready' or 'Completed'. If the order is stuck and you cannot update it, try refreshing the orders page.",
+        },
+        {
+            question: "Customer requesting a refund",
+            solution: "Navigate to the order in Order History, and use the Refund option. The refund will be processed through the original payment method. If you encounter issues processing the refund, please submit a ticket below.",
+        },
+    ],
+    "Payment & Refunds": [
+        {
+            question: "Customer's payment received but order not created",
+            solution: "This is a payment-order sync issue. Our team will need to verify the payment gateway logs and manually create or refund the order. Please provide the customer details below.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "Refund not reflecting in customer's account",
+            solution: "Refunds typically take 3-5 business days to reflect. If it's been longer, our team will need to check the payment gateway. Please submit a ticket with the order details.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "Daily sales report showing incorrect amounts",
+            solution: "Please verify if all orders for the day have been properly marked as completed. Cancelled orders and refunded orders may affect the totals. If the discrepancy persists after verification, submit a ticket below.",
+        },
+        {
+            question: "UPI/Payment gateway errors",
+            solution: "Payment gateway issues require backend investigation. Please provide the details and timestamps so our team can check the gateway logs.",
+            requiresContactDetails: true,
+        },
+    ],
+    "Menu Management": [
+        {
+            question: "Unable to add or edit menu items",
+            solution: "Ensure you have a stable internet connection. Try refreshing the menu page. If items still can't be added, clear the app cache and try again. Make sure item names don't contain special characters that aren't supported.",
+        },
+        {
+            question: "Category visibility toggle not working",
+            solution: "The category visibility toggle controls what customers see on the user app. After toggling, wait a few seconds for the changes to sync. If it still doesn't reflect, try toggling it off and on again, then refresh.",
+        },
+        {
+            question: "Menu items showing wrong prices",
+            solution: "Go to Menu Management, find the item, and update the price. Changes will be reflected in the user app immediately. If you're unable to edit the price, try deleting and re-adding the item.",
+        },
+        {
+            question: "Deleted items still appearing for customers",
+            solution: "After deleting menu items, it may take a few seconds for the cache to clear. Ask the customer to pull-to-refresh or restart their app. If the issue persists, submit a ticket below.",
+        },
+    ],
+    "App & Technical": [
+        {
+            question: "Admin app is crashing",
+            solution: "Please try clearing the app cache from your phone's settings, or update to the latest version from the Play Store/App Store. Restart your device and try again.",
+        },
+        {
+            question: "Printer not connecting",
+            solution: "Ensure your thermal printer is powered on and Bluetooth is enabled on your device. Go to Printer Setup in Settings and try re-pairing the printer. Make sure you're within Bluetooth range (typically 10 meters).",
+        },
+        {
+            question: "Real-time orders not appearing",
+            solution: "This is usually a connectivity issue. Check your internet connection and make sure notifications are enabled for the app. Try closing and reopening the app. If orders are still not appearing in real-time, check if your cafeteria status is set to 'Open'.",
+        },
+        {
+            question: "QR code scanner not working",
+            solution: "Ensure camera permissions are granted to the app. Go to your phone's Settings > Apps > Admin App > Permissions and enable Camera. Restart the app and try again.",
+        },
+    ],
+    "Other": [
+        {
+            question: "I have a different issue (describe below)",
+            solution: "Please describe your issue in the text box below. Our dedicated support team will review your ticket and provide a resolution as soon as possible.",
+        },
+    ],
+};
+
+// ============================================
 // GET SUPPORT CATEGORIES (for user app)
 // ============================================
 export const getSupportCategories = async (req, res) => {
@@ -96,12 +183,27 @@ export const getSupportCategories = async (req, res) => {
 };
 
 // ============================================
+// GET ADMIN SUPPORT CATEGORIES (for admin app)
+// ============================================
+export const getAdminSupportCategories = async (req, res) => {
+    try {
+        return res.json({
+            success: true,
+            categories: ADMIN_SUPPORT_CATEGORIES,
+        });
+    } catch (error) {
+        console.error("❌ getAdminSupportCategories ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
 // CREATE SUPPORT TICKET (user submits)
 // ============================================
 export const createSupportTicket = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { category, question, description, platform } = req.body;
+        const { category, question, description, platform, source } = req.body;
 
         if (!category || !question) {
             return res.status(400).json({
@@ -110,8 +212,11 @@ export const createSupportTicket = async (req, res) => {
             });
         }
 
+        // Use admin or user categories depending on source
+        const categories = source === "admin" ? ADMIN_SUPPORT_CATEGORIES : SUPPORT_CATEGORIES;
+
         // Validate category exists
-        if (!SUPPORT_CATEGORIES[category]) {
+        if (!categories[category]) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid category",
@@ -119,7 +224,7 @@ export const createSupportTicket = async (req, res) => {
         }
 
         // Validate question exists in category
-        const questionObj = SUPPORT_CATEGORIES[category].find(q => q.question === question);
+        const questionObj = categories[category].find(q => q.question === question);
         if (!questionObj) {
             return res.status(400).json({
                 success: false,

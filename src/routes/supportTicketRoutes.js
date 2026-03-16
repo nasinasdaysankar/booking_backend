@@ -1,6 +1,7 @@
 import express from "express";
 import {
     getSupportCategories,
+    getAdminSupportCategories,
     createSupportTicket,
     getMyTickets,
     getAllTickets,
@@ -17,6 +18,9 @@ const router = express.Router();
 
 // Get predefined support categories & questions
 router.get("/categories", auth, getSupportCategories);
+
+// Get admin-specific support categories & questions
+router.get("/admin-categories", auth, getAdminSupportCategories);
 
 // Submit a new support ticket
 router.post("/create", auth, createSupportTicket);
