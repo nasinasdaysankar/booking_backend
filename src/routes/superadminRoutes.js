@@ -1,7 +1,7 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AppFeedback, UserActivity, SupportTicket } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AdminFcmToken, AppFeedback, UserActivity, SupportTicket } from '../models/index.js';
 import { superadminAuth } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -1416,6 +1416,77 @@ router.put('/support-tickets/:id/resolve', superadminAuth, async (req, res) => {
         await ticket.save();
 
         console.log(`✅ Support ticket #${id} ${ticket.status} by superadmin`);
+
+        // 🔔 SEND PUSH NOTIFICATION TO USER OR ADMIN
+        (async () => {
+            try {
+                const ticketSource = ticket.source || 'user';
+                const notifTitle = ticket.status === 'resolved'
+                    ? '✅ Support Ticket Resolved'
+                    : '💬 Support Ticket Update';
+                const notifBody = `Your ticket "${ticket.category}" has been updated: ${(adminResponse || '').substring(0, 100)}`;
+
+                let tokens = [];
+
+                if (ticketSource === 'admin') {
+                    // Send to admin FCM tokens
+                    const adminTokens = await AdminFcmToken.findAll({
+                        where: { adminId: ticket.userId },
+                    });
+                    tokens = adminTokens.map(t => t.fcmToken);
+                    console.log(`🔔 Sending notification to admin ${ticket.userId} (${tokens.length} tokens)`);
+                } else {
+                    // Send to user FCM tokens
+                    const userTokens = await UserFcmToken.findAll({
+                        where: { userId: ticket.userId },
+                    });
+                    tokens = userTokens.map(t => t.fcmToken);
+                    console.log(`🔔 Sending notification to user ${ticket.userId} (${tokens.length} tokens)`);
+                }
+
+                if (tokens.length > 0) {
+                    const uniqueTokens = [...new Set(tokens)];
+                    await admin.messaging().sendEachForMulticast({
+                        tokens: uniqueTokens,
+                        notification: {
+                            title: notifTitle,
+                            body: notifBody,
+                        },
+                        data: {
+                            type: 'SUPPORT_TICKET_UPDATE',
+                            ticketId: String(ticket.id),
+                            ticketStatus: ticket.status,
+                            click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                        },
+                        android: {
+                            priority: 'high',
+                            notification: {
+                                channelId: 'high_importance_channel',
+                                sound: 'default',
+                                clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                            },
+                        },
+                        apns: {
+                            payload: {
+                                aps: {
+                                    sound: 'default',
+                                    badge: 1,
+                                    alert: {
+                                        title: notifTitle,
+                                        body: notifBody,
+                                    },
+                                },
+                            },
+                        },
+                    });
+                    console.log(`✅ Support ticket notification sent to ${ticketSource} ${ticket.userId}`);
+                } else {
+                    console.log(`⚠️ No FCM tokens found for ${ticketSource} ${ticket.userId}`);
+                }
+            } catch (notifErr) {
+                console.error('⚠️ Failed to send support ticket notification:', notifErr.message);
+            }
+        })();
 
         return res.json({
             success: true,
