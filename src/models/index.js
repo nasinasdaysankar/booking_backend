@@ -149,9 +149,9 @@ UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "caf
 User.hasMany(UserActivity, { foreignKey: { name: "userId", field: "userid" } });
 UserActivity.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
-// User → Support Tickets
-User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" } });
-SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user" });
+// User → Support Tickets (constraints: false to allow admin IDs too)
+User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
+SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user", constraints: false });
 
 // ================= SYSTEM RELATIONS =================
 SystemAlert.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });

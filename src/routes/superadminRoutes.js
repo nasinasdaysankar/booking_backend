@@ -1309,13 +1309,13 @@ router.get('/analytics/advanced', superadminAuth, async (req, res) => {
 });
 
 // ============================================
-// GET ALL SUPPORT TICKETS (SUPERADMIN)
+// GET ALL SUPPORT TICKETS (SUPERADMIN) - User tickets only
 // ============================================
 router.get('/support-tickets', superadminAuth, async (req, res) => {
     try {
         const { status, category } = req.query;
 
-        const where = {};
+        const where = { source: 'user' };
         if (status) where.status = status;
         if (category) where.category = category;
 
@@ -1338,6 +1338,55 @@ router.get('/support-tickets', superadminAuth, async (req, res) => {
         });
     } catch (error) {
         console.error("❌ getSupportTickets ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// ============================================
+// GET ADMIN SUPPORT TICKETS (SUPERADMIN) - Admin app tickets
+// ============================================
+router.get('/admin-support-tickets', superadminAuth, async (req, res) => {
+    try {
+        const { status, category } = req.query;
+
+        const where = { source: 'admin' };
+        if (status) where.status = status;
+        if (category) where.category = category;
+
+        const tickets = await SupportTicket.findAll({
+            where,
+            order: [["createdAt", "DESC"]],
+            raw: true,
+        });
+
+        // Fetch admin details for each ticket
+        const ticketsWithAdmin = await Promise.all(
+            tickets.map(async (ticket) => {
+                try {
+                    const admin = await Admin.findByPk(ticket.userId, {
+                        attributes: ["id", "name", "staffId", "role"],
+                        raw: true,
+                    });
+                    return {
+                        ...ticket,
+                        admin: admin || { id: ticket.userId, name: "Unknown Admin", staffId: "N/A", role: "N/A" },
+                    };
+                } catch {
+                    return {
+                        ...ticket,
+                        admin: { id: ticket.userId, name: "Unknown Admin", staffId: "N/A", role: "N/A" },
+                    };
+                }
+            })
+        );
+
+        return res.json({
+            success: true,
+            count: ticketsWithAdmin.length,
+            data: ticketsWithAdmin,
+        });
+    } catch (error) {
+        console.error("❌ getAdminSupportTickets ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
     }
 });

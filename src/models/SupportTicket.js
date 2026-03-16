@@ -68,6 +68,12 @@ export default (sequelize) => {
                 allowNull: true,
                 comment: "Android or iOS",
             },
+            source: {
+                type: DataTypes.ENUM("user", "admin"),
+                defaultValue: "user",
+                allowNull: false,
+                comment: "Whether ticket was submitted from user app or admin app",
+            },
         },
         {
             tableName: "support_tickets",

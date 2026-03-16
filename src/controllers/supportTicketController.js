@@ -238,10 +238,11 @@ export const createSupportTicket = async (req, res) => {
             question,
             description: description || "",
             platform: platform || "Unknown",
+            source: source || "user",
             status: "open",
         });
 
-        console.log(`🎫 New support ticket #${ticket.id} from user ${userId}: ${category} → ${question}`);
+        console.log(`🎫 New support ticket #${ticket.id} from ${source || "user"} ${userId}: ${category} → ${question}`);
 
         return res.status(201).json({
             success: true,

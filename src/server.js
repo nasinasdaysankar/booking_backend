@@ -93,6 +93,28 @@ const start = async () => {
     try {
       await AppFeedback.sync({ alter: true });
       await OrderFeedback.sync({ alter: true });
+
+      // Drop FK constraint on support_tickets so admin IDs can be stored too
+      try {
+        await sequelize.query(`
+          DO $$ 
+          DECLARE r RECORD;
+          BEGIN
+            FOR r IN (
+              SELECT constraint_name 
+              FROM information_schema.table_constraints 
+              WHERE table_name = 'support_tickets' 
+              AND constraint_type = 'FOREIGN KEY'
+            ) LOOP
+              EXECUTE 'ALTER TABLE support_tickets DROP CONSTRAINT IF EXISTS ' || r.constraint_name;
+            END LOOP;
+          END $$;
+        `);
+        logger.info("✅ Support ticket FK constraints dropped");
+      } catch (fkErr) {
+        logger.warn("⚠️ FK constraint drop skipped: " + fkErr.message);
+      }
+
       await SupportTicket.sync({ alter: true });
       logger.info("✅ Feedback & Support tables synced");
     } catch (e) {
