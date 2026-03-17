@@ -272,14 +272,14 @@ export const getAdvancedAnalytics = async (req, res) => {
             const performanceQuery = await Cafeteria.sequelize.query(`
                 SELECT 
                     c.name as cafeteria_name,
-                    c.image as cafeteria_logo,
+                    c.promo_image_url as cafeteria_logo,
                     COUNT(o.id) as order_count,
                     COALESCE(SUM(o."totalamount" - COALESCE(o."platform_fee",0) - COALESCE(o."commission_amount",0)), 0) as revenue
                 FROM orders o
                 JOIN cafeterias c ON o."cafeteriaid" = c.id
                 WHERE o."paymentstatus" = 'SUCCESS'
                 ${applyFilters(dateFilter, 'o')}
-                GROUP BY c.name, c.image
+                GROUP BY c.name, c.promo_image_url
                 ORDER BY revenue DESC
             `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
             metrics.cafeteriaPerformance = performanceQuery;
