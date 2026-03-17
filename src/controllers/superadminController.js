@@ -196,19 +196,29 @@ export const getAdvancedAnalytics = async (req, res) => {
 
         // 1. DAU: Daily Active Users
         const dauQuery = await Cafeteria.sequelize.query(`
-            SELECT COUNT(DISTINCT "userid") as dau
+            SELECT COUNT(DISTINCT ua."userid") as dau
             FROM user_activities ua
             WHERE ua."activitytype" = 'APP_OPEN'
             AND ua."created_at" >= CURRENT_DATE
+            ${cafeteriaId ? `AND EXISTS (
+                SELECT 1 FROM orders o
+                WHERE o."studentid" = ua."userid"
+                AND o."cafeteriaid" = ${parseInt(cafeteriaId)}
+            )` : ''}
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.dau = parseInt(dauQuery[0]?.dau || 0);
 
         // 2. MAU: Monthly Active Users
         const mauQuery = await Cafeteria.sequelize.query(`
-            SELECT COUNT(DISTINCT "userid") as mau
+            SELECT COUNT(DISTINCT ua."userid") as mau
             FROM user_activities ua
             WHERE ua."activitytype" = 'APP_OPEN'
             AND ua."created_at" >= CURRENT_DATE - INTERVAL '30 days'
+            ${cafeteriaId ? `AND EXISTS (
+                SELECT 1 FROM orders o
+                WHERE o."studentid" = ua."userid"
+                AND o."cafeteriaid" = ${parseInt(cafeteriaId)}
+            )` : ''}
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.mau = parseInt(mauQuery[0]?.mau || 0);
 
@@ -262,13 +272,14 @@ export const getAdvancedAnalytics = async (req, res) => {
             const performanceQuery = await Cafeteria.sequelize.query(`
                 SELECT 
                     c.name as cafeteria_name,
+                    c.image as cafeteria_logo,
                     COUNT(o.id) as order_count,
-                    COALESCE(SUM(o."totalamount" - o."platform_fee" - o."commission_amount"), 0) as revenue
+                    COALESCE(SUM(o."totalamount" - COALESCE(o."platform_fee",0) - COALESCE(o."commission_amount",0)), 0) as revenue
                 FROM orders o
                 JOIN cafeterias c ON o."cafeteriaid" = c.id
                 WHERE o."paymentstatus" = 'SUCCESS'
                 ${applyFilters(dateFilter, 'o')}
-                GROUP BY c.name
+                GROUP BY c.name, c.image
                 ORDER BY revenue DESC
             `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
             metrics.cafeteriaPerformance = performanceQuery;
@@ -323,12 +334,12 @@ export const getAdvancedAnalytics = async (req, res) => {
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.topSellingItems = topItemsQuery;
 
-        // 10. Daily Trends (Orders and Revenue)
+        // 10. Daily Trends (Orders and Net Revenue)
         const dailyTrendQuery = await Cafeteria.sequelize.query(`
             SELECT 
                 DATE(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at")) as date,
                 COUNT(o.id) as order_count,
-                COALESCE(SUM(o."totalamount"), 0) as total_revenue
+                COALESCE(SUM(o."totalamount" - COALESCE(o."platform_fee",0) - COALESCE(o."commission_amount",0)), 0) as total_revenue
             FROM orders o
             WHERE o."paymentstatus" = 'SUCCESS'
             ${applyFilters(dateFilter, 'o')}
@@ -355,7 +366,24 @@ export const getAdvancedAnalytics = async (req, res) => {
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.topActiveUsers = topUsersQuery;
 
-        // 12. Recent Engagement Activities
+        // 12. Avg Order Value + Parcel vs Dine-in split + Avg Prep Time
+        const orderMetaQuery = await Cafeteria.sequelize.query(`
+            SELECT
+                ROUND(AVG(o."totalamount" - COALESCE(o."platform_fee",0) - COALESCE(o."commission_amount",0))::numeric, 2) as avg_order_value,
+                COUNT(CASE WHEN o."isparcel" = true THEN 1 END) as parcel_count,
+                COUNT(CASE WHEN o."isparcel" = false OR o."isparcel" IS NULL THEN 1 END) as dinein_count,
+                COUNT(CASE WHEN o.status IN ('CANCELLED','EXPIRED') THEN 1 END) as cancelled_count,
+                COUNT(o.id) as total_count,
+                ROUND(AVG(EXTRACT(EPOCH FROM (o."picked_up_at" - o."created_at"))/60)::numeric, 1) as avg_prep_time
+            FROM orders o
+            WHERE 1=1
+            AND o."paymentstatus" = 'SUCCESS'
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.orderMeta = orderMetaQuery[0] || {};
+
+        // 13. Recent Engagement Activities
         const recentActivitiesQuery = await Cafeteria.sequelize.query(`
             SELECT 
                 ua.id,
