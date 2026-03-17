@@ -998,100 +998,135 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
 });
 
 // ============================================
-// DAILY QUOTE MANAGEMENT
+// WEEKLY QUOTE SCHEDULER
 // ============================================
-router.get('/settings/quote', superadminAuth, async (req, res) => {
-    try {
-        const [textSetting, imageSetting] = await Promise.all([
-            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE' } }),
-            SystemSetting.findOne({ where: { key: 'DAILY_QUOTE_IMAGE' } })
-        ]);
 
-        res.json({
-            success: true,
-            data: {
-                quote: textSetting ? textSetting.value : '',
-                imageUrl: imageSetting ? imageSetting.value : ''
-            }
-        });
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Helper: get today's day number 1=Mon … 7=Sun
+const getTodayDayNum = () => {
+    const jsDay = new Date().getDay(); // 0=Sun
+    return jsDay === 0 ? 7 : jsDay;
+};
+
+// GET /settings/quotes/weekly  →  return all 7 day slots
+router.get('/settings/quotes/weekly', superadminAuth, async (req, res) => {
+    try {
+        const days = await Promise.all(
+            [1, 2, 3, 4, 5, 6, 7].map(async (day) => {
+                const [textSetting, imageSetting] = await Promise.all([
+                    SystemSetting.findOne({ where: { key: `QUOTE_DAY_${day}` } }),
+                    SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } }),
+                ]);
+                return {
+                    day,
+                    dayName: DAY_NAMES[day - 1],
+                    quote: textSetting ? textSetting.value : '',
+                    imageUrl: imageSetting ? imageSetting.value : '',
+                };
+            })
+        );
+        res.json({ success: true, data: days });
     } catch (error) {
-        console.error('Fetch daily quote error:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch daily quote' });
+        console.error('Fetch weekly quotes error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch weekly quotes' });
     }
 });
 
-router.post('/settings/quote', superadminAuth, upload.single('image'), async (req, res) => {
+// POST /settings/quotes/day/:day  →  update a single day's quote + image
+router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'), async (req, res) => {
     try {
+        const day = parseInt(req.params.day);
+        if (!day || day < 1 || day > 7) {
+            return res.status(400).json({ success: false, message: 'Day must be 1 (Mon) to 7 (Sun)' });
+        }
         const { quote } = req.body;
-        let imageUrl = null;
-
         if (quote === undefined) {
             return res.status(400).json({ success: false, message: 'Quote is required' });
         }
 
-        // 1. Handle Image Upload to S3 if file provided
+        let imageUrl = null;
+
+        // 1. Upload image to S3 if provided
         if (req.file) {
             const s3 = getS3Client();
             const bucket = getS3Bucket();
-
             const fileExt = req.file.originalname.split('.').pop();
-            const fileName = `images/quotes/daily-quote-${Date.now()}.${fileExt}`;
-
-            await s3.send(
-                new PutObjectCommand({
-                    Bucket: bucket,
-                    Key: fileName,
-                    Body: req.file.buffer,
-                    ContentType: req.file.mimetype,
-                })
-            );
-
+            const fileName = `images/quotes/day-${day}-${Date.now()}.${fileExt}`;
+            await s3.send(new PutObjectCommand({
+                Bucket: bucket,
+                Key: fileName,
+                Body: req.file.buffer,
+                ContentType: req.file.mimetype,
+            }));
             imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
         }
 
-        // 2. Update Quote Text
+        // 2. Upsert quote text
         const [textSetting] = await SystemSetting.findOrCreate({
-            where: { key: 'DAILY_QUOTE' },
+            where: { key: `QUOTE_DAY_${day}` },
             defaults: {
                 value: quote,
                 type: 'STRING',
-                group: 'GENERAL',
-                isPublic: true,
-                description: 'Engaging quote displayed on the mobile home screen'
-            }
+                group: 'QUOTES',
+                isPublic: false,
+                description: `Quote for ${DAY_NAMES[day - 1]}`,
+            },
         });
         textSetting.value = quote;
         await textSetting.save();
 
-        // 3. Update Image URL (only if new image uploaded)
+        // 3. Upsert image URL (only if a new file was uploaded)
         if (imageUrl) {
             const [imageSetting] = await SystemSetting.findOrCreate({
-                where: { key: 'DAILY_QUOTE_IMAGE' },
+                where: { key: `QUOTE_IMAGE_DAY_${day}` },
                 defaults: {
                     value: imageUrl,
                     type: 'STRING',
-                    group: 'GENERAL',
-                    isPublic: true,
-                    description: 'Image displayed alongside the daily quote'
-                }
+                    group: 'QUOTES',
+                    isPublic: false,
+                    description: `Image for ${DAY_NAMES[day - 1]} quote`,
+                },
             });
             imageSetting.value = imageUrl;
             await imageSetting.save();
         }
 
-        const finalImageSetting = await SystemSetting.findOne({ where: { key: 'DAILY_QUOTE_IMAGE' } });
-
+        const finalImage = await SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } });
         res.json({
             success: true,
-            message: 'Daily quote updated successfully',
+            message: `${DAY_NAMES[day - 1]} quote updated successfully`,
             data: {
-                quote: quote,
-                imageUrl: finalImageSetting ? finalImageSetting.value : imageUrl
-            }
+                day,
+                dayName: DAY_NAMES[day - 1],
+                quote,
+                imageUrl: finalImage ? finalImage.value : imageUrl,
+            },
         });
     } catch (error) {
-        console.error('Update daily quote error:', error);
-        res.status(500).json({ success: false, message: 'Failed to update daily quote' });
+        console.error('Update day quote error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update day quote' });
+    }
+});
+
+// Legacy GET /settings/quote  →  returns today's scheduled quote (backward-compat for any old callers)
+router.get('/settings/quote', superadminAuth, async (req, res) => {
+    try {
+        const day = getTodayDayNum();
+        const [textSetting, imageSetting] = await Promise.all([
+            SystemSetting.findOne({ where: { key: `QUOTE_DAY_${day}` } }),
+            SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } }),
+        ]);
+        res.json({
+            success: true,
+            data: {
+                quote: textSetting ? textSetting.value : '',
+                imageUrl: imageSetting ? imageSetting.value : '',
+            },
+        });
+    } catch (error) {
+        console.error('Fetch today quote error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch today quote' });
     }
 });
 
