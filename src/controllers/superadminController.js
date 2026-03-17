@@ -349,6 +349,12 @@ export const getAdvancedAnalytics = async (req, res) => {
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.dailyTrend = dailyTrendQuery;
 
+        const userFilter = cafeteriaId ? `AND EXISTS (
+            SELECT 1 FROM orders o2
+            WHERE o2."studentid" = ua."userid"
+            AND o2."cafeteriaid" = ${parseInt(cafeteriaId)}
+        )` : '';
+
         // 11. Top Active Users (by Session Duration)
         const topUsersQuery = await Cafeteria.sequelize.query(`
             SELECT 
@@ -360,11 +366,31 @@ export const getAdvancedAnalytics = async (req, res) => {
             JOIN users u ON ua."userid" = u.id
             WHERE ua."activitytype" = 'SESSION_END'
             ${applyFilters(dateFilter, 'ua')}
+            ${userFilter}
             GROUP BY u.id, u.name, u.email
             ORDER BY total_session_time DESC
             LIMIT 10
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.topActiveUsers = topUsersQuery;
+
+        // 11.5 Individual Sessions (Recent specific durations)
+        const sessionDetailsQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                ua.id,
+                u.name as user_name,
+                ua."durationseconds" as duration,
+                ua."created_at" as timestamp,
+                ua.metadata->>'platform' as platform
+            FROM user_activities ua
+            JOIN users u ON ua."userid" = u.id
+            WHERE ua."activitytype" = 'SESSION_END'
+            AND ua."durationseconds" IS NOT NULL
+            ${applyFilters(dateFilter, 'ua')}
+            ${userFilter}
+            ORDER BY ua."created_at" DESC
+            LIMIT 20
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.individualSessions = sessionDetailsQuery;
 
         // 12. Avg Order Value + Parcel vs Dine-in split + Avg Prep Time
         const orderMetaQuery = await Cafeteria.sequelize.query(`
@@ -397,6 +423,7 @@ export const getAdvancedAnalytics = async (req, res) => {
             LEFT JOIN users u ON ua."userid" = u.id
             WHERE 1=1
             ${applyFilters(dateFilter, 'ua')}
+            ${userFilter}
             ORDER BY ua."created_at" DESC
             LIMIT 50
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
