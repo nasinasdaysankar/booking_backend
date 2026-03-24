@@ -616,7 +616,10 @@ export const confirmPayment = async (req, res) => {
             },
             android: {
               priority: "high",
-              notification: { channelId: "high_importance_channel", sound: "default" },
+              notification: { 
+                channelId: "high_importance_channel_v2", 
+                sound: "new_order" 
+              },
             },
             apns: {
               payload: {
@@ -625,7 +628,7 @@ export const confirmPayment = async (req, res) => {
                     title: "🍽 New Order Received",
                     body: `KOT ${order.kotNumber} • ₹${order.totalAmount}`,
                   },
-                  sound: "default",
+                  sound: "new_order.caf", // or "default" if .caf is missing, but "new_order" is better
                   badge: 1,
                   "content-available": 1,
                 },
