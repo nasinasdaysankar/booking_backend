@@ -9,7 +9,7 @@ cloudinary.v2.config({
   api_key: "YOUR_API_KEY",
   api_secret: "YOUR_API_SECRET"
 });
-
+//updated the new things
 // 📁 folder where your images are stored
 const folderPath = "/Users/nasinaudaysankar/Downloads/BLENDED & Squeezed Beverages";
 
