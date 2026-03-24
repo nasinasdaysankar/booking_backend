@@ -15,7 +15,7 @@ export default (sequelize) => {
       // ========================================
       cashfreeOrderId: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         unique: true,
         field: "cashfreeorderid",
       },

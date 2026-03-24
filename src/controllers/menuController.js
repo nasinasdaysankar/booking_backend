@@ -160,12 +160,12 @@ export const getMenuByCafeteria = async (req, res) => {
     //   }
     // );
 
-    // ✅ FETCH MENU ITEMS FIRST
+    // ✅ FETCH MENU ITEMS FIRST (Admin sees ALL items regardless of availability)
     let items = await MenuItem.findAll({
       where: {
         cafeteriaId,
         isDeleted: false,
-        isAvailable: true,
+        // ✅ NOTE: Do NOT filter by isAvailable here — admin must see unavailable items too
       },
       order: [
         ["isTodaySpecial", "DESC"],

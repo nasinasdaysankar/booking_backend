@@ -291,6 +291,13 @@ router.get('/stats', superadminAuth, async (req, res) => {
         // Total customers (global - don't filter by cafeteria)
         const totalCustomers = await User.count();
 
+        // Total users who have placed at least one successful order
+        const usersWithOrdersResult = await sequelize.query(
+            `SELECT COUNT(DISTINCT studentid) as count FROM orders WHERE paymentstatus = 'SUCCESS'`,
+            { type: QueryTypes.SELECT }
+        );
+        const totalUsersWithOrders = parseInt(usersWithOrdersResult[0].count) || 0;
+
         // Active cafeterias
         const cafeteriaWhere = { isOpen: true };
         if (cafeteriaId) {
@@ -308,6 +315,7 @@ router.get('/stats', superadminAuth, async (req, res) => {
             todayOrders,
             todayRevenue,
             totalCustomers,
+            totalUsersWithOrders,
             activeCafeterias
         });
     } catch (error) {

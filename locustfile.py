@@ -11,8 +11,9 @@ class VelishUser(HttpUser):
     wait_time = between(2, 5)
 
     token = None
-    email = "test@gmail.com"
-    password = "123456"
+    email_prefix = "testing_user"
+    password = "password123"
+    
     
     # Store valid menu items to use in orders
     # format: { cafeteria_id: [ {id, price, name} ] }
@@ -22,40 +23,44 @@ class VelishUser(HttpUser):
     # LOGIN OR REGISTER FIRST
     # =====================================
     def on_start(self):
-        # 1. Try Login
-        response = self.client.post(
-            "/api/auth/login",
+        # Use a unique email per user instance to avoid registration collision
+        self.user_id = str(uuid.uuid4())[:8]
+        self.email = f"{self.email_prefix}_{self.user_id}@alliance.edu.in"
+        
+        # 1. Attempt registration first (preferred for unique users)
+        # We try @alliance.edu.in to get the faculty/student roles mentioned in backend
+        logging.info(f"Attempting registration for {self.email}...")
+        reg_response = self.client.post(
+            "/api/auth/register",
             json={
+                "name": f"Tester {self.user_id}",
                 "email": self.email,
                 "password": self.password
             }
         )
-
-        if response.status_code == 200:
-            self.token = response.json().get("token")
-        elif response.status_code == 400:
-            # 2. If Login Fails, Try Register
-            logging.info("Login failed, attempting registration...")
-            reg_response = self.client.post(
-                "/api/auth/register",
+        
+        if reg_response.status_code in [200, 201]:
+            self.token = reg_response.json().get("token")
+            logging.info(f"Registration success for {self.email}")
+        elif reg_response.status_code == 400:
+            # Maybe already exists? Try login
+            logging.info("Registration failed (already exists?), attempting login...")
+            login_response = self.client.post(
+                "/api/auth/login",
                 json={
-                    "name": "Load Test User",
                     "email": self.email,
                     "password": self.password
                 }
             )
-            
-            if reg_response.status_code in [200, 201]:
-                self.token = reg_response.json().get("token")
-                logging.info("Registration success, logged in.")
-            else:
-                logging.error(f"Registration failed: {reg_response.text}")
+            if login_response.status_code == 200:
+                self.token = login_response.json().get("token")
+                logging.info(f"Login success for {self.email}")
         else:
-            logging.error(f"Login failed with status {response.status_code}")
+            logging.error(f"Onboarding failed for {self.email}: {reg_response.text}")
             
-        # 3. Fetch some menu items for finding valid IDs
+        # 3. Fetch valid menu items for CAFETERIA 1 (default)
         if self.token:
-            self.fetch_valid_items(cafeteria_id=1)
+            self.fetch_valid_items(1)
 
     def fetch_valid_items(self, cafeteria_id):
         # logging.info(f"Fetching menu for cafeteria {cafeteria_id}...")
@@ -121,13 +126,48 @@ class VelishUser(HttpUser):
             self.client.get("/api/user/profile", headers=self.get_headers())
 
     # =====================================
-    # PLACE ORDER (DISABLED - Endpoint Broken)
+    # PLACE ORDER (ENABLED)
     # =====================================
-    # @task(2)
-    # def place_order(self):
-        # This endpoint (/api/orders) fails with 500 because it doesn't set cashfreeOrderId
-        # passing for now until backend is fixed
-        # pass
+    @task(3)
+    def place_order(self):
+        if not self.token:
+            return
+            
+        cafeteria_id = 1
+        
+        # Ensure cache for this cafeteria
+        if cafeteria_id not in self.menu_items_cache or not self.menu_items_cache[cafeteria_id]:
+            self.fetch_valid_items(cafeteria_id)
+            
+        cached_items = self.menu_items_cache.get(cafeteria_id, [])
+        if not cached_items:
+            return
+
+        item = random.choice(cached_items)
+
+        payload = {
+            "cafeteriaId": cafeteria_id,
+            "items": [
+                {
+                    "Id": item["id"],
+                    "name": item["name"],
+                    "qty": 1,
+                    "price": item["price"],
+                    "isParcel": False
+                }
+            ]
+        }
+
+        with self.client.post(
+            "/api/orders",
+            json=payload,
+            headers=self.get_headers(),
+            catch_response=True
+        ) as response:
+            if response.status_code in [200, 201]:
+                response.success()
+            else:
+                response.failure(f"Place Order Failed: {response.text}")
 
     # =====================================
     # PAYMENT CONFIRMATION TEST

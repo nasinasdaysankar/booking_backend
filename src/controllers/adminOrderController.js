@@ -744,7 +744,7 @@ export const getAdminStats = async (req, res) => {
         status: { [Op.in]: ["PAID", "PREPARING", "READY", "PICKED_UP"] },
         ...dateFilter,
       },
-      attributes: ["totalAmount", "platformFee", "commissionAmount", "status", "studentId"],
+      attributes: ["totalAmount", "platformFee", "commissionAmount", "status", "studentId", "createdAt"],
     });
 
     const totalOrders = orders.length;
