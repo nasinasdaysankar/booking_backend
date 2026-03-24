@@ -72,7 +72,7 @@ app.use((req, res, next) => {
 // ============================================
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 1000,            // ✅ Increased to 1000 requests per IP per minute
+  max: 50000,           // ✅ Increased to 50000 requests per IP per minute for Load Testing
   message: { success: false, message: "Too many requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -81,7 +81,7 @@ const generalLimiter = rateLimit({
 // Stricter limit for payment endpoints
 const paymentLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 100,             // ✅ Increased to 100 payment requests per minute per IP
+  max: 10000,            // ✅ Increased to 10000 payment requests per minute per IP for Load Testing
   message: { success: false, message: "Payment rate limit exceeded. Please wait." },
 });
 
@@ -93,7 +93,6 @@ if (process.env.ENABLE_RATE_LIMIT !== "false") {
 } else {
   console.log("⚠️ Rate Limiting DISABLED (Load Testing Mode)");
 }
-
 
 
 // ================= SWAGGER =================

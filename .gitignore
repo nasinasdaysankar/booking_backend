@@ -21,4 +21,4 @@ yarn-debug.log*
 
 # Build files (if you have any)
 dist/
-build/
+build/__pycache__/
