@@ -1,6 +1,7 @@
 import express from "express";
 import { auth } from "../middleware/auth.js";
 import { AdminFcmToken, UserFcmToken } from "../models/index.js";
+import admin from "../config/firebaseAdmin.js";
 
 const router = express.Router();
 

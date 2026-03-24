@@ -590,11 +590,12 @@ export const confirmPayment = async (req, res) => {
           customerName: req.user.name || "Customer",
         });
 
+        const queryCafeteriaId = Number(cafeteriaId || order.cafeteriaId);
         const adminTokens = await AdminFcmToken.findAll({
-          where: { cafeteriaId },
+          where: { cafeteriaId: queryCafeteriaId },
         });
 
-        console.log(`📊 Found ${adminTokens.length} FCM tokens for cafeteria ${cafeteriaId}`);
+        console.log(`📊 [PAYMENT_NOTIFY] Found ${adminTokens.length} FCM tokens for cafeteria ${queryCafeteriaId}`);
 
         if (adminTokens.length > 0) {
           const tokens = adminTokens.map((t) => t.fcmToken);
@@ -634,19 +635,27 @@ export const confirmPayment = async (req, res) => {
 
           console.log(`🔔 FCM Result: ${standardNotificationResponse.successCount} success, ${standardNotificationResponse.failureCount} failed`);
 
-          if (standardNotificationResponse.failureCount > 0) {
-            const invalidTokens = [];
+            // 🧹 ONLY cleanup tokens that are explicitly UNREGISTERED
+            const tokensToDelete = [];
             standardNotificationResponse.responses.forEach((resp, idx) => {
               if (!resp.success) {
-                console.log(`  ❌ Token ${idx} failed:`, resp.error?.message);
-                invalidTokens.push(adminTokens[idx].fcmToken);
+                const errorCode = resp.error?.code;
+                console.log(`  ❌ FCM Token ${idx} failed | Error: ${errorCode} | Msg: ${resp.error?.message}`);
+                
+                // If token is invalid or user uninstalled app, delete it
+                if (
+                  errorCode === "messaging/registration-token-not-registered" ||
+                  errorCode === "messaging/invalid-registration"
+                ) {
+                  tokensToDelete.push(adminTokens[idx].fcmToken);
+                }
               }
             });
-            if (invalidTokens.length > 0) {
-              await AdminFcmToken.destroy({ where: { fcmToken: invalidTokens } });
-              console.log("🧹 Cleaned up invalid admin tokens:", invalidTokens.length);
+
+            if (tokensToDelete.length > 0) {
+              await AdminFcmToken.destroy({ where: { fcmToken: tokensToDelete } });
+              console.log(`🧹 Cleaned up ${tokensToDelete.length} stale/invalid admin tokens`);
             }
-          }
         } else {
           console.log("⚠️ No FCM tokens found for this cafeteria — admin won't receive push notification");
         }
