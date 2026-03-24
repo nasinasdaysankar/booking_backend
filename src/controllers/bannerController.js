@@ -61,7 +61,7 @@ export const uploadBanner = async (req, res) => {
       })
     );
 
-    const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    const imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
 
     const banner = await Banner.create({
       name,
