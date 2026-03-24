@@ -173,27 +173,8 @@ export const getMenuByCafeteria = async (req, res) => {
       ],
     });
 
-    // 🚀 FILTER BY HIDDEN CATEGORIES
-    const hiddenBanners = await Banner.findAll({
-      where: { cafeteriaId, isVisible: false }
-    });
-    const hiddenNames = new Set(hiddenBanners.map(b => b.name.toLowerCase().trim()));
-
-    if (hiddenNames.size > 0) {
-      items = items.filter(item => {
-        const cat = item.category?.toLowerCase().trim();
-        return !hiddenNames.has(cat);
-      });
-    }
-
-    // ✅ DEBUG LOG (SAFE)
-    items.forEach(item => {
-      console.log(
-        item.name,
-        "parcel:",
-        item.isParcelAvailable
-      );
-    });
+    // 🚀 ADMIN VIEW: Skip hidden category filtering so admins can manage all items
+    // (Banners only affect the public menu)
 
     return res.json({
       success: true,
