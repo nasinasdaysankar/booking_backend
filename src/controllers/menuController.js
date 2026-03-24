@@ -341,7 +341,7 @@ export const uploadBulkImages = async (req, res) => {
 export const updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, isAvailable, isTodaySpecial } = req.body;
+    const { name, price, category, isAvailable, isTodaySpecial, imageUrl } = req.body;
 
     const item = await MenuItem.findByPk(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
@@ -352,6 +352,7 @@ export const updateMenuItem = async (req, res) => {
     if (price) item.price = price;
     if (category) item.category = category;
     if (isAvailable !== undefined) item.isAvailable = isAvailable;
+    if (imageUrl) item.imageUrl = imageUrl;
 
     // ⭐ Today Special logic
     if (isTodaySpecial !== undefined) {
