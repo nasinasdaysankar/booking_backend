@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { uploadBanner, getBanners, deleteBanner, updateBanner } from "../controllers/bannerController.js";
-import { superadminAuth } from "../middleware/auth.js";
+import { superadminAuth, auth, requireRole, eitherAdminAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -27,7 +27,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  *                 type: string
  *                 format: binary
  */
-router.post("/upload", superadminAuth, upload.single("image"), uploadBanner);
+router.post("/upload", eitherAdminAuth, upload.single("image"), uploadBanner);
 
 /**
  * @swagger
@@ -61,7 +61,7 @@ router.post("/upload", superadminAuth, upload.single("image"), uploadBanner);
  *       200:
  *         description: Banner updated
  */
-router.put("/:id", superadminAuth, upload.single("image"), updateBanner);
+router.put("/:id", eitherAdminAuth, upload.single("image"), updateBanner);
 
 /**
  * @swagger
@@ -81,7 +81,7 @@ router.put("/:id", superadminAuth, upload.single("image"), updateBanner);
  *       200:
  *         description: Banner deleted
  */
-router.delete("/:id", superadminAuth, deleteBanner);
+router.delete("/:id", eitherAdminAuth, deleteBanner);
 
 router.get("/", getBanners);
 

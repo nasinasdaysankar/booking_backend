@@ -331,3 +331,36 @@ export const verifyWebhookKey = (req, res, next) => {
 // export const asyncHandler = (fn) => (req, res, next) => {
 //   Promise.resolve(fn(req, res, next)).catch(next);
 // };
+ 
+// Middleware that allows EITHER regular admin (JWT_SECRET) OR superadmin (SUPERADMIN_JWT_SECRET)
+export const eitherAdminAuth = async (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ success: false, message: "Token missing" });
+  }
+  const token = header.split(" ")[1];
+ 
+  // 1. Try Superadmin first
+  try {
+    const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
+    if (payload.role === 'superadmin') {
+      req.user = { id: payload.id, role: 'superadmin' };
+      return next();
+    }
+  } catch (_) {}
+ 
+  // 2. Try Regular Admin
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.role === 'admin' || payload.role === 'superadmin') {
+      req.user = { 
+        id: payload.id, 
+        role: payload.role || 'admin', 
+        cafeteriaId: payload.cafeteriaId || null 
+      };
+      return next();
+    }
+  } catch (_) {}
+ 
+  return res.status(401).json({ success: false, message: "Unauthorized: Access denied" });
+};

@@ -32,6 +32,9 @@ export const getBanners = async (req, res) => {
 // ==================== UPLOAD + SAVE BANNER (S3) ====================
 export const uploadBanner = async (req, res) => {
   try {
+    if (req.user.role === "admin") {
+      req.body.cafeteriaId = req.user.cafeteriaId;
+    }
     const { name, cafeteriaId } = req.body;
 
     if (!name) return res.status(400).json({ message: "Banner name required" });
@@ -93,6 +96,11 @@ export const deleteBanner = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
+ 
+    // Admin check: only allow if it's their cafeteria
+    if (req.user.role === "admin" && banner.cafeteriaId !== req.user.cafeteriaId) {
+      return res.status(403).json({ message: "Unauthorized: Access denied to another cafeteria's banner" });
+    }
 
     // 🗑️ DELETE FROM S3
     try {
@@ -143,6 +151,11 @@ export const updateBanner = async (req, res) => {
     const banner = await Banner.findByPk(id);
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
+    }
+ 
+    // Admin check
+    if (req.user.role === "admin" && banner.cafeteriaId !== req.user.cafeteriaId) {
+      return res.status(403).json({ message: "Unauthorized: Access denied to another cafeteria's banner" });
     }
 
     // Update basic fields if provided
