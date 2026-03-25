@@ -709,20 +709,25 @@ export const getAdminStats = async (req, res) => {
 
     let dateFilter = {};
 
-    // ✅ FIX: Support custom date ranges via from/to parameters
+    // ✅ FIX: Support custom date ranges with inclusive time (00:00:00 to 23:59:59)
     if (from || to) {
-      // Use provided date range
-      if (from && to) {
+      // If only 'from' is provided, we treat it as a single day query (from that day start to that day end)
+      const startDate = from ? new Date(from) : null;
+      if (startDate) startDate.setHours(0, 0, 0, 0);
+
+      const endDate = to ? new Date(to) : (from ? new Date(from) : null);
+      if (endDate) endDate.setHours(23, 59, 59, 999);
+
+      if (startDate && endDate) {
         dateFilter = {
           createdAt: {
-            [Op.gte]: new Date(from),
-            [Op.lte]: new Date(to),
+            [Op.between]: [startDate, endDate],
           },
         };
-      } else if (from) {
-        dateFilter = { createdAt: { [Op.gte]: new Date(from) } };
-      } else if (to) {
-        dateFilter = { createdAt: { [Op.lte]: new Date(to) } };
+      } else if (startDate) {
+        dateFilter = { createdAt: { [Op.gte]: startDate } };
+      } else if (endDate) {
+        dateFilter = { createdAt: { [Op.lte]: endDate } };
       }
     } else {
       // Use range-based filtering

@@ -62,6 +62,10 @@ export const getTrendData = async (req, res) => {
       orderByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
     }
 
+    // ✅ FIX: If 'from' is picked but 'to' is not, treat it as a single-day query
+    const finalFrom = from || null;
+    const finalTo = to || (from ? from : null);
+
     const query = `
       SELECT 
         ${dateExpr} AS date,
@@ -81,8 +85,8 @@ export const getTrendData = async (req, res) => {
     const rows = await sequelize.query(query, {
       replacements: {
         cafeteriaId,
-        from: from ?? null,
-        to: to ?? null,
+        from: finalFrom,
+        to: finalTo,
       },
       type: QueryTypes.SELECT,
     });
