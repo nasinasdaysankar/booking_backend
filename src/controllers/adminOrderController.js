@@ -336,6 +336,16 @@ export const getAdminOrders = async (req, res) => {
     const { status } = req.query;
     const cafeteriaId = req.user.cafeteriaId;
 
+    // Handle multiple statuses (comma-separated or single)
+    let statusCondition = 'orders.status = :status';
+    let replacements = { status: status || 'PAID', cafeteriaId };
+
+    if (status && status.includes(',')) {
+      const statusArray = status.split(',').map(s => s.trim());
+      statusCondition = 'orders.status IN (:statusArray)';
+      replacements = { statusArray, cafeteriaId };
+    }
+
     const orders = await sequelize.query(
       `
       SELECT orders.id,
@@ -361,12 +371,12 @@ export const getAdminOrders = async (req, res) => {
              orders."total_order_number" AS "totalOrderNumber",
              (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
-      WHERE orders.status = :status
+      WHERE ${statusCondition}
       AND orders."cafeteriaid" = :cafeteriaId
       ORDER BY orders."created_at" DESC
       `,
       {
-        replacements: { status: status || "PAID", cafeteriaId },
+        replacements,
         type: QueryTypes.SELECT,
       }
     );
