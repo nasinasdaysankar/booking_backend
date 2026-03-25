@@ -65,7 +65,7 @@ export const getTrendData = async (req, res) => {
     const query = `
       SELECT 
         ${dateExpr} AS date,
-        (SUM("totalamount") - SUM(COALESCE(platform_fee, 0)) - SUM(COALESCE(commission_amount, 0)))::FLOAT AS revenue,
+        (SUM("totalamount") - SUM("totalamount" * 0.0195 * 1.18) - SUM(COALESCE(commission_amount, 0)))::FLOAT AS revenue,
         COUNT(id)::INT AS orders
       FROM orders
       WHERE 

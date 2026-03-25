@@ -369,7 +369,7 @@ export const getAdminOrders = async (req, res) => {
              orders."commission_amount" AS "commissionAmount",
              orders."daily_order_number" AS "dailyOrderNumber",
              orders."total_order_number" AS "totalOrderNumber",
-             (orders."totalamount" - COALESCE(orders."platform_fee", 0) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
+             (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
       FROM orders
       WHERE ${statusCondition}
       AND orders."cafeteriaid" = :cafeteriaId
@@ -499,7 +499,7 @@ export const updateOrderStatus = async (req, res) => {
       createdAt: order.createdAt,
       isParcel: order.isParcel,
       parcelAmount: order.parcelAmount,
-      netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
+      netAmount: Number(order.totalAmount) - (Number(order.totalAmount) * 0.0195 * 1.18) - Number(order.commissionAmount || 0),
       dailyOrderNumber: order.dailyOrderNumber,
       items: parsedItems,
       customerName: userName,
@@ -765,11 +765,14 @@ export const getAdminStats = async (req, res) => {
       0
     );
 
-    // 🔥 NET EARNINGS (What the owner gets = Gross Sales - Commission)
-    const netRevenue = orders.reduce(
-      (sum, order) => sum + (Number(order.totalAmount || 0) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0)),
-      0
-    );
+    // 🔥 NET EARNINGS (Income = Total - Cashfree Charges(1.95%) - GST on Charges(18%) - Commission)
+    const netRevenue = orders.reduce((sum, order) => {
+      const amount = Number(order.totalAmount || 0);
+      const commission = Number(order.commissionAmount || 0);
+      const cashfreeCharge = amount * 0.0195;
+      const cashfreeGst = cashfreeCharge * 0.18;
+      return sum + (amount - cashfreeCharge - cashfreeGst - commission);
+    }, 0);
 
     // 📅 TODAY'S CALCULATIONS (for header card consistency)
     const now = new Date();
@@ -780,7 +783,14 @@ export const getAdminStats = async (req, res) => {
     // OR just use what we have if range is 'daily'.
     const todayOrders = orders.filter(o => new Date(o.createdAt) >= startOfToday);
     const grossRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0)), 0);
-    const netRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0) - Number(o.commissionAmount || 0)), 0);
+    
+    const netRevenueToday = todayOrders.reduce((sum, order) => {
+      const amount = Number(order.totalAmount || 0);
+      const commission = Number(order.commissionAmount || 0);
+      const cashfreeCharge = amount * 0.0195;
+      const cashfreeGst = cashfreeCharge * 0.18;
+      return sum + (amount - cashfreeCharge - cashfreeGst - commission);
+    }, 0);
 
     // 👥 TOTAL CUSTOMERS (UNIQUE STUDENTS)
     const uniqueCustomers = new Set(
