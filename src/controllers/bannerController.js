@@ -7,20 +7,20 @@ import { bannerCacheGet, bannerCacheSet, CACHE_KEYS, clearBannerCache, clearMenu
 // ==================== GET ALL BANNERS (REDIS CACHED) ====================
 export const getBanners = async (req, res) => {
   try {
-    const { cafeteriaId } = req.query;
-    
-    // Determine which cafeteriaId to use
-    let targetCafeteriaId = cafeteriaId;
-    if (req.user && req.user.role === "admin") {
-      targetCafeteriaId = req.user.cafeteriaId;
+    const cacheKey = CACHE_KEYS.BANNERS_ALL;
+
+    // ✅ CHECK REDIS CACHE
+    const cached = await bannerCacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);  // Return raw array (Flutter expects List<dynamic>)
     }
 
-    const whereClause = targetCafeteriaId ? { cafeteriaId: targetCafeteriaId } : {};
-    
-    // We only cache the global list for now, or we can use dynamic cache keys
-    const banners = await Banner.findAll({ where: whereClause });
+    const banners = await Banner.findAll();
 
-    res.json(banners); 
+    // ✅ SAVE TO REDIS
+    await bannerCacheSet(cacheKey, banners);
+
+    res.json(banners);  // Return raw array (same format as before Redis)
   } catch (err) {
     res.status(500).json({
       message: "Unable to fetch banners",
@@ -96,7 +96,7 @@ export const deleteBanner = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
- 
+
     // Admin check: only allow if it's their cafeteria
     if (req.user.role === "admin" && banner.cafeteriaId !== req.user.cafeteriaId) {
       return res.status(403).json({ message: "Unauthorized: Access denied to another cafeteria's banner" });
@@ -152,7 +152,7 @@ export const updateBanner = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
- 
+
     // Admin check
     if (req.user.role === "admin" && banner.cafeteriaId !== req.user.cafeteriaId) {
       return res.status(403).json({ message: "Unauthorized: Access denied to another cafeteria's banner" });
