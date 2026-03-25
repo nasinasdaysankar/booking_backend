@@ -7,20 +7,20 @@ import { bannerCacheGet, bannerCacheSet, CACHE_KEYS, clearBannerCache, clearMenu
 // ==================== GET ALL BANNERS (REDIS CACHED) ====================
 export const getBanners = async (req, res) => {
   try {
-    const cacheKey = CACHE_KEYS.BANNERS_ALL;
-
-    // ✅ CHECK REDIS CACHE
-    const cached = await bannerCacheGet(cacheKey);
-    if (cached) {
-      return res.json(cached);  // Return raw array (Flutter expects List<dynamic>)
+    const { cafeteriaId } = req.query;
+    
+    // Determine which cafeteriaId to use
+    let targetCafeteriaId = cafeteriaId;
+    if (req.user && req.user.role === "admin") {
+      targetCafeteriaId = req.user.cafeteriaId;
     }
 
-    const banners = await Banner.findAll();
+    const whereClause = targetCafeteriaId ? { cafeteriaId: targetCafeteriaId } : {};
+    
+    // We only cache the global list for now, or we can use dynamic cache keys
+    const banners = await Banner.findAll({ where: whereClause });
 
-    // ✅ SAVE TO REDIS
-    await bannerCacheSet(cacheKey, banners);
-
-    res.json(banners);  // Return raw array (same format as before Redis)
+    res.json(banners); 
   } catch (err) {
     res.status(500).json({
       message: "Unable to fetch banners",
