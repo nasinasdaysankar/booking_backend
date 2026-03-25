@@ -348,32 +348,34 @@ export const getAdminOrders = async (req, res) => {
 
     const orders = await sequelize.query(
       `
-      SELECT orders.id,
-             orders."cashfreeorderid" AS "cashfreeOrderId",
-             orders."billid" AS "billId",
-             orders."studentid" AS "studentId",
-             orders."cafeteriaid" AS "cafeteriaId",
-             orders."totalamount" AS "totalAmount",
-             orders.status,
-             orders."paymentstatus" AS "paymentStatus",
-             orders."etaminutes" AS "etaMinutes",
-             orders."kotnumber" AS "kotNumber",
-             orders."israted" AS "isRated",
-             orders."isparcel" AS "isParcel",
-             orders."parcelamount" AS "parcelAmount",
-             orders."platform_fee" AS "platformFee",
-             orders."gst_amount" AS "gstAmount",
-             orders."created_at" AS "createdAt",
-             orders."updated_at" AS "updatedAt",
-             orders."picked_up_at" AS "pickedUpAt",
-             orders."commission_amount" AS "commissionAmount",
-             orders."daily_order_number" AS "dailyOrderNumber",
-             orders."total_order_number" AS "totalOrderNumber",
-             (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount"
-      FROM orders
-      WHERE ${statusCondition}
-      AND orders."cafeteriaid" = :cafeteriaId
-      ORDER BY orders."created_at" DESC
+              SELECT orders.id,
+              orders."cashfreeorderid" AS "cashfreeOrderId",
+              orders."billid" AS "billId",
+              orders."studentid" AS "studentId",
+              orders."cafeteriaid" AS "cafeteriaId",
+              orders."totalamount" AS "totalAmount",
+              orders.status,
+              orders."paymentstatus" AS "paymentStatus",
+              orders."etaminutes" AS "etaMinutes",
+              orders."kotnumber" AS "kotNumber",
+              orders."israted" AS "isRated",
+              orders."isparcel" AS "isParcel",
+              orders."parcelamount" AS "parcelAmount",
+              orders."platform_fee" AS "platformFee",
+              orders."gst_amount" AS "gstAmount",
+              orders."created_at" AS "createdAt",
+              orders."updated_at" AS "updatedAt",
+              orders."picked_up_at" AS "pickedUpAt",
+              orders."commission_amount" AS "commissionAmount",
+              orders."daily_order_number" AS "dailyOrderNumber",
+              orders."total_order_number" AS "totalOrderNumber",
+              (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
+              users.name AS "customerName"
+       FROM orders
+       LEFT JOIN users ON users.id = orders."studentid"
+       WHERE ${statusCondition}
+       AND orders."cafeteriaid" = :cafeteriaId
+       ORDER BY orders."created_at" DESC
       `,
       {
         replacements,
