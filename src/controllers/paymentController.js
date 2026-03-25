@@ -111,7 +111,10 @@ export const generateBillId = async (cafeteriaId, transaction) => {
 };
 
 export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
-  const today = dayjs().format('YYYY-MM-DD');
+  // ✅ FORCE IST DATE (Asia/Kolkata) to ensure daily reset at midnight IST
+  const today = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000) + (new Date().getTimezoneOffset() * 60000))
+    .toISOString()
+    .split('T')[0];
 
   const results = await sequelize.query(
     `
@@ -162,7 +165,10 @@ export const generateTotalOrderNumber = async (transaction) => {
 // 🆕 HELPER: UPDATE USER STREAK
 // --------------------------------------------------
 async function updateUserStreak(userId, cafeteriaId, transaction) {
-  const today = dayjs().format("YYYY-MM-DD");
+  // ✅ FORCE IST DATE (Asia/Kolkata)
+  const today = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000) + (new Date().getTimezoneOffset() * 60000))
+    .toISOString()
+    .split("T")[0];
 
   let streak = await UserStreak.findOne({
     where: { userId, cafeteriaId },
