@@ -764,62 +764,59 @@ export const getAdminStats = async (req, res) => {
 
     const totalOrders = orders.length;
 
-    // 💰 GROSS SALES (What the owner sold = Total Student Paid - Platform Fee)
-    const grossRevenue = orders.reduce(
-      (sum, order) => sum + (Number(order.totalAmount || 0) - Number(order.platformFee || 0)),
-      0
-    );
+    // 💰 BREAKDOWN TOTALS (Selected Range)
+    let totalCashfreeCharges = 0;
+    let totalCashfreeGst = 0;
+    let totalCommissions = 0;
+    let totalAmountBase = 0;
 
-    // 🔥 NET EARNINGS (Income = Total - Cashfree Charges(1.95%) - GST on Charges(18%) - Commission)
-    const netRevenue = orders.reduce((sum, order) => {
+    orders.forEach(order => {
       const amount = Number(order.totalAmount || 0);
       const commission = Number(order.commissionAmount || 0);
-      const cashfreeCharge = amount * 0.0195;
-      const cashfreeGst = cashfreeCharge * 0.18;
-      return sum + (amount - cashfreeCharge - cashfreeGst - commission);
-    }, 0);
+      const cfCharge = amount * 0.0195;
+      const cfGst = cfCharge * 0.18;
+      
+      totalAmountBase += amount;
+      totalCashfreeCharges += cfCharge;
+      totalCashfreeGst += cfGst;
+      totalCommissions += commission;
+    });
 
-    // 📅 TODAY'S CALCULATIONS (for header card consistency)
+    const netRevenue = totalAmountBase - totalCashfreeCharges - totalCashfreeGst - totalCommissions;
+
+    // 📅 TODAY'S CALCULATIONS
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    // This is valid but we can also filter from the 'orders' list if it's currently fetched for 'all' or 'weekly'
-    // However, it's safer to just filter the 'orders' variable we already have if range is large, 
-    // OR just use what we have if range is 'daily'.
     const todayOrders = orders.filter(o => new Date(o.createdAt) >= startOfToday);
-    const grossRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0)), 0);
     
+    const grossRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0)), 0);
     const netRevenueToday = todayOrders.reduce((sum, order) => {
       const amount = Number(order.totalAmount || 0);
       const commission = Number(order.commissionAmount || 0);
-      const cashfreeCharge = amount * 0.0195;
-      const cashfreeGst = cashfreeCharge * 0.18;
-      return sum + (amount - cashfreeCharge - cashfreeGst - commission);
+      const cfCharge = amount * 0.0195;
+      const cfGst = cfCharge * 0.18;
+      return sum + (amount - cfCharge - cfGst - commission);
     }, 0);
 
-    // 👥 TOTAL CUSTOMERS (UNIQUE STUDENTS)
-    const uniqueCustomers = new Set(
-      orders.map((order) => order.studentId).filter(Boolean)
-    );
+    // 👥 TOTAL CUSTOMERS
+    const uniqueCustomers = new Set(orders.map((order) => order.studentId).filter(Boolean));
     const totalCustomers = uniqueCustomers.size;
-
-    const pendingOrders = orders.filter(
-      (o) => o.status === "PAID" || o.status === "PREPARING"
-    ).length;
-
-    // Avg value is usually calculated on Gross Sales
-    const avgOrderValue = totalOrders > 0 ? grossRevenue / totalOrders : 0;
+    const pendingOrders = orders.filter((o) => o.status === "PAID" || o.status === "PREPARING").length;
+    const avgOrderValue = totalOrders > 0 ? (totalAmountBase / totalOrders) : 0;
 
     const statsResult = {
-      totalRevenue: Number(netRevenue.toFixed(2)), // Keep for backward compatibility (mapped to NET)
-      grossRevenue: Number(grossRevenue.toFixed(2)),
-      netRevenue: Number(netRevenue.toFixed(2)),
-      grossRevenueToday: Number(grossRevenueToday.toFixed(2)),
-      netRevenueToday: Number(netRevenueToday.toFixed(2)),
+      totalRevenue: Number(netRevenue.toFixed(3)),
+      grossRevenue: Number(totalAmountBase.toFixed(3)),
+      netRevenue: Number(netRevenue.toFixed(3)),
+      totalCashfreeCharges: Number(totalCashfreeCharges.toFixed(3)),
+      totalCashfreeGst: Number(totalCashfreeGst.toFixed(3)),
+      totalCommissions: Number(totalCommissions.toFixed(3)),
+      grossRevenueToday: Number(grossRevenueToday.toFixed(3)),
+      netRevenueToday: Number(netRevenueToday.toFixed(3)),
       totalOrders,
       totalCustomers,
       pendingOrders,
-      avgOrderValue: Number(avgOrderValue.toFixed(2)),
+      avgOrderValue: Number(avgOrderValue.toFixed(3)),
     };
 
     // ✅ SAVE TO REDIS (1 min TTL)
