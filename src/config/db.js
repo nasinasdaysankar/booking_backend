@@ -11,17 +11,19 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   // 🔧 OPTIMIZED FOR DEVELOPMENT STABILITY
   // ============================================
   pool: {
-    max: 20,
-    min: 0,
-    acquire: 60000,
-    idle: 10000,
+    max: 10, // 🔧 Optimized for shared cloud proxies
+    min: 1,  // 🟢 Keep at least 1 alive to avoid DNS re-lookup
+    acquire: 30000,
+    idle: 30000, // ⏳ Increased to prevent connection flickers
   },
 
   dialectOptions: {
+    keepAlive: true,
     ssl: {
       require: true,
       rejectUnauthorized: false,
     },
+    connectTimeout: 30000,
   },
 });
 

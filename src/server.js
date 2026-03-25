@@ -5,6 +5,10 @@ import "dotenv/config";
 import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
+import dns from "node:dns";
+
+// ✅ Fix for Railway DNS lookup issues (Node 17+)
+dns.setDefaultResultOrder("ipv4first");
 
 import { sequelize, Cafeteria, AppFeedback, OrderFeedback, SupportTicket } from "./models/index.js";
 import { connectRedis, isRedisReady } from "./config/redis.js";
