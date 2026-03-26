@@ -141,6 +141,12 @@ export default (sequelize) => {
         field: "total_order_number",
       },
 
+      paymentMethod: {
+        type: DataTypes.ENUM("ONLINE", "CASH"),
+        defaultValue: "ONLINE",
+        field: "payment_method",
+      },
+
       etaMinutes: {
         type: DataTypes.INTEGER,
         allowNull: true,

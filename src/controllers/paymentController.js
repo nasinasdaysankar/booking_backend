@@ -59,7 +59,7 @@ const generateRandomString = (length = 8) => {
 // --------------------------------------------------
 // 🆕 HELPER: GENERATE UNIQUE RANDOM KOT NUMBER
 // --------------------------------------------------
-const generateKotNumber = async (cafeteriaId, transaction) => {
+export const generateKotNumber = async (cafeteriaId, transaction) => {
   try {
     console.log(`🎯 [KOT] Generating unique KOT for cafeteria: ${cafeteriaId}`);
 

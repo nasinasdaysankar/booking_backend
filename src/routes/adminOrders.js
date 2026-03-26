@@ -3,10 +3,19 @@ import { auth, requireRole } from "../middleware/auth.js";
 import { 
   getAdminOrders, 
   updateOrderStatus,
-  getAdminStats
+  getAdminStats,
+  createManualOrder
 } from "../controllers/adminOrderController.js";
 
 const router = express.Router();
+
+// Place manual (cash) order
+router.post(
+  "/create-manual",
+  auth,
+  requireRole(['staff', 'admin']),
+  createManualOrder
+);
 
 // Fetch orders for the cafeteria
 router.get(

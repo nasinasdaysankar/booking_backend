@@ -292,9 +292,135 @@ import admin from "../config/firebaseAdmin.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
+import { generateBillId, generateDailyOrderNumber, generateKotNumber, generateTotalOrderNumber } from "./paymentController.js";
+import { appendOrderToSheet } from "../utils/googleSheets.js";
+
 console.log("--------------------------------------------------");
 console.log("✅ LOADED: adminOrderController.js (Static QR Mode)");
 console.log("--------------------------------------------------");
+
+/**
+ * ===============================
+ * CREATE MANUAL ORDER (CASH)
+ * ===============================
+ */
+export const createManualOrder = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const { items, totalAmount, isParcel, parcelAmount, gstAmount, platformFee, commissionAmount, customerName } = req.body;
+    const cafeteriaId = req.user.cafeteriaId;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: "No items provided" });
+    }
+
+    // 1. Get or Create a "Walk-in" User for this order
+    // We use a special email for all manual orders
+    const [walkinUser] = await User.findOrCreate({
+      where: { email: `walkin_${cafeteriaId}@velish.com` },
+      defaults: {
+        name: "Walk-in Customer",
+        role: "student",
+      },
+      transaction: t,
+    });
+
+    // 2. Generate required numbers
+    const billId = await generateBillId(cafeteriaId, t);
+    const kotNumber = await generateKotNumber(cafeteriaId, t);
+    const dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);
+    const totalOrderNumber = await generateTotalOrderNumber(t);
+
+    // 3. Create Order
+    const order = await Order.create(
+      {
+        billId,
+        studentId: walkinUser.id,
+        cafeteriaId,
+        totalAmount,
+        status: "PAID",
+        paymentStatus: "SUCCESS",
+        paymentMethod: "CASH",
+        kotNumber,
+        dailyOrderNumber,
+        totalOrderNumber,
+        isParcel: Boolean(isParcel),
+        parcelAmount: Number(parcelAmount) || 0,
+        gstAmount: Number(gstAmount) || 0,
+        platformFee: Number(platformFee) || 0,
+        commissionAmount: Number(commissionAmount) || 0,
+      },
+      { transaction: t }
+    );
+
+    // 4. Create Order Items
+    const orderItems = items.map((item) => ({
+      orderId: order.id,
+      menuItemId: item.id || item.menuItemId,
+      name: item.name,
+      quantity: item.quantity,
+      priceAtOrder: item.price,
+      imageUrl: item.imageUrl,
+      isParcel: item.isParcel || false,
+    }));
+
+    await OrderItem.bulkCreate(orderItems, { transaction: t });
+
+    await t.commit();
+
+    // 5. Invalidate Cache
+    await clearAnalyticsCache(cafeteriaId);
+
+    // 6. Real-time update to Admin Dashboard (split screen)
+    emitNewOrder(cafeteriaId, {
+      id: order.id,
+      orderId: order.id,
+      billId: order.billId,
+      kotNumber: order.kotNumber,
+      dailyOrderNumber: order.dailyOrderNumber,
+      status: "PAID",
+      customerName: customerName || "Walk-in Customer",
+      totalAmount: order.totalAmount,
+      netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
+      createdAt: order.createdAt,
+      isParcel: order.isParcel,
+      items: orderItems,
+    });
+
+    // 7. Sync to Google Sheets (Async)
+    appendOrderToSheet({
+      id: order.id,
+      billId: order.billId,
+      studentId: order.studentId,
+      customerName: customerName || "Walk-in Customer",
+      cafeteriaId: order.cafeteriaId,
+      totalAmount: order.totalAmount,
+      platformFee: order.platformFee,
+      gstAmount: order.gstAmount,
+      commissionAmount: order.commissionAmount,
+      isParcel: order.isParcel,
+      parcelAmount: order.parcelAmount,
+      items: items,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      kotNumber: order.kotNumber,
+      dailyOrderNumber: order.dailyOrderNumber,
+      createdAt: order.createdAt,
+    }).catch((err) => console.error("⚠️ Sheets sync error for manual order:", err.message));
+
+    return res.status(201).json({
+      success: true,
+      message: "Manual order placed successfully",
+      orderId: order.id,
+      billId: order.billId,
+      kotNumber: order.kotNumber,
+    });
+  } catch (err) {
+    if (!t.finished) await t.rollback();
+    console.error("❌ CREATE MANUAL ORDER ERROR:", err);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
 
 /**
  * ===============================
