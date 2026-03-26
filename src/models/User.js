@@ -68,13 +68,6 @@ export default (sequelize) => {
       field: "otpexpiry",
     },
 
-    fcmToken: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: "fcmtoken",
-    },
-
-
     role: { // 'student' or 'staff'
       type: DataTypes.ENUM('student', 'staff', 'admin'),
       allowNull: false,

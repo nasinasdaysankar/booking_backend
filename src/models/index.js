@@ -6,17 +6,13 @@ import CafeteriaModel from "./Cafeteria.js";
 import MenuItemModel from "./MenuItem.js";
 import OrderModel from "./Order.js";
 import OrderItemModel from "./OrderItem.js";
-import NotificationModel from "./notificationModel.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
 import CafeteriaQrModel from "./cafeteriaQr.js";
 import CommissionModel from "./Commission.js";
 import VendorModel from "./Vendor.js";
-import UpiPaymentModel from "./UpiPayment.js";
 import AuditLogModel from "./AuditLog.js";
 import SystemSettingModel from "./SystemSetting.js";
-import SystemAlertModel from "./SystemAlert.js";
-
 import AdminFcmTokenModel from "./AdminFcmToken.js";
 import UserFcmTokenModel from "./UserFcmToken.js";
 import UserStreakModel from "./UserStreak.js";
@@ -24,6 +20,7 @@ import OrderFeedbackModel from "./OrderFeedback.js";
 import AppFeedbackModel from "./AppFeedback.js";
 import UserActivityModel from "./UserActivity.js";
 import SupportTicketModel from "./SupportTicket.js";
+import CampusBoundaryModel from "./CampusBoundary.js";
 
 import app from "../app.js";
 import http from "http";
@@ -49,17 +46,13 @@ const Cafeteria = CafeteriaModel(sequelize);
 const MenuItem = MenuItemModel(sequelize);
 const Order = OrderModel(sequelize);
 const OrderItem = OrderItemModel(sequelize);
-const Notification = NotificationModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
 const CafeteriaQr = CafeteriaQrModel(sequelize);
 const Commission = CommissionModel(sequelize);
 const Vendor = VendorModel(sequelize);
-const UpiPayment = UpiPaymentModel(sequelize);
 const AuditLog = AuditLogModel(sequelize);
 const SystemSetting = SystemSettingModel(sequelize);
-const SystemAlert = SystemAlertModel(sequelize);
-
 const AdminFcmToken = AdminFcmTokenModel(sequelize);
 const UserFcmToken = UserFcmTokenModel(sequelize);
 
@@ -70,6 +63,7 @@ const OrderFeedback = OrderFeedbackModel(sequelize);
 const AppFeedback = AppFeedbackModel(sequelize);
 const UserActivity = UserActivityModel(sequelize);
 const SupportTicket = SupportTicketModel(sequelize);
+const CampusBoundary = CampusBoundaryModel(sequelize);
 
 
 // ================= RELATIONS =================
@@ -122,11 +116,6 @@ Commission.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "caf
 Vendor.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } }); // [NEW]
 Cafeteria.hasOne(Vendor, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } }); // [NEW]
 
-// ================= UPI PAYMENT RELATIONS =================
-Order.hasOne(UpiPayment, { foreignKey: { name: "orderId", field: "orderid" } }); // [NEW]
-UpiPayment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } }); // [NEW]
-
-
 // ================= FCM RELATIONS =================
 
 // Admin → AdminFcmToken
@@ -154,9 +143,6 @@ User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, c
 SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user", constraints: false });
 
 // ================= SYSTEM RELATIONS =================
-SystemAlert.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
-Cafeteria.hasMany(SystemAlert, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "alerts" });
-
 AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
 Admin.hasMany(AuditLog, { foreignKey: { name: "adminId", field: "adminid" } });
 
@@ -173,7 +159,6 @@ export {
   MenuItem,
   Order,
   OrderItem,
-  Notification,
   Banner,
   Payment,
   CafeteriaQr,
@@ -181,13 +166,12 @@ export {
   Vendor,
   AuditLog,
   SystemSetting,
-  SystemAlert,
   AdminFcmToken,
   UserFcmToken,
   UserStreak,
   OrderFeedback,   // ⭐ IMPORTANT
   AppFeedback,
   UserActivity,
-  UpiPayment, // [NEW] Auto Collect
   SupportTicket, // 🎫 SUPPORT TICKETS
+  CampusBoundary,
 };

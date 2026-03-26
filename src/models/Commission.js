@@ -25,37 +25,6 @@ export default (sequelize) => {
         defaultValue: 1.00,
         comment: "Platform commission amount (₹1)",
       },
-      vendorAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: "Amount sent to vendor/cafeteria owner",
-        field: "vendoramount",
-      },
-      totalAmount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false,
-        comment: "Total order amount (commission + vendorAmount)",
-        field: "totalamount",
-      },
-      splitStatus: {
-        type: DataTypes.ENUM("PENDING", "SETTLED", "FAILED"),
-        defaultValue: "PENDING",
-        comment: "Cashfree split settlement status",
-        field: "splitstatus",
-      },
-      settledAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        comment: "When Cashfree settled the split to vendor",
-        field: "settledat",
-      },
-      splitId: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        comment: "Cashfree split transaction ID",
-        field: "splitid",
-      },
-
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at",
@@ -75,7 +44,6 @@ export default (sequelize) => {
       indexes: [
         { fields: ["orderid"] },
         { fields: ["cafeteriaid"] },
-        { fields: ["splitstatus"] },
       ],
     }
   );

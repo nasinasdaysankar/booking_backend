@@ -4,10 +4,8 @@ export default (sequelize) => {
     const AuditLog = sequelize.define('AuditLog', {
         id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
         adminId: { type: DataTypes.INTEGER, allowNull: true, field: "adminid" },
-        adminName: { type: DataTypes.STRING, allowNull: true, field: "adminname" }, // Store snapshot of name
         action: { type: DataTypes.STRING, allowNull: false },
         details: { type: DataTypes.JSONB, allowNull: true },
-        ipAddress: { type: DataTypes.STRING, allowNull: true, field: "ipaddress" },
 
         createdAt: {
             type: DataTypes.DATE,

@@ -83,12 +83,6 @@ export default (sequelize) => {
         defaultValue: "PENDING_KYC",
         comment: "Vendor activation status",
       },
-      kycDocuments: {
-        type: DataTypes.JSON,
-        allowNull: true,
-        field: "kycdocuments",
-        comment: "Store KYC document URLs (PAN, GST, etc.)",
-      },
       activatedAt: {
         type: DataTypes.DATE,
         allowNull: true,
