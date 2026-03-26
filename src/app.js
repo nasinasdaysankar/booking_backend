@@ -8,8 +8,8 @@ import orderRoutes from "./routes/orderRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import menuRoutes from "./routes/menuRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
-import adminOrdersRoutes from "./routes/adminOrders.js";
 import adminAuthRoutes from "./routes/adminAuth.routes.js";
+import adminOrdersRoutes from "./routes/adminOrders.js";
 import userRoutes from "./routes/userRoutes.js";
 import bannerRoutes from "./routes/bannerRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
@@ -131,7 +131,7 @@ app.use("/api/auth/admin", adminAuthRoutes);
 
 // 🔐 ADMIN FEATURES
 app.use("/api/admin", adminRoutes);
-// app.use("/api/admin", adminOrdersRoutes);
+app.use("/api/admin", adminOrdersRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/notify", notificationRoutes);
 app.use("/api/user/notify", userNotificationRoutes);

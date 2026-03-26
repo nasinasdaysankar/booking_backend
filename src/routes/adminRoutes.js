@@ -45,6 +45,7 @@ router.get("/orders", auth, requireRole(['admin']), getAdminOrders);
  */
 router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStatus);
 
+
 // ============================================
 // CAFETERIA MANAGEMENT
 // ============================================

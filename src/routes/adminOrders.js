@@ -33,9 +33,6 @@ router.patch(
   updateOrderStatus
 );
 
-
-
 router.get("/stats", auth, requireRole(['admin']), getAdminStats);
-
 
 export default router;
