@@ -305,10 +305,12 @@ console.log("--------------------------------------------------");
  * ===============================
  */
 export const createManualOrder = async (req, res) => {
+  console.log("🚀 [POS] createManualOrder hit. Body:", JSON.stringify(req.body));
   const t = await sequelize.transaction();
   try {
     const { items, totalAmount, isParcel, parcelAmount, gstAmount, platformFee, commissionAmount, customerName } = req.body;
     const cafeteriaId = req.user.cafeteriaId;
+    console.log(`🚀 [POS] CafeteriaId: ${cafeteriaId}, Total: ${totalAmount}, Customer: ${customerName}`);
 
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: "No items provided" });
