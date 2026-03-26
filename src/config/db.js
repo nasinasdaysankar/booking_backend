@@ -19,19 +19,22 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   // 🔧 OPTIMIZED FOR DEVELOPMENT STABILITY
   // ============================================
   pool: {
-    max: 10, // 🔧 Optimized for shared cloud proxies
-    min: 1,  // 🟢 Keep at least 1 alive to avoid DNS re-lookup
+    max: 10,
+    min: 0,       // Allow pool to drain fully — avoids keeping stale connections alive
     acquire: 30000,
-    idle: 30000, // ⏳ Increased to prevent connection flickers
+    idle: 10000,  // Evict idle connections after 10s (Railway proxy drops them at ~30s)
+    evict: 5000,  // Check for idle connections every 5s
   },
 
   dialectOptions: {
     keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
     ssl: {
       require: true,
       rejectUnauthorized: false,
     },
     connectTimeout: 30000,
+    statement_timeout: 30000,
   },
 });
 
