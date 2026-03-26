@@ -2,8 +2,7 @@ import express from "express";
 import { auth, requireRole } from "../middleware/auth.js";
 import { 
   getAdminOrders, 
-  updateOrderStatus, 
-  getMyCafeteriaQR,
+  updateOrderStatus,
   getAdminStats
 } from "../controllers/adminOrderController.js";
 
@@ -25,13 +24,7 @@ router.patch(
   updateOrderStatus
 );
 
-// Display the Static QR code for scanning
-router.get(
-  "/cafeteria/qr", 
-  auth, 
-  requireRole(['staff', 'admin']), 
-  getMyCafeteriaQR
-);
+
 
 router.get("/stats", auth, requireRole(['admin']), getAdminStats);
 

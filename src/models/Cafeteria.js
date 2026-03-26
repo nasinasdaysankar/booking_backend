@@ -38,12 +38,7 @@ export default (sequelize) => {
         field: "isuservisible",
       },
 
-      staticQrToken: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
-        unique: true,
-        field: "staticqrtoken",
-      },
+
 
       isInsideCampus: {
         type: DataTypes.BOOLEAN,

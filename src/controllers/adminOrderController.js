@@ -1,4 +1,4 @@
-// import { sequelize, Order, CafeteriaQr, UserFcmToken } from "../models/index.js";
+// import { sequelize, Order, UserFcmToken } from "../models/index.js";
 // import { QueryTypes, Op } from "sequelize";
 // import { emitNewOrder, emitAdminOrderUpdate, emitOrderStatusToUser } from "../socket.js";
 // import admin from "../config/firebaseAdmin.js";
@@ -169,37 +169,7 @@
 //  * GET CAFETERIA STATIC QR
 //  * ===============================
 //  */
-// export const getMyCafeteriaQR = async (req, res) => {
-//   try {
-//     if (req.user.role !== "admin") {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Forbidden: Only cafeteria admins can view the static QR.",
-//       });
-//     }
 
-//     const cafeteriaId = req.user.cafeteriaId;
-//     if (!cafeteriaId) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Your admin account is not linked to a cafeteria.",
-//       });
-//     }
-
-//     const [qr] = await CafeteriaQr.findOrCreate({
-//       where: { cafeteriaId },
-//       defaults: { qrToken: `STATIC_QR_CAFETERIA_${cafeteriaId}` },
-//     });
-
-//     return res.json({ success: true, qrToken: qr.qrToken });
-//   } catch (error) {
-//     console.error("❌ getMyCafeteriaQR error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Server error while fetching cafeteria QR",
-//     });
-//   }
-// };
 
 // /**
 //  * ===============================
@@ -315,7 +285,7 @@
 // };
 
 
-import { sequelize, Order, CafeteriaQr, UserFcmToken, User } from "../models/index.js";
+import { sequelize, Order, UserFcmToken, User } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -608,42 +578,7 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-/**
- * ===============================
- * GET CAFETERIA STATIC QR
- * ===============================
- */
-export const getMyCafeteriaQR = async (req, res) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden: Only cafeteria admins can view the static QR.",
-      });
-    }
 
-    const cafeteriaId = req.user.cafeteriaId;
-    if (!cafeteriaId) {
-      return res.status(400).json({
-        success: false,
-        message: "Your admin account is not linked to a cafeteria.",
-      });
-    }
-
-    const [qr] = await CafeteriaQr.findOrCreate({
-      where: { cafeteriaId },
-      defaults: { qrToken: `STATIC_QR_CAFETERIA_${cafeteriaId}` },
-    });
-
-    return res.json({ success: true, qrToken: qr.qrToken });
-  } catch (error) {
-    console.error("❌ getMyCafeteriaQR error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while fetching cafeteria QR",
-    });
-  }
-};
 
 /**
  * ===============================

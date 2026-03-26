@@ -8,7 +8,7 @@ import OrderModel from "./Order.js";
 import OrderItemModel from "./OrderItem.js";
 import BannerModel from "./Banner.js";
 import PaymentModel from "./Payment.js";
-import CafeteriaQrModel from "./cafeteriaQr.js";
+
 import CommissionModel from "./Commission.js";
 import VendorModel from "./Vendor.js";
 import AuditLogModel from "./AuditLog.js";
@@ -48,7 +48,7 @@ const Order = OrderModel(sequelize);
 const OrderItem = OrderItemModel(sequelize);
 const Banner = BannerModel(sequelize);
 const Payment = PaymentModel(sequelize);
-const CafeteriaQr = CafeteriaQrModel(sequelize);
+
 const Commission = CommissionModel(sequelize);
 const Vendor = VendorModel(sequelize);
 const AuditLog = AuditLogModel(sequelize);
@@ -161,7 +161,7 @@ export {
   OrderItem,
   Banner,
   Payment,
-  CafeteriaQr,
+
   Commission,
   Vendor,
   AuditLog,

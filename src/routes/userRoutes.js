@@ -30,8 +30,7 @@ import express from "express";
 import { UserActivity } from "../models/index.js";
 import { auth } from "../middleware/auth.js";
 import {
-  scanStaticCafeteriaQR,
-  confirmOrderPickup,
+
 } from "../controllers/userOrderController.js";
 import { getUserStreak } from "../controllers/userStreakController.js";
 import {
@@ -43,9 +42,7 @@ import { getUserRefundHistory } from "../controllers/adminRefundController.js";
 
 const router = express.Router();
 
-// QR
-router.post("/orders/scan-qr", auth, scanStaticCafeteriaQR);
-router.post("/orders/confirm-pickup", auth, confirmOrderPickup);
+
 
 // STREAK
 router.get("/streak/:cafeteriaId", auth, getUserStreak);

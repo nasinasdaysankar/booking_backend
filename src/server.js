@@ -97,10 +97,10 @@ const start = async () => {
     const count = await Cafeteria.count();
     if (count === 0) {
       await Cafeteria.bulkCreate([
-        { name: "ANANTHA AAHARA", location: "Main Block", staticQrToken: "STATIC_QR_CAFETERIA_1" },
-        { name: "AROMOS", location: "Block A", staticQrToken: "AROMAS_QR_123" },
-        { name: "DHANAPANI", location: "Block B", staticQrToken: "NESTLE_QR_789" },
-        { name: "FOODCLUB", location: "Block C", staticQrToken: "FOODCOURT_QR_456" },
+        { name: "ANANTHA AAHARA", location: "Main Block" },
+        { name: "AROMOS", location: "Block A" },
+        { name: "DHANAPANI", location: "Block B" },
+        { name: "FOODCLUB", location: "Block C" },
       ]);
       logger.info("📌 Cafeterias seeded");
     }

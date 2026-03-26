@@ -102,7 +102,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        const staticQrToken = crypto.randomBytes(32).toString('hex');
+
 
         const cafeteria = await Cafeteria.create({
             name,
@@ -110,7 +110,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             longitude,
             isOpen: isOpen !== undefined ? isOpen : true,
             isUserVisible: isUserVisible !== undefined ? isUserVisible : false,
-            staticQrToken,
+
             ownerId,
             gstType: gstType || 'percentage',
             gstAmount: gstAmount !== undefined ? gstAmount : 5.0,
