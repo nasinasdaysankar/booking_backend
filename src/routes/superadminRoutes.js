@@ -1,7 +1,7 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, SystemAlert, OrderItem, UserFcmToken, AdminFcmToken, AppFeedback, UserActivity, SupportTicket } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, OrderItem, UserFcmToken, AdminFcmToken, AppFeedback, SupportTicket } from '../models/index.js';
 import { superadminAuth } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';

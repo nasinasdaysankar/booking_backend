@@ -10,18 +10,9 @@ import dns from "node:dns";
 // ✅ Fix for Railway DNS lookup issues (Node 17+)
 dns.setDefaultResultOrder("ipv4first");
 
-import { sequelize, Cafeteria, AppFeedback, OrderFeedback, SupportTicket } from "./models/index.js";
+import { sequelize, Cafeteria } from "./models/index.js";
 import { connectRedis, isRedisReady } from "./config/redis.js";
-import uploadRoutes from "./routes/uploadRoutes.js";
-import logger from "./utils/logger.js"; // ✅ Value Added
-import foodRoutes from "./routes/foodRoutes.js";
-import bannerRoutes from "./routes/bannerRoutes.js";
-import menuRoutes from "./routes/menuRoutes.js";
-import notificationRoutes from "./routes/notificationRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
-import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
-import superadminRoutes from "./routes/superadminRoutes.js";
+import logger from "./utils/logger.js";
 import compression from "compression";
 
 import { initSocket } from "./socket.js";
@@ -93,37 +84,6 @@ const start = async () => {
       logger.warn("⚠️ Sequelize sync skipped");
     }
 
-    // 🔧 One-time sync for new Feedback tables
-    try {
-      await AppFeedback.sync({ alter: true });
-      await OrderFeedback.sync({ alter: true });
-
-      // Drop FK constraint on support_tickets so admin IDs can be stored too
-      try {
-        await sequelize.query(`
-          DO $$ 
-          DECLARE r RECORD;
-          BEGIN
-            FOR r IN (
-              SELECT constraint_name 
-              FROM information_schema.table_constraints 
-              WHERE table_name = 'support_tickets' 
-              AND constraint_type = 'FOREIGN KEY'
-            ) LOOP
-              EXECUTE 'ALTER TABLE support_tickets DROP CONSTRAINT IF EXISTS ' || r.constraint_name;
-            END LOOP;
-          END $$;
-        `);
-        logger.info("✅ Support ticket FK constraints dropped");
-      } catch (fkErr) {
-        logger.warn("⚠️ FK constraint drop skipped: " + fkErr.message);
-      }
-
-      await SupportTicket.sync({ alter: true });
-      logger.info("✅ Feedback & Support tables synced");
-    } catch (e) {
-      logger.error("❌ Table sync error: " + e.message);
-    }
 
     // ============================================
     // 🔥 COMPRESSION - BEFORE ROUTES FOR EFFICIENCY

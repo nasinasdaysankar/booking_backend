@@ -1,5 +1,13 @@
 import dotenv from "dotenv";
-dotenv.config();
+
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : process.env.NODE_ENV === "test"
+      ? ".env.test"
+      : ".env.local";
+
+dotenv.config({ path: envFile });
 
 import { Sequelize } from "sequelize";
 
