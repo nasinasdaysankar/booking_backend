@@ -673,89 +673,97 @@ export const updateOrderStatus = async (req, res) => {
           const userTokens = await UserFcmToken.findAll({
             where: { userId: order.studentId },
             order: [['updatedAt', 'DESC']],
-            limit: 1
+            limit: 3 // Try up to 3 tokens (multi-device support)
           });
 
+          console.log(`🔍 [FCM] User ${order.studentId} has ${userTokens.length} tokens.`);
+
           if (userTokens.length > 0) {
-            const token = userTokens[0].fcmToken;
+            // Send to all available tokens for reliability
+            for (const userToken of userTokens) {
+              const token = userToken.fcmToken;
 
-            // Rich imageUrl (using the first item in the order)
-            const notificationImageUrl = parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined;
+              // Rich imageUrl (using the first item in the order)
+              const notificationImageUrl = parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined;
 
-            let bodyText = "";
-            let titleText = "";
-            
-            if (status === "PREPARING") {
-              titleText = "👨‍🍳 Order In Prep";
-              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is now being prepared.`;
-            } else if (status === "READY") {
-              titleText = "✅ Order Ready!";
-              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is ready for pickup!`;
-            }
+              let bodyText = "";
+              let titleText = "";
+              
+              if (status === "PREPARING") {
+                titleText = "👨‍🍳 Order In Prep";
+                bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is now being prepared.`;
+              } else if (status === "READY") {
+                titleText = "✅ Order Ready!";
+                bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is ready for pickup!`;
+              }
 
-            const sendNotificationWithRetry = async (retries = 3, delay = 1000) => {
-              for (let i = 0; i < retries; i++) {
-                try {
-                  const payload = {
-                    token,
-                    notification: {
-                      title: titleText,
-                      body: bodyText,
-                      ...(notificationImageUrl && { imageUrl: notificationImageUrl })
-                    },
-                    data: {
-                      orderId: String(order.id),
-                      status: order.status,
-                      type: "ORDER_STATUS_UPDATE",
-                      etaMinutes: String(order.etaMinutes || 0),
-                    },
-                    android: {
-                      priority: "high",
+              const sendNotificationWithRetry = async (retries = 3, delay = 1000) => {
+                for (let i = 0; i < retries; i++) {
+                  try {
+                    const payload = {
+                      token,
                       notification: {
-                        channelId: "high_importance_channel",
-                        sound: "default",
-                        clickAction: "FLUTTER_NOTIFICATION_CLICK",
+                        title: titleText,
                         body: bodyText,
                         ...(notificationImageUrl && { imageUrl: notificationImageUrl })
                       },
-                    },
-                    apns: {
-                      payload: {
-                        aps: {
-                          sound: "default",
-                          badge: 1,
-                          alert: {
-                            title: titleText,
-                            body: bodyText,
-                          },
-                          'mutable-content': notificationImageUrl ? 1 : 0
-                        }
+                      data: {
+                        orderId: String(order.id),
+                        status: order.status,
+                        type: "ORDER_STATUS_UPDATE",
+                        etaMinutes: String(order.etaMinutes || 0),
                       },
-                      ...(notificationImageUrl && { fcmOptions: { imageUrl: notificationImageUrl } })
+                      android: {
+                        priority: "high",
+                        notification: {
+                          channelId: "high_importance_channel",
+                          sound: "default",
+                          clickAction: "FLUTTER_NOTIFICATION_CLICK",
+                          body: bodyText,
+                          ...(notificationImageUrl && { imageUrl: notificationImageUrl })
+                        },
+                      },
+                      apns: {
+                        payload: {
+                          aps: {
+                            sound: "default",
+                            badge: 1,
+                            alert: {
+                              title: titleText,
+                              body: bodyText,
+                            },
+                            'mutable-content': notificationImageUrl ? 1 : 0,
+                            category: 'ORDER_UPDATE'
+                          }
+                        },
+                        fcmOptions: {
+                          imageUrl: notificationImageUrl
+                        }
+                      }
+                    };
+                    await admin.messaging().send(payload);
+                    console.log(`✅ FCM (${status}) sent to token: ${token.substring(0, 10)}...`);
+                    return; // success
+                  } catch (sendError) {
+                    console.error(`❌ FCM individual send error (Try ${i + 1}/${retries}):`, sendError.message);
+                    if (
+                      sendError.code === 'messaging/registration-token-not-registered' ||
+                      sendError.code === 'messaging/invalid-registration-token'
+                    ) {
+                      await UserFcmToken.destroy({ where: { fcmToken: token } });
+                      console.log("🗑️ Deleted invalid token. Aborting retries.");
+                      return; // abort retries
                     }
-                  };
-                  await admin.messaging().send(payload);
-                  console.log(`✅ FCM (${status}) sent to User ${order.studentId} (${userName})`);
-                  return; // success
-                } catch (sendError) {
-                  console.error(`❌ FCM individual send error (Try ${i + 1}/${retries}):`, sendError.message);
-                  if (
-                    sendError.code === 'messaging/registration-token-not-registered' ||
-                    sendError.code === 'messaging/invalid-registration-token'
-                  ) {
-                    await UserFcmToken.destroy({ where: { fcmToken: token } });
-                    console.log("🗑️ Deleted invalid token. Aborting retries.");
-                    return; // abort retries
-                  }
-                  if (i < retries - 1) {
-                    await new Promise(r => setTimeout(r, delay * (i + 1))); // exponential backoff
+                    if (i < retries - 1) {
+                      await new Promise(r => setTimeout(r, delay * (i + 1))); // exponential backoff
+                    }
                   }
                 }
-              }
-              console.error(`🚨 FCM completely failed for User ${order.studentId} after ${retries} retries.`);
-            };
+                console.error(`🚨 FCM completely failed for token ${token.substring(0, 5)} after ${retries} retries.`);
+              };
 
-            await sendNotificationWithRetry();
+              await sendNotificationWithRetry();
+            }
           } else {
             console.warn(`⚠️ No FCM token found for User ${order.studentId} (${userName})`);
           }
