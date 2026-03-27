@@ -48,6 +48,13 @@ export default (sequelize) => {
         field: "isparcel"
       },
 
+      // 📝 Special instructions / customer note for this item
+      specialInstructions: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: "special_instructions"
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at"

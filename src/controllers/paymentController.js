@@ -564,6 +564,7 @@ export const confirmPayment = async (req, res) => {
           priceAtOrder: item.price,
           imageUrl: item.imageUrl || item.img || null,
           isParcel: isParcelForThisItem,
+          specialInstructions: item.specialInstructions || item.note || null, // 📝 Customer note
         };
       });
 

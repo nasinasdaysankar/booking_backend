@@ -364,6 +364,7 @@ export const createManualOrder = async (req, res) => {
       priceAtOrder: item.price,
       imageUrl: item.imageUrl,
       isParcel: item.isParcel || false,
+      specialInstructions: item.specialInstructions || item.note || null,
     }));
 
     await OrderItem.bulkCreate(orderItems, { transaction: t });
