@@ -1,4 +1,4 @@
-import { Payment, Order, OrderItem, sequelize } from "../models/index.js";
+import { Payment, Order, OrderItem, MenuItem, sequelize } from "../models/index.js";
 import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder } from "../socket.js";
@@ -211,8 +211,28 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
   try {
-    console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
+    const { items, cafeteriaId } = req.body;
 
+    // 🔍 STOCK CHECK (IF ITEMS PROVIDED)
+    if (items && Array.isArray(items) && items.length > 0) {
+      for (const item of items) {
+        const id = item.id || item.menuItemId;
+        if (!id) continue;
+        const menuItem = await MenuItem.findByPk(id);
+        if (menuItem && menuItem.trackStock) {
+          const qty = item.qty || item.quantity || 0;
+          if (menuItem.stock < qty) {
+            return res.status(400).json({
+              success: false,
+              message: `Sorry, ${menuItem.name} has only ${menuItem.stock} items left in stock.`,
+              error: "OUT_OF_STOCK",
+            });
+          }
+        }
+      }
+    }
+
+    console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
     const payload = req.body;
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
     const internalApiKey = process.env.WEBHOOK_API_KEY;
@@ -556,6 +576,27 @@ export const confirmPayment = async (req, res) => {
         console.log("🧺 [ITEMS] Creating order items...");
         await OrderItem.bulkCreate(formattedItems, { transaction: t });
         console.log(`✅ Created ${formattedItems.length} order items`);
+
+        // 📦 [STOCK] Update stock for items (if trackStock is true)
+        for (const item of formattedItems) {
+          const menuItem = await MenuItem.findByPk(item.menuItemId, {
+            transaction: t,
+          });
+          if (menuItem && menuItem.trackStock) {
+            const newStock = Math.max(0, menuItem.stock - item.quantity);
+            console.log(
+              `📦 [STOCK] Updating ${menuItem.name}: ${menuItem.stock} -> ${newStock}`
+            );
+
+            const updates = { stock: newStock };
+            if (newStock === 0) {
+              console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE`);
+              updates.isAvailable = false;
+            }
+
+            await menuItem.update(updates, { transaction: t });
+          }
+        }
       }
     }
 

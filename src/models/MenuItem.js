@@ -90,6 +90,20 @@ export default (sequelize) => {
         field: "specialnote",
       },
 
+      // 📦 Stock Management
+      stock: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+      },
+
+      trackStock: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "trackstock",
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at",
