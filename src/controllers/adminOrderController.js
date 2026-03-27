@@ -542,7 +542,8 @@ export const getAdminOrders = async (req, res) => {
               "imageurl" AS "imageUrl",
               "quantity",
               "priceatorder" AS "priceAtOrder",
-              "isparcel" AS "isParcel"
+              "isparcel" AS "isParcel",
+              "special_instructions" AS "specialInstructions"
        FROM order_items WHERE "orderid" IN (:ids)`,
       {
         replacements: { ids: orderIds },
