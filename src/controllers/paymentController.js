@@ -578,25 +578,27 @@ export const confirmPayment = async (req, res) => {
         await OrderItem.bulkCreate(formattedItems, { transaction: t });
         console.log(`✅ Created ${formattedItems.length} order items`);
 
-        // 📦 [STOCK] Update stock for items (if trackStock is true)
+        // 📦 [STOCK] Update stock for all items (universal policy — same as manual orders)
         for (const item of formattedItems) {
+          if (!item.menuItemId) continue; // skip items with no menu item reference
+
           const menuItem = await MenuItem.findByPk(item.menuItemId, {
             transaction: t,
           });
-          if (menuItem && menuItem.trackStock) {
-            const newStock = Math.max(0, menuItem.stock - item.quantity);
-            console.log(
-              `📦 [STOCK] Updating ${menuItem.name}: ${menuItem.stock} -> ${newStock}`
-            );
+          if (!menuItem) continue;
 
-            const updates = { stock: newStock };
-            if (newStock === 0) {
-              console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE`);
-              updates.isAvailable = false;
-            }
+          const newStock = Math.max(0, menuItem.stock - item.quantity);
+          console.log(
+            `📦 [STOCK] Online order: ${menuItem.name} ${menuItem.stock} → ${newStock}`
+          );
 
-            await menuItem.update(updates, { transaction: t });
+          const updates = { stock: newStock };
+          if (newStock === 0) {
+            console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
+            updates.isAvailable = false;
           }
+
+          await menuItem.update(updates, { transaction: t });
         }
       }
     }
