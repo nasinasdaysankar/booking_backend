@@ -683,8 +683,13 @@ export const updateOrderStatus = async (req, res) => {
             for (const userToken of userTokens) {
               const token = userToken.fcmToken;
 
-              // Rich imageUrl (using the first item in the order)
-              const notificationImageUrl = parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined;
+              // Status-specific Tracking Snap Images (from S3)
+              const trackSnaps = {
+                "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep.png",
+                "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready.png"
+              };
+
+              const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
 
               let bodyText = "";
               let titleText = "";
