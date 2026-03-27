@@ -285,7 +285,7 @@
 // };
 
 
-import { sequelize, Order, OrderItem, UserFcmToken, User } from "../models/index.js";
+import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -355,9 +355,10 @@ export const createManualOrder = async (req, res) => {
       { transaction: t }
     );
 
-    // 4. Create Order Items
+    // 4. Create Order Items (include menuItemId for stock tracking)
     const orderItems = items.map((item) => ({
       orderId: order.id,
+      menuItemId: item.id || item.menuItemId || null, // ✅ preserve menu item reference
       name: item.name,
       quantity: item.quantity,
       priceAtOrder: item.price,
@@ -367,12 +368,32 @@ export const createManualOrder = async (req, res) => {
 
     await OrderItem.bulkCreate(orderItems, { transaction: t });
 
+    // 5. ✅ DEDUCT STOCK (same policy as online payments — all items treated as stock-tracked)
+    for (const item of orderItems) {
+      if (!item.menuItemId) continue;
+
+      const menuItem = await MenuItem.findByPk(item.menuItemId, { transaction: t });
+      if (!menuItem) continue;
+
+      // Universal stock tracking: treat every item as trackStock = true
+      const newStock = Math.max(0, menuItem.stock - item.quantity);
+      console.log(`📦 [STOCK] Manual order: ${menuItem.name} ${menuItem.stock} → ${newStock}`);
+
+      const updates = { stock: newStock };
+      if (newStock === 0) {
+        console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
+        updates.isAvailable = false;
+      }
+
+      await menuItem.update(updates, { transaction: t });
+    }
+
     await t.commit();
 
-    // 5. Invalidate Cache
+    // 6. Invalidate Cache
     await clearAnalyticsCache(cafeteriaId);
 
-    // 6. Real-time update to Admin Dashboard (split screen)
+    // 7. Real-time update to Admin Dashboard (split screen)
     emitNewOrder(cafeteriaId, {
       id: order.id,
       orderId: order.id,
