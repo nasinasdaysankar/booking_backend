@@ -575,7 +575,7 @@ export const updateOrderStatus = async (req, res) => {
     if (status) status = status.toUpperCase();
 
     const order = await Order.findByPk(id, {
-      include: [{ model: User }, { model: Cafeteria }]
+      include: [{ model: User }, { model: Cafeteria, as: "Cafeteria" }]
     });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });

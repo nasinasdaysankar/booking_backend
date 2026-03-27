@@ -77,8 +77,8 @@ User.hasMany(Order, { foreignKey: { name: "studentId", field: "studentid" } });
 Order.belongsTo(User, { foreignKey: { name: "studentId", field: "studentid" } });
 
 // Cafeteria → Orders
-Cafeteria.hasMany(Order, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
-Order.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+Cafeteria.hasMany(Order, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "orders" });
+Order.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
 
 // Order → OrderItems
 Order.hasMany(OrderItem, { foreignKey: { name: "orderId", field: "orderid" }, as: "items" });
