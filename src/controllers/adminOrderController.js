@@ -673,101 +673,77 @@ export const updateOrderStatus = async (req, res) => {
           const userTokens = await UserFcmToken.findAll({
             where: { userId: order.studentId },
             order: [['updatedAt', 'DESC']],
-            limit: 3 // Try up to 3 tokens (multi-device support)
+            limit: 3
           });
 
-          console.log(`🔍 [FCM] User ${order.studentId} has ${userTokens.length} tokens.`);
-
           if (userTokens.length > 0) {
-            // Send to all available tokens for reliability
-            for (const userToken of userTokens) {
-              const token = userToken.fcmToken;
+            const trackSnaps = {
+              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep.png",
+              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready.png"
+            };
 
-              // Status-specific Tracking Snap Images (from S3)
-              const trackSnaps = {
-                "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep.png",
-                "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready.png"
-              };
+            const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
+            
+            let bodyText = "";
+            let titleText = "";
+            if (status === "PREPARING") {
+              titleText = "👨‍🍳 Order In Prep";
+              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is now being prepared.`;
+            } else if (status === "READY") {
+              titleText = "✅ Order Ready!";
+              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is ready for pickup!`;
+            }
 
-              const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
-
-              let bodyText = "";
-              let titleText = "";
-              
-              if (status === "PREPARING") {
-                titleText = "👨‍🍳 Order In Prep";
-                bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is now being prepared.`;
-              } else if (status === "READY") {
-                titleText = "✅ Order Ready!";
-                bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is ready for pickup!`;
-              }
-
-              const sendNotificationWithRetry = async (retries = 3, delay = 1000) => {
-                for (let i = 0; i < retries; i++) {
-                  try {
-                    const payload = {
-                      token,
-                      notification: {
-                        title: titleText,
-                        body: bodyText,
-                        ...(notificationImageUrl && { imageUrl: notificationImageUrl })
-                      },
-                      data: {
-                        orderId: String(order.id),
-                        status: order.status,
-                        type: "ORDER_STATUS_UPDATE",
-                        etaMinutes: String(order.etaMinutes || 0),
-                      },
-                      android: {
-                        priority: "high",
-                        notification: {
-                          channelId: "high_importance_channel",
-                          sound: "default",
-                          clickAction: "FLUTTER_NOTIFICATION_CLICK",
-                          body: bodyText,
-                          ...(notificationImageUrl && { imageUrl: notificationImageUrl })
-                        },
-                      },
-                      apns: {
-                        payload: {
-                          aps: {
-                            sound: "default",
-                            badge: 1,
-                            alert: {
-                              title: titleText,
-                              body: bodyText,
-                            },
-                            'mutable-content': notificationImageUrl ? 1 : 0,
-                            category: 'ORDER_UPDATE'
-                          }
-                        },
-                        fcmOptions: {
-                          imageUrl: notificationImageUrl
-                        }
-                      }
-                    };
-                    await admin.messaging().send(payload);
-                    console.log(`✅ FCM (${status}) sent to token: ${token.substring(0, 10)}...`);
-                    return; // success
-                  } catch (sendError) {
-                    console.error(`❌ FCM individual send error (Try ${i + 1}/${retries}):`, sendError.message);
-                    if (
-                      sendError.code === 'messaging/registration-token-not-registered' ||
-                      sendError.code === 'messaging/invalid-registration-token'
-                    ) {
-                      await UserFcmToken.destroy({ where: { fcmToken: token } });
-                      console.log("🗑️ Deleted invalid token. Aborting retries.");
-                      return; // abort retries
-                    }
-                    if (i < retries - 1) {
-                      await new Promise(r => setTimeout(r, delay * (i + 1))); // exponential backoff
-                    }
+            const messages = userTokens.map(ut => ({
+              token: ut.fcmToken,
+              notification: {
+                title: titleText,
+                body: bodyText,
+                ...(notificationImageUrl && { imageUrl: notificationImageUrl })
+              },
+              data: {
+                orderId: String(order.id),
+                status: order.status,
+                type: "ORDER_STATUS_UPDATE",
+                image: notificationImageUrl || "",
+              },
+              android: {
+                priority: "high",
+                notification: {
+                  channelId: "high_importance_channel",
+                  sound: "default",
+                  clickAction: "FLUTTER_NOTIFICATION_CLICK",
+                  imageUrl: notificationImageUrl
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                    badge: 1,
+                    mutableContent: notificationImageUrl ? true : false,
+                    category: 'ORDER_UPDATE'
                   }
+                },
+                fcmOptions: {
+                  imageUrl: notificationImageUrl
                 }
-                console.error(`🚨 FCM completely failed for token ${token.substring(0, 5)} after ${retries} retries.`);
-              };
+              }
+            }));
 
-              await sendNotificationWithRetry();
+            try {
+              const response = await admin.messaging().sendEach(messages);
+              console.log(`✅ FCM (${status}) Batch sent. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+              
+              // Cleanup invalid tokens
+              response.responses.forEach(async (res, idx) => {
+                if (!res.success && (res.error?.code === 'messaging/registration-token-not-registered' || res.error?.code === 'messaging/invalid-registration-token')) {
+                  await UserFcmToken.destroy({ where: { fcmToken: userTokens[idx].fcmToken } });
+                  console.log(`🗑️ Deleted invalid token: ${userTokens[idx].fcmToken.substring(0, 10)}...`);
+                }
+              });
+            } catch (batchError) {
+              console.error("❌ FCM Batch Send Error:", batchError.message);
             }
           } else {
             console.warn(`⚠️ No FCM token found for User ${order.studentId} (${userName})`);
