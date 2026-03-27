@@ -9,7 +9,7 @@ import slugify from "slugify";
 /* ================== ADD SINGLE MENU ITEM ================== */
 export const addMenuItem = async (req, res) => {
   try {
-    const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial, isParcelAvailable } = req.body;
+    const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial, isParcelAvailable, stock, trackStock } = req.body;
 
     if (!cafeteriaId || !name || !price)
       return res.status(400).json({ success: false, message: "Missing fields" });
@@ -24,6 +24,8 @@ export const addMenuItem = async (req, res) => {
       category,
       isTodaySpecial: isTodaySpecial === true,
       isParcelAvailable: isParcelAvailable !== undefined ? isParcelAvailable : true,
+      stock: stock || 0,
+      trackStock: trackStock === true,
 
       specialDate: isTodaySpecial ? today : null,
     });
@@ -342,7 +344,7 @@ export const uploadBulkImages = async (req, res) => {
 export const updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, isAvailable, isTodaySpecial, imageUrl, isParcelAvailable } = req.body;
+    const { name, price, category, isAvailable, isTodaySpecial, imageUrl, isParcelAvailable, stock, trackStock } = req.body;
 
     const item = await MenuItem.findByPk(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
@@ -355,6 +357,8 @@ export const updateMenuItem = async (req, res) => {
     if (isAvailable !== undefined) item.isAvailable = isAvailable;
     if (isParcelAvailable !== undefined) item.isParcelAvailable = isParcelAvailable;
     if (imageUrl) item.imageUrl = imageUrl;
+    if (stock !== undefined) item.stock = stock;
+    if (trackStock !== undefined) item.trackStock = trackStock;
 
     // ⭐ Today Special logic
     if (isTodaySpecial !== undefined) {
