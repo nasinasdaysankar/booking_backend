@@ -34,8 +34,8 @@ async function uploadFile(filePath, key) {
 }
 
 const images = [
-  { path: "/Users/nasinaudaysankar/.gemini/antigravity/brain/6a78d04e-2543-4088-ac2a-511b22bb859f/track_preparing_v2_tight_1774637793470.png", key: "assets/track_in_prep_v2.png" },
-  { path: "/Users/nasinaudaysankar/.gemini/antigravity/brain/6a78d04e-2543-4088-ac2a-511b22bb859f/track_ready_v2_tight_1774637824585.png", key: "assets/track_ready_v2.png" }
+  { path: "/Users/nasinaudaysankar/.gemini/antigravity/brain/6a78d04e-2543-4088-ac2a-511b22bb859f/media__1774638564620.png", key: "assets/track_in_prep_v3.png" },
+  { path: "/Users/nasinaudaysankar/.gemini/antigravity/brain/6a78d04e-2543-4088-ac2a-511b22bb859f/media__1774638580025.png", key: "assets/track_ready_v3.png" }
 ];
 
 (async () => {

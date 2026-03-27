@@ -678,21 +678,19 @@ export const updateOrderStatus = async (req, res) => {
 
           if (userTokens.length > 0) {
             const trackSnaps = {
-              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep_v2.png",
-              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v2.png"
+              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep_v3.png",
+              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png"
             };
 
             const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
             
-            let bodyText = "";
             let titleText = "";
             if (status === "PREPARING") {
-              titleText = "👨‍🍳 Order In Prep";
-              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is now being prepared.`;
+              titleText = "👨‍🍳 Order Preparing...";
             } else if (status === "READY") {
               titleText = "✅ Order Ready!";
-              bodyText = `Your order #${order.dailyOrderNumber ?? order.id} is ready for pickup!`;
             }
+            const bodyText = `Order #${order.dailyOrderNumber ?? order.id}`;
 
             const messages = userTokens.map(ut => ({
               token: ut.fcmToken,
