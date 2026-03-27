@@ -1,6 +1,6 @@
 
 import cron from "node-cron";
-import { Order, UserFcmToken, sequelize } from "../models/index.js";
+import { Order, UserFcmToken, Cafeteria, sequelize } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 import { Op, Transaction } from "sequelize";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
@@ -13,36 +13,57 @@ export const initNotificationScheduler = () => {
     cron.schedule("*/15 * * * * *", async () => {
         try {
             const now = Date.now();
-            const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
-            const twentyMinutesAgo = new Date(now - 20 * 60 * 1000);
 
-            // ====================================================
-            // 1. REMINDER (10 MINS LEFT) - OPTIMIZED
-            // ====================================================
             let ordersToRemind = [];
+            let ordersToExpire = [];
 
+            // ─── Step 1: Pre-fetch all cafeteria buffer times (no lock needed) ───
+            const allCafeterias = await Cafeteria.findAll({ attributes: ["id", "bufferTime"] });
+            const bufferMap = {};
+            for (const c of allCafeterias) {
+                bufferMap[c.id] = c.bufferTime || 20;
+            }
+
+            // ─── Step 2: Lock READY orders WITHOUT a join (PG forbids FOR UPDATE on outer joins) ───
             await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
-                const reminderOrders = await Order.findAll({
+                const readyOrders = await Order.findAll({
                     where: {
                         status: "READY",
-                        updated_at: { [Op.lt]: tenMinutesAgo },
-                        tenMinReminderSent: false,
+                        [Op.or]: [
+                            { tenMinReminderSent: false },
+                            { expirationNotificationSent: false }
+                        ]
                     },
                     lock: t.LOCK.UPDATE,
                     skipLocked: true,
                     transaction: t,
                 });
 
-                if (reminderOrders.length > 0) {
-                    console.log(`⏰ Found ${reminderOrders.length} orders for 10-min reminder`);
-                    for (const order of reminderOrders) {
+                for (const order of readyOrders) {
+                    const bufferTime = bufferMap[order.cafeteriaId] ?? 20;
+                    const bufferMs = bufferTime * 60 * 1000;
+                    const halfBufferMs = bufferMs / 2;
+                    const elapsedMs = now - new Date(order.updatedAt).getTime();
+
+                    // Attach bufferTime so notification senders can use it
+                    order._bufferTime = bufferTime;
+
+                    if (!order.expirationNotificationSent && elapsedMs >= bufferMs) {
+                        console.log(`☠️ Order #${order.id} expired (> ${bufferTime} mins)`);
+                        await order.update({ status: "EXPIRED", expirationNotificationSent: true }, { silent: true, transaction: t });
+                        updateOrderStatusInSheet(order.id, "EXPIRED").catch(err =>
+                            console.error("⚠️ Sheets expiration update error:", err.message)
+                        );
+                        ordersToExpire.push(order);
+                    } else if (!order.tenMinReminderSent && elapsedMs >= halfBufferMs) {
+                        console.log(`⏰ Order #${order.id} ready for halfway reminder`);
                         await order.update({ tenMinReminderSent: true }, { silent: true, transaction: t });
                         ordersToRemind.push(order);
                     }
                 }
             });
 
-            // Process outside transaction
+            // Process Reminders outside transaction
             for (const order of ordersToRemind) {
                 try {
                     const userTokens = await UserFcmToken.findAll({
@@ -53,11 +74,13 @@ export const initNotificationScheduler = () => {
 
                     if (userTokens.length > 0) {
                         const token = userTokens[0].fcmToken;
+                        const bufferTime = order._bufferTime ?? 20;
+                        const halfBufferMs = Math.round(bufferTime / 2);
                         const reminderBody = `Hurry! Order #${order.dailyOrderNumber ?? order.id} is waiting. Please pick it up soon.`;
                         await admin.messaging().send({
                             token,
                             notification: {
-                                title: "⏳ 10 Minutes Left!",
+                                title: `⏳ ${halfBufferMs} Minutes Left!`,
                                 body: reminderBody,
                             },
                             data: { orderId: String(order.id), status: "READY" },
@@ -69,46 +92,14 @@ export const initNotificationScheduler = () => {
                                 },
                             },
                         });
-                        console.log(`🔔 Sent 10-min reminder for Order #${order.id}`);
+                        console.log(`🔔 Sent ${halfBufferMs}-min reminder for Order #${order.id}`);
                     }
                 } catch (err) {
                     console.error(`⚠️ Failed to send reminder for #${order.id}:`, err.message);
                 }
             }
 
-            // ====================================================
-            // 2. EXPIRATION (20 MINS ELAPSED) - OPTIMIZED
-            // ====================================================
-            let ordersToExpire = [];
-
-            await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED }, async (t) => {
-                const expiredOrders = await Order.findAll({
-                    where: {
-                        status: "READY",
-                        updated_at: { [Op.lt]: twentyMinutesAgo },
-                        expirationNotificationSent: false,
-                    },
-                    lock: t.LOCK.UPDATE,
-                    skipLocked: true,
-                    transaction: t,
-                });
-
-                if (expiredOrders.length > 0) {
-                    console.log(`☠️ Found ${expiredOrders.length} expired orders (>20 mins)`);
-                    for (const order of expiredOrders) {
-                        await order.update({ status: "EXPIRED", expirationNotificationSent: true }, { silent: true, transaction: t });
-                        
-                        // 📊 GOOGLE SHEETS DYNAMIC UPDATE
-                        updateOrderStatusInSheet(order.id, "EXPIRED").catch(err => 
-                            console.error("⚠️ Sheets expiration update error:", err.message)
-                        );
-
-                        ordersToExpire.push(order);
-                    }
-                }
-            });
-
-            // Process outside transaction
+            // Process Expirations outside transaction
             for (const order of ordersToExpire) {
                 try {
                     const userTokens = await UserFcmToken.findAll({
@@ -119,7 +110,8 @@ export const initNotificationScheduler = () => {
 
                     if (userTokens.length > 0) {
                         const token = userTokens[0].fcmToken;
-                        const expiredBody = "You didn't pick up the order within 20 mins. As per policy, no refund is provided.";
+                        const bufferTime = order._bufferTime ?? 20;
+                        const expiredBody = `You didn't pick up the order within ${bufferTime} mins. As per policy, no refund is provided.`;
                         await admin.messaging().send({
                             token,
                             notification: {

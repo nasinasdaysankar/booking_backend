@@ -31,6 +31,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "platformFeeAmount",
         "commissionType",
         "commissionAmount",
+        "bufferTime",
       ],
     });
 
@@ -78,6 +79,7 @@ export const getMyCafeterias = async (req, res) => {
         "platformFeeAmount",
         "commissionType",
         "commissionAmount",
+        "bufferTime",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -116,6 +118,7 @@ export const updateCafeteria = async (req, res) => {
       platformFeeAmount,
       commissionType,
       commissionAmount,
+      bufferTime,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -147,6 +150,7 @@ export const updateCafeteria = async (req, res) => {
     if (platformFeeAmount !== undefined) cafeteria.platformFeeAmount = platformFeeAmount;
     if (commissionType !== undefined) cafeteria.commissionType = commissionType;
     if (commissionAmount !== undefined) cafeteria.commissionAmount = commissionAmount;
+    if (bufferTime !== undefined) cafeteria.bufferTime = bufferTime;
 
     await cafeteria.save();
 
@@ -169,6 +173,7 @@ export const updateCafeteria = async (req, res) => {
         platformFeeAmount: cafeteria.platformFeeAmount,
         commissionType: cafeteria.commissionType,
         commissionAmount: cafeteria.commissionAmount,
+        bufferTime: cafeteria.bufferTime,
       },
     });
   } catch (err) {

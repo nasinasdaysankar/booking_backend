@@ -285,7 +285,7 @@
 // };
 
 
-import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem } from "../models/index.js";
+import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -575,7 +575,7 @@ export const updateOrderStatus = async (req, res) => {
     if (status) status = status.toUpperCase();
 
     const order = await Order.findByPk(id, {
-      include: [{ model: User }]
+      include: [{ model: User }, { model: Cafeteria }]
     });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
@@ -682,7 +682,8 @@ export const updateOrderStatus = async (req, res) => {
           let bodyText = `Hey ${userName}, your order #${order.dailyOrderNumber ?? order.id} is now ${order.status.toLowerCase()}.`;
 
           if (order.status === "READY") {
-            bodyText = `Hey ${userName}, your order #${order.dailyOrderNumber ?? order.id} is READY! Please pick it up within 20 minutes. Note: No pickup after 20 mins and no refund will be provided.`;
+            const buffer = order.Cafeteria?.bufferTime || 20;
+            bodyText = `Hey ${userName}, your order #${order.dailyOrderNumber ?? order.id} is READY! Please pick it up within ${buffer} minutes. Note: No pickup after ${buffer} mins and no refund will be provided.`;
           } else if (order.status === "PREPARING") {
             bodyText = `Hey ${userName}, the cafeteria has accepted your order #${order.dailyOrderNumber ?? order.id} and is now preparing it.`;
           }

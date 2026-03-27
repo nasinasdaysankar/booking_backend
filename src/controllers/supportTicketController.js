@@ -7,7 +7,7 @@ const SUPPORT_CATEGORIES = {
     "Order Issues": [
         {
             question: "Item not received?",
-            solution: "Once your order status changes to 'Ready' or 'Completed',You need to take the order with in 20 Min from the time of order.If you reached before in time please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
+            solution: "Once your order status changes to 'Ready' or 'Completed', you need to take the order within the designated buffer time. If you reached before in time please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
         },
         {
             question: "Received the wrong item?",
@@ -87,7 +87,7 @@ const ADMIN_SUPPORT_CATEGORIES = {
     "Order Management": [
         {
             question: "Customer says order not received but status shows completed",
-            solution: "Please verify the order timeline in the Order History section. If the order was marked as 'Completed' or 'Ready', the customer should have collected it within 20 minutes. Check the pickup timestamp and confirm with your cafeteria staff if the order was physically collected.",
+            solution: "Please verify the order timeline in the Order History section. If the order was marked as 'Completed' or 'Ready', the customer should have collected it within the designated buffer time. Check the pickup timestamp and confirm with your cafeteria staff if the order was physically collected.",
         },
         {
             question: "How to cancel a customer's order?",

@@ -126,6 +126,11 @@ export default (sequelize) => {
         allowNull: true,
         field: "fssai_license",
       },
+      bufferTime: {
+        type: DataTypes.INTEGER,
+        defaultValue: 20,
+        field: "buffer_time",
+      },
     },
     {
       tableName: "cafeterias",
