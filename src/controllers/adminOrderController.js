@@ -285,7 +285,7 @@
 // };
 
 
-import { sequelize, Order, UserFcmToken, User } from "../models/index.js";
+import { sequelize, Order, OrderItem, UserFcmToken, User } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -358,7 +358,6 @@ export const createManualOrder = async (req, res) => {
     // 4. Create Order Items
     const orderItems = items.map((item) => ({
       orderId: order.id,
-      menuItemId: item.id || item.menuItemId,
       name: item.name,
       quantity: item.quantity,
       priceAtOrder: item.price,
@@ -418,9 +417,14 @@ export const createManualOrder = async (req, res) => {
       kotNumber: order.kotNumber,
     });
   } catch (err) {
-    if (!t.finished) await t.rollback();
+    if (t && !t.finished) await t.rollback();
     console.error("❌ CREATE MANUAL ORDER ERROR:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({ 
+      success: false, 
+      message: "Internal server error", 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 
