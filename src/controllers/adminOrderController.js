@@ -678,8 +678,8 @@ export const updateOrderStatus = async (req, res) => {
 
           if (userTokens.length > 0) {
             const trackSnaps = {
-              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep.png",
-              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready.png"
+              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep_v2.png",
+              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v2.png"
             };
 
             const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
