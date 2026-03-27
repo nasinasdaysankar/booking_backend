@@ -409,9 +409,32 @@ export const createManualOrder = async (req, res) => {
       createdAt: order.createdAt,
     }).catch((err) => console.error("⚠️ Sheets sync error for manual order:", err.message));
 
+    // Construct full order object for printer (matching Flutter model)
+    const orderForPrinter = {
+      id: order.id,
+      billId: order.billId,
+      cafeteriaId: order.cafeteriaId,
+      totalAmount: order.totalAmount,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      kotNumber: order.kotNumber,
+      dailyOrderNumber: order.dailyOrderNumber,
+      totalOrderNumber: order.totalOrderNumber,
+      isParcel: order.isParcel,
+      parcelAmount: order.parcelAmount,
+      gstAmount: order.gstAmount,
+      platformFee: order.platformFee,
+      commissionAmount: order.commissionAmount,
+      customerName: customerName || "Walk-in Customer",
+      createdAt: order.createdAt,
+      items: orderItems,
+    };
+
     return res.status(201).json({
       success: true,
       message: "Manual order placed successfully",
+      order: orderForPrinter,
       orderId: order.id,
       billId: order.billId,
       kotNumber: order.kotNumber,
