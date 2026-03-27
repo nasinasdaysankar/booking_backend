@@ -747,3 +747,85 @@ export const replaceMenuImage = async (req, res) => {
     });
   }
 };
+
+
+/* ================== VALIDATE CART ITEMS BEFORE PAYMENT ================== */
+/**
+ * POST /api/menu/validate-cart
+ * Body: { items: [{ menuItemId, quantity }] }
+ * Returns: { valid: bool, issues: [{ menuItemId, name, reason }] }
+ */
+export const validateCartItems = async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Items array required" });
+    }
+
+    const ids = items.map((i) => i.menuItemId).filter(Boolean);
+
+    const dbItems = await MenuItem.findAll({
+      where: { id: ids },
+      attributes: ["id", "name", "isAvailable", "isDeleted", "stock", "trackStock"],
+    });
+
+    const dbMap = {};
+    dbItems.forEach((i) => { dbMap[i.id] = i; });
+
+    const issues = [];
+
+    for (const cartItem of items) {
+      const db = dbMap[cartItem.menuItemId];
+
+      if (!db || db.isDeleted) {
+        issues.push({
+          menuItemId: cartItem.menuItemId,
+          name: cartItem.name || `Item #${cartItem.menuItemId}`,
+          reason: "removed", // item no longer exists in menu
+        });
+        continue;
+      }
+
+      if (!db.isAvailable) {
+        issues.push({
+          menuItemId: db.id,
+          name: db.name,
+          reason: "unavailable",
+        });
+        continue;
+      }
+
+      // trackStock = true means we enforce stock count
+      const effectiveTrackStock = true; // treat all items as stock-tracked per system policy
+      if (effectiveTrackStock && db.stock <= 0) {
+        issues.push({
+          menuItemId: db.id,
+          name: db.name,
+          reason: "out_of_stock",
+        });
+        continue;
+      }
+
+      // If stock-tracked and requested qty exceeds available stock
+      if (effectiveTrackStock && db.stock < cartItem.quantity) {
+        issues.push({
+          menuItemId: db.id,
+          name: db.name,
+          reason: "insufficient_stock",
+          available: db.stock,
+          requested: cartItem.quantity,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      valid: issues.length === 0,
+      issues,
+    });
+  } catch (err) {
+    console.error("validateCartItems error:", err);
+    return res.status(500).json({ success: false, message: "Validation failed", error: err.message });
+  }
+};

@@ -14,10 +14,11 @@ import {
   deleteMenuItem,
   getDeletedMenuItems,
   getTodaySpecials,
-  restoreMenuItem,  // ✅ ADD THIS
+  restoreMenuItem,
   updateCategoryBulk,
   getPublicMenuByCafeteria,
-  replaceMenuImage, // ✅ NEW
+  replaceMenuImage,
+  validateCartItems, // ✅ Pre-payment cart validation
 } from "../controllers/menuController.js";
 import multer from "multer";
 
@@ -43,6 +44,8 @@ router.get("/today-specials/:id", getTodaySpecials);
 // 🚀 PUBLIC MENU (NO AUTH)
 router.get("/public/:cafeteriaId", getPublicMenuByCafeteria);
 
+// ✅ PRE-PAYMENT CART VALIDATION (NO AUTH — user app calls this)
+router.post("/validate-cart", validateCartItems);
 
 export default router;
 
