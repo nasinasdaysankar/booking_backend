@@ -805,7 +805,7 @@ export const markOrderPaid = async (req, res) => {
  */
 export const getAdminStats = async (req, res) => {
   try {
-    const { range = "daily", from, to } = req.query;
+    const { range = "daily", from, to, paymentMethod } = req.query;
     const cafeteriaId = req.user?.cafeteriaId;
 
     if (!cafeteriaId) {
@@ -818,8 +818,10 @@ export const getAdminStats = async (req, res) => {
       });
     }
 
-    // ✅ CHECK REDIS CACHE
-    const cacheKey = CACHE_KEYS.ADMIN_STATS(cafeteriaId, `${range}_${from || ''}_${to || ''}`);
+    // ✅ CHECK REDIS CACHE (key includes payment method so results are cached separately)
+    const pmSuffix = paymentMethod && ["ONLINE","CASH"].includes(paymentMethod.toUpperCase())
+      ? paymentMethod.toUpperCase() : "all";
+    const cacheKey = CACHE_KEYS.ADMIN_STATS(cafeteriaId, `${range}_${from || ''}_${to || ''}_${pmSuffix}`);
     const cached = await statsCacheGet(cacheKey);
     if (cached) return res.json(cached);
 
@@ -868,12 +870,17 @@ export const getAdminStats = async (req, res) => {
       // "all" range has no date filter
     }
 
+    // ✅ Build payment method filter
+    const pmFilter = paymentMethod && ["ONLINE","CASH"].includes(paymentMethod.toUpperCase())
+      ? { paymentMethod: paymentMethod.toUpperCase() } : {};
+
     const orders = await Order.findAll({
       where: {
         cafeteriaId,
         paymentStatus: "SUCCESS",
         status: { [Op.in]: ["PAID", "PREPARING", "READY", "PICKED_UP"] },
         ...dateFilter,
+        ...pmFilter,
       },
       attributes: ["totalAmount", "platformFee", "commissionAmount", "status", "studentId", "createdAt"],
     });
