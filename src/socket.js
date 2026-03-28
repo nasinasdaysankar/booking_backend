@@ -43,11 +43,15 @@ export const emitAdminOrderUpdate = (cafeteriaId, payload) => {
 };
 
 // ================= ADMIN: STOCK UPDATE/ALERT =================
-export const emitStockUpdate = (cafeteriaId, payload) => {
-  if (!ioInstance) return;
+export const emitStockUpdate = async (cafeteriaId, payload) => {
+  if (!ioInstance) {
+    console.log("❌ [STOCK] ioInstance is null — cannot emit");
+    return;
+  }
 
   const room = `cafeteria_${cafeteriaId}`;
-  console.log("📢 Emitting STOCK_UPDATE to:", room);
+  const sockets = await ioInstance.in(room).fetchSockets();
+  console.log(`📢 [STOCK] Emitting STOCK_UPDATE to room '${room}' — ${sockets.length} socket(s) in room`);
 
   ioInstance.to(room).emit("STOCK_UPDATE", payload);
 };
