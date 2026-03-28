@@ -43,15 +43,19 @@ export const emitAdminOrderUpdate = (cafeteriaId, payload) => {
 };
 
 // ================= ADMIN: STOCK UPDATE/ALERT =================
-export const emitStockUpdate = async (cafeteriaId, payload) => {
+export const emitStockUpdate = (cafeteriaId, payload) => {
   if (!ioInstance) {
     console.log("❌ [STOCK] ioInstance is null — cannot emit");
     return;
   }
 
   const room = `cafeteria_${cafeteriaId}`;
-  const sockets = await ioInstance.in(room).fetchSockets();
-  console.log(`📢 [STOCK] Emitting STOCK_UPDATE to room '${room}' — ${sockets.length} socket(s) in room`);
+  console.log(`📢 [STOCK] Emitting STOCK_UPDATE to room '${room}'`);
 
   ioInstance.to(room).emit("STOCK_UPDATE", payload);
+
+  // Log room membership asynchronously (non-blocking, diagnostic only)
+  ioInstance.in(room).fetchSockets().then(sockets => {
+    console.log(`📊 [STOCK] Room '${room}' has ${sockets.length} socket(s) after emit`);
+  }).catch(() => {});
 };
