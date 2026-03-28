@@ -131,6 +131,7 @@ import { clearAnalyticsCache } from '../utils/cache.js';
 import { generateBillId, generateDailyOrderNumber } from './paymentController.js';
 import { Op } from 'sequelize';
 import { appendOrderToSheet } from '../utils/googleSheets.js';
+import { emitStockUpdate } from '../socket.js';
 
 // Helpers moved to paymentController.js for sharing
 
@@ -196,7 +197,39 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    // 📦 Decrement stock for each item — collect zero-stock items to alert after commit
+    const zeroStockItems = [];
+    for (const item of finalItems) {
+      if (!item.menuItemId) continue;
+
+      const menuItem = await MenuItem.findByPk(item.menuItemId, { transaction: t });
+      if (!menuItem || !menuItem.trackStock) continue;
+
+      const newStock = Math.max(0, menuItem.stock - item.quantity);
+      console.log(`📦 [STOCK] User order: ${menuItem.name} ${menuItem.stock} → ${newStock}`);
+
+      const updates = { stock: newStock };
+      if (newStock === 0) {
+        updates.isAvailable = false;
+        zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
+      }
+
+      await menuItem.update(updates, { transaction: t });
+    }
+
     await t.commit();
+
+    // 🔔 Emit stock alerts AFTER commit so DB is guaranteed saved
+    for (const item of zeroStockItems) {
+      console.log(`📉 [STOCK] Emitting OUT_OF_STOCK alert for: ${item.name}`);
+      emitStockUpdate(cafeteriaId, {
+        menuItemId: item.id,
+        name: item.name,
+        stock: 0,
+        reason: "OUT_OF_STOCK",
+        message: `🚨 ${item.name} is now out of stock!`,
+      });
+    }
 
     // 🗑️ INVALIDATE ANALYTICS CACHE immediately so admin dashboard
     // shows updated top items / frequently ordered without delay
