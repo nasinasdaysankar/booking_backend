@@ -849,7 +849,7 @@ export const validateCartItems = async (req, res) => {
 export const getRecentStockOuts = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const fiveMinutesAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 hour window
 
     const items = await MenuItem.findAll({
       where: {
