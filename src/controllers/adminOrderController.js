@@ -287,7 +287,7 @@
 
 import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
-import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate } from "../socket.js";
+import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
@@ -384,6 +384,15 @@ export const createManualOrder = async (req, res) => {
       if (newStock === 0) {
         console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
         updates.isAvailable = false;
+        
+        // 🔔 REALTIME STOCK ALERT
+        emitStockUpdate(cafeteriaId, {
+          menuItemId: menuItem.id,
+          name: menuItem.name,
+          stock: 0,
+          reason: "OUT_OF_STOCK",
+          message: `🚨 ${menuItem.name} is now out of stock!`
+        });
       }
 
       await menuItem.update(updates, { transaction: t });

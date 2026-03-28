@@ -1,7 +1,7 @@
 import { Payment, Order, OrderItem, MenuItem, sequelize } from "../models/index.js";
 import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
-import { emitNewOrder } from "../socket.js";
+import { emitNewOrder, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken, UserStreak, UserFcmToken } from "../models/index.js";
 import { clearAnalyticsCache } from "../utils/cache.js";
@@ -596,6 +596,15 @@ export const confirmPayment = async (req, res) => {
           if (newStock === 0) {
             console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
             updates.isAvailable = false;
+            
+            // 🔔 REALTIME STOCK ALERT
+            emitStockUpdate(cafeteriaId, {
+              menuItemId: menuItem.id,
+              name: menuItem.name,
+              stock: 0,
+              reason: "OUT_OF_STOCK",
+              message: `🚨 ${menuItem.name} is now out of stock!`
+            });
           }
 
           await menuItem.update(updates, { transaction: t });

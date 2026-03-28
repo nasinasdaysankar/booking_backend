@@ -4,6 +4,7 @@ import { menuCacheGet, menuCacheSet, analyticsCacheGet, analyticsCacheSet, CACHE
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
+import { emitStockUpdate } from "../socket.js";
 
 
 /* ================== ADD SINGLE MENU ITEM ================== */
@@ -372,6 +373,17 @@ export const updateMenuItem = async (req, res) => {
     }
 
     await item.save();
+
+    // 🔔 REALTIME STOCK ALERT (if stock is set to 0)
+    if (stock === 0 || item.stock === 0) {
+      emitStockUpdate(item.cafeteriaId, {
+        menuItemId: item.id,
+        name: item.name,
+        stock: 0,
+        reason: "MANUAL_UPDATE",
+        message: `🚨 ${item.name} is now out of stock!`
+      });
+    }
 
     res.json({ success: true, message: "Item Updated ✔", data: item });
   } catch (err) {

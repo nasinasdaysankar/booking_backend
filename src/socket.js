@@ -41,3 +41,13 @@ export const emitAdminOrderUpdate = (cafeteriaId, payload) => {
 
   ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
 };
+
+// ================= ADMIN: STOCK UPDATE/ALERT =================
+export const emitStockUpdate = (cafeteriaId, payload) => {
+  if (!ioInstance) return;
+
+  const room = `cafeteria_${cafeteriaId}`;
+  console.log("📢 Emitting STOCK_UPDATE to:", room);
+
+  ioInstance.to(room).emit("STOCK_UPDATE", payload);
+};
