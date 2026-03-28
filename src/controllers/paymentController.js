@@ -553,6 +553,7 @@ export const confirmPayment = async (req, res) => {
     }
 
     let formattedItems = [];
+    const zeroStockItems = [];
     if (Array.isArray(items) && items.length > 0) {
       formattedItems = items.map((item) => {
         const isParcelForThisItem = Boolean(item.isParcelSelected);
@@ -579,7 +580,6 @@ export const confirmPayment = async (req, res) => {
         console.log(`✅ Created ${formattedItems.length} order items`);
 
         // 📦 [STOCK] Update stock for all items — collect zero-stock items, emit AFTER commit
-        const zeroStockItems = [];
         for (const item of formattedItems) {
           if (!item.menuItemId) continue; // skip items with no menu item reference
 
