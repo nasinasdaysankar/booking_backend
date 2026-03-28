@@ -841,3 +841,30 @@ export const validateCartItems = async (req, res) => {
     return res.status(500).json({ success: false, message: "Validation failed", error: err.message });
   }
 };
+
+// --------------------------------------------------
+// GET RECENT STOCK-OUTS (last 5 minutes)
+// Called by admin app on socket reconnect to recover missed STOCK_UPDATE events
+// --------------------------------------------------
+export const getRecentStockOuts = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    const items = await MenuItem.findAll({
+      where: {
+        cafeteriaId,
+        trackStock: true,
+        stock: 0,
+        isAvailable: false,
+        updatedAt: { [Op.gte]: fiveMinutesAgo },
+      },
+      attributes: ["id", "name", "stock", "updatedAt"],
+    });
+
+    return res.json({ success: true, items });
+  } catch (err) {
+    console.error("getRecentStockOuts error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

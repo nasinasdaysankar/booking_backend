@@ -18,6 +18,7 @@ import {
   checkWebhookStatus
 } from '../controllers/adminRefundController.js';
 import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';  // ✅ ADD THIS
+import { getRecentStockOuts } from '../controllers/menuController.js';
 
 const router = express.Router();
 
@@ -212,5 +213,10 @@ router.put("/cafeteria/:id", auth, requireRole(['admin']), updateCafeteria);
  * Required for App Store and Play Store compliance
  */
 router.delete("/delete-account", auth, requireRole(['admin']), deleteAdminAccount);
+
+// ============================================
+// STOCK RECOVERY (called on socket reconnect)
+// ============================================
+router.get("/recent-stockouts", auth, requireRole(['admin']), getRecentStockOuts);
 
 export default router;
