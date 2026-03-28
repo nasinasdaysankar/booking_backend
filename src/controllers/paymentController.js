@@ -917,18 +917,34 @@ export const verifyPaymentStatus = async (req, res) => {
     }
 
     if (!paymentStatus) {
-      const orderResponse = await axios.get(
-        `${baseUrl}/orders/${orderId}`,
-        {
-          headers: {
-            "x-api-version": "2023-08-01",
-            "x-client-id": clientId,
-            "x-client-secret": clientSecret,
-          },
-          timeout: 15000,
+      // Wrap in try/catch — a 404 here means order doesn't exist in Cashfree.
+      // Previously this threw straight to the outer catch, bypassing setCache.
+      try {
+        const orderResponse = await axios.get(
+          `${baseUrl}/orders/${orderId}`,
+          {
+            headers: {
+              "x-api-version": "2023-08-01",
+              "x-client-id": clientId,
+              "x-client-secret": clientSecret,
+            },
+            timeout: 15000,
+          }
+        );
+        orderStatus = orderResponse.data.order_status || "";
+      } catch (orderErr) {
+        if (orderErr.response?.status === 404) {
+          // Cache the NOT_FOUND response so repeated retries don't hit Cashfree
+          const notFoundPayload = {
+            success: false,
+            paymentStatus: "NOT_FOUND",
+            message: `Order not found in Cashfree (${env}).`,
+          };
+          await setCache(cacheKey, notFoundPayload, PAYMENT_STATUS_PENDING_TTL);
+          return res.status(404).json(notFoundPayload);
         }
-      );
-      orderStatus = orderResponse.data.order_status || "";
+        throw orderErr; // re-throw non-404 errors to the outer catch
+      }
     }
 
     const isSuccess = orderStatus === "PAID" || paymentStatus === "SUCCESS";
@@ -942,14 +958,10 @@ export const verifyPaymentStatus = async (req, res) => {
       message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
     };
 
-    // Cache the result — use a short TTL for PENDING (so next retry still
-    // checks again soon) and a longer TTL for final states (SUCCESS/FAILED).
     const isFinal = isSuccess || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED";
     const ttl = isFinal ? PAYMENT_STATUS_FINAL_TTL : PAYMENT_STATUS_PENDING_TTL;
     await setCache(cacheKey, responsePayload, ttl);
 
-    // Evict immediately after /confirm succeeds so the next verify
-    // always reflects the true state (handled in confirmPayment below).
     return res.json(responsePayload);
 
   } catch (error) {
