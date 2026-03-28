@@ -374,8 +374,8 @@ export const updateMenuItem = async (req, res) => {
 
     await item.save();
 
-    // 🔔 REALTIME STOCK ALERT (if stock is set to 0)
-    if (stock === 0 || item.stock === 0) {
+    // 🔔 REALTIME STOCK ALERT (if stock is explicitly set to 0)
+    if (stock !== undefined && stock === 0) {
       emitStockUpdate(item.cafeteriaId, {
         menuItemId: item.id,
         name: item.name,
