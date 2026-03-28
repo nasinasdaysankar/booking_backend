@@ -5,8 +5,17 @@ import { emitNewOrder, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken, UserStreak, UserFcmToken } from "../models/index.js";
 import { clearAnalyticsCache } from "../utils/cache.js";
+import { getCache, setCache, delCache } from "../config/redis.js";
 import dayjs from "dayjs";
 import axios from "axios";
+
+// Cache TTL for payment status — short enough to stay fresh, long enough to
+// absorb the Flutter retry bursts (6 retries × 3s = 18s window per payment).
+// A PENDING result is cached for only 4s so retries still see updates quickly.
+// A SUCCESS/FAILED result is cached for 30s since it won't change anymore.
+const PAYMENT_STATUS_PENDING_TTL = 4;   // seconds
+const PAYMENT_STATUS_FINAL_TTL   = 30;  // seconds
+const paymentStatusCacheKey = (orderId) => `cf:status:${orderId}`;
 
 // ===================================================================
 // 🔧 HELPER: Get Cashfree credentials based on environment
@@ -663,6 +672,11 @@ export const confirmPayment = async (req, res) => {
 
     await t.commit();
 
+    // ⚡ Evict the verify-status cache now that the order is confirmed.
+    // This ensures any subsequent verify call (e.g. a late retry) hits
+    // Cashfree fresh instead of getting a stale cached PENDING/UNKNOWN.
+    delCache(paymentStatusCacheKey(cashfreeOrderId)).catch(() => {});
+
     // 🔔 Emit STOCK alerts AFTER commit
     for (const item of zeroStockItems) {
       console.log(`📢 [STOCK] Emitting STOCK_UPDATE for: ${item.name}`);
@@ -861,9 +875,21 @@ export const verifyPaymentStatus = async (req, res) => {
       });
     }
 
-    console.log(`🔍 [VERIFY] Checking Cashfree for: ${orderId} (${env})`);
+    // ================================================================
+    // ⚡ REDIS CACHE CHECK — avoid hammering Cashfree API on retries
+    // The Flutter app retries up to 6 times on PENDING status (18s window).
+    // Without caching that's 6 Cashfree API calls per payment — causing
+    // the 16,000+ violations/12h seen on the Cashfree dashboard.
+    // With caching: all 6 retries share 1 Cashfree call per TTL window.
+    // ================================================================
+    const cacheKey = paymentStatusCacheKey(orderId);
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      console.log(`⚡ [VERIFY] Cache HIT for ${orderId} → ${cached.paymentStatus}`);
+      return res.json(cached);
+    }
 
-
+    console.log(`🔍 [VERIFY] Cache MISS — calling Cashfree for: ${orderId} (${env})`);
 
     let paymentStatus = "";
     let orderStatus = "";
@@ -909,12 +935,22 @@ export const verifyPaymentStatus = async (req, res) => {
 
     console.log(`📊 [VERIFY] orderStatus=${orderStatus}, paymentStatus=${paymentStatus}, isSuccess=${isSuccess}`);
 
-    return res.json({
+    const responsePayload = {
       success: true,
       paymentStatus: isSuccess ? "SUCCESS" : (paymentStatus || orderStatus || "UNKNOWN"),
       orderStatus,
       message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
-    });
+    };
+
+    // Cache the result — use a short TTL for PENDING (so next retry still
+    // checks again soon) and a longer TTL for final states (SUCCESS/FAILED).
+    const isFinal = isSuccess || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED";
+    const ttl = isFinal ? PAYMENT_STATUS_FINAL_TTL : PAYMENT_STATUS_PENDING_TTL;
+    await setCache(cacheKey, responsePayload, ttl);
+
+    // Evict immediately after /confirm succeeds so the next verify
+    // always reflects the true state (handled in confirmPayment below).
+    return res.json(responsePayload);
 
   } catch (error) {
     console.error("❌ [VERIFY] Error:", error.response?.data || error.message);
