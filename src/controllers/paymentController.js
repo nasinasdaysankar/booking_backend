@@ -263,6 +263,57 @@ export const createCashfreeOrder = async (req, res) => {
     });
 
     console.log("✅ [PROXY] Order created successfully via Finance Backend");
+
+    // =====================================================================
+    // 💾 SAVE ORDER SNAPSHOT — safety net if /confirm never runs
+    // If the user's app crashes or network drops after payment but before
+    // /confirm is called, the webhook handler uses this snapshot to
+    // auto-create the order so money is never debited without an order.
+    // =====================================================================
+    const cashfreeOrderId = req.body.orderId;
+    const studentId = req.user?.id;
+    const orderAmount = req.body.orderAmount;
+
+    if (cashfreeOrderId && studentId && cafeteriaId) {
+      (async () => {
+        try {
+          await sequelize.query(
+            `CREATE TABLE IF NOT EXISTS order_snapshots (
+              cashfree_order_id VARCHAR(255) PRIMARY KEY,
+              student_id        INTEGER NOT NULL,
+              cafeteria_id      INTEGER NOT NULL,
+              amount            DECIMAL(10,2) NOT NULL,
+              items             JSONB NOT NULL DEFAULT '[]',
+              created_at        TIMESTAMP DEFAULT NOW(),
+              expires_at        TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
+            )`,
+            { type: QueryTypes.RAW }
+          );
+
+          await sequelize.query(
+            `INSERT INTO order_snapshots
+               (cashfree_order_id, student_id, cafeteria_id, amount, items)
+             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items)
+             ON CONFLICT (cashfree_order_id) DO NOTHING`,
+            {
+              replacements: {
+                cashfreeOrderId,
+                studentId,
+                cafeteriaId: Number(cafeteriaId),
+                amount: Number(orderAmount) || 0,
+                items: JSON.stringify(Array.isArray(items) ? items : []),
+              },
+              type: QueryTypes.INSERT,
+            }
+          );
+          console.log(`💾 [SNAPSHOT] Saved order snapshot for ${cashfreeOrderId}`);
+        } catch (snapErr) {
+          // Non-blocking — never fail the main response over snapshot errors
+          console.warn("⚠️ [SNAPSHOT] Failed to save snapshot:", snapErr.message);
+        }
+      })();
+    }
+
     return res.status(200).json(response.data);
   } catch (error) {
     console.error("❌ [PROXY] Error creating Cashfree order:", error?.response?.data || error.message);
@@ -1017,23 +1068,167 @@ export const syncFromWebhook = async (req, res) => {
     });
 
     if (!payment) {
-      await sequelize.query(
-        `
-        INSERT INTO pending_webhooks (cashfree_order_id, payment_id)
-        VALUES (:orderId, :paymentId)
-        ON CONFLICT (cashfree_order_id)
-        DO UPDATE SET payment_id = EXCLUDED.payment_id
-        `,
+      // =====================================================================
+      // 🚨 NO PAYMENT RECORD — /confirm never ran (app crashed / network drop)
+      // Check if we have an order snapshot saved at /create time.
+      // If yes, auto-create the full order now so the user's payment is not
+      // lost. If no snapshot, fall back to pending_webhooks (old behavior).
+      // =====================================================================
+      const snapshots = await sequelize.query(
+        `SELECT * FROM order_snapshots WHERE cashfree_order_id = :cashfreeOrderId LIMIT 1`,
         {
-          replacements: { orderId: cashfreeOrderId, paymentId },
-          transaction: t,
+          replacements: { cashfreeOrderId },
+          type: QueryTypes.SELECT,
         }
+      ).catch(() => []); // Table might not exist yet on first deploy — ignore
+
+      const snap = snapshots[0];
+
+      if (!snap) {
+        // No snapshot — save to pending_webhooks as before
+        await sequelize.query(
+          `INSERT INTO pending_webhooks (cashfree_order_id, payment_id)
+           VALUES (:orderId, :paymentId)
+           ON CONFLICT (cashfree_order_id)
+           DO UPDATE SET payment_id = EXCLUDED.payment_id`,
+          {
+            replacements: { orderId: cashfreeOrderId, paymentId },
+            transaction: t,
+          }
+        );
+        await t.commit();
+        return res.json({
+          success: true,
+          message: "Webhook saved. Will be linked when /confirm runs.",
+        });
+      }
+
+      console.log(`🚨 [WEBHOOK RECOVERY] /confirm never ran for ${cashfreeOrderId}. Auto-creating order from snapshot.`);
+
+      // Check if an order already exists (e.g. /confirm ran concurrently)
+      let recoveredOrder = await Order.findOne({
+        where: { cashfreeOrderId },
+        transaction: t,
+      });
+
+      if (!recoveredOrder) {
+        const snapCafeteriaId = snap.cafeteria_id;
+        const snapStudentId   = snap.student_id;
+        const snapAmount      = snap.amount;
+        const snapItems       = Array.isArray(snap.items) ? snap.items : JSON.parse(snap.items || "[]");
+
+        const kotNumber        = await generateKotNumber(snapCafeteriaId, t);
+        const dailyOrderNumber = await generateDailyOrderNumber(snapCafeteriaId, t);
+        const totalOrderNumber = await generateTotalOrderNumber(t);
+        const billId           = await generateBillId(snapCafeteriaId, t);
+
+        recoveredOrder = await Order.create(
+          {
+            cashfreeOrderId,
+            billId,
+            studentId:    snapStudentId,
+            cafeteriaId:  snapCafeteriaId,
+            totalAmount:  snapAmount,
+            status:       "PAID",
+            paymentStatus: "SUCCESS",
+            kotNumber,
+            dailyOrderNumber,
+            totalOrderNumber,
+            isParcel: false,
+            parcelAmount: 0,
+          },
+          { transaction: t }
+        );
+
+        // Create order items
+        if (snapItems.length > 0) {
+          const formattedItems = snapItems.map((item) => ({
+            orderId:     recoveredOrder.id,
+            menuItemId:  item.menuItemId || item.id || null,
+            name:        item.name,
+            quantity:    item.quantity || item.qty || 1,
+            priceAtOrder: item.price,
+            imageUrl:    item.imageUrl || item.img || null,
+            isParcel:    Boolean(item.isParcelSelected),
+            specialInstructions: item.note || null,
+          }));
+          await OrderItem.bulkCreate(formattedItems, { transaction: t });
+        }
+
+        await updateUserStreak(snapStudentId, snapCafeteriaId, t);
+
+        console.log(`✅ [WEBHOOK RECOVERY] Order ${recoveredOrder.id} created. KOT: ${kotNumber}`);
+      }
+
+      // Create the payment record now
+      await Payment.create(
+        {
+          orderId:         recoveredOrder.id,
+          billId:          recoveredOrder.billId,
+          cafeteriaId:     recoveredOrder.cafeteriaId,
+          paymentGateway:  "CASHFREE",
+          cashfreeOrderId,
+          transactionId:   paymentId,
+          amount:          recoveredOrder.totalAmount,
+          status:          "SUCCESS",
+          paidAt:          new Date(),
+        },
+        { transaction: t }
+      );
+
+      // Delete the snapshot — no longer needed
+      await sequelize.query(
+        `DELETE FROM order_snapshots WHERE cashfree_order_id = :cashfreeOrderId`,
+        { replacements: { cashfreeOrderId }, transaction: t }
       );
 
       await t.commit();
+
+      // Notify admin (async, non-blocking)
+      (async () => {
+        try {
+          emitNewOrder(recoveredOrder.cafeteriaId, {
+            orderId:          recoveredOrder.id,
+            id:               recoveredOrder.id,
+            billId:           recoveredOrder.billId,
+            kotNumber:        recoveredOrder.kotNumber,
+            totalAmount:      recoveredOrder.totalAmount,
+            status:           recoveredOrder.status,
+            createdAt:        recoveredOrder.createdAt,
+            isParcel:         recoveredOrder.isParcel,
+            dailyOrderNumber: recoveredOrder.dailyOrderNumber,
+          });
+
+          const adminTokens = await AdminFcmToken.findAll({ where: { cafeteriaId: recoveredOrder.cafeteriaId } });
+          if (adminTokens.length > 0) {
+            await admin.messaging().sendEachForMulticast({
+              tokens: adminTokens.map((t) => t.fcmToken),
+              notification: {
+                title: "🍽 New Order Received",
+                body: `KOT ${recoveredOrder.kotNumber} • ₹${recoveredOrder.totalAmount}`,
+              },
+              data: {
+                type: "NEW_ORDER",
+                orderId: String(recoveredOrder.id),
+                kotNumber: recoveredOrder.kotNumber || "",
+                cafeteriaId: String(recoveredOrder.cafeteriaId),
+              },
+              android: { priority: "high", notification: { channelId: "high_importance_channel_v2", sound: "new_order" } },
+            });
+          }
+
+          clearAnalyticsCache(recoveredOrder.cafeteriaId).catch(() => {});
+        } catch (notifyErr) {
+          console.error("⚠️ [WEBHOOK RECOVERY] Notification error:", notifyErr.message);
+        }
+      })();
+
       return res.json({
         success: true,
-        message: "Webhook saved. Will be linked when /confirm runs.",
+        message: "Webhook recovery: order auto-created from snapshot",
+        cashfreeOrderId,
+        orderId: recoveredOrder.id,
+        kotNumber: recoveredOrder.kotNumber,
       });
     }
 
