@@ -369,36 +369,40 @@ export const createManualOrder = async (req, res) => {
 
     await OrderItem.bulkCreate(orderItems, { transaction: t });
 
-    // 5. ✅ DEDUCT STOCK (same policy as online payments — all items treated as stock-tracked)
+    // 5. ✅ DEDUCT STOCK — collect zero-stock items, emit AFTER commit
+    const zeroStockItems = [];
     for (const item of orderItems) {
       if (!item.menuItemId) continue;
 
       const menuItem = await MenuItem.findByPk(item.menuItemId, { transaction: t });
       if (!menuItem) continue;
 
-      // Universal stock tracking: treat every item as trackStock = true
       const newStock = Math.max(0, menuItem.stock - item.quantity);
       console.log(`📦 [STOCK] Manual order: ${menuItem.name} ${menuItem.stock} → ${newStock}`);
 
       const updates = { stock: newStock };
       if (newStock === 0) {
-        console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
+        console.log(`📉 [STOCK] ${menuItem.name} hit 0 — will emit after commit`);
         updates.isAvailable = false;
-        
-        // 🔔 REALTIME STOCK ALERT
-        emitStockUpdate(cafeteriaId, {
-          menuItemId: menuItem.id,
-          name: menuItem.name,
-          stock: 0,
-          reason: "OUT_OF_STOCK",
-          message: `🚨 ${menuItem.name} is now out of stock!`
-        });
+        zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
       }
 
       await menuItem.update(updates, { transaction: t });
     }
 
     await t.commit();
+
+    // 🔔 Emit STOCK alerts AFTER commit — DB is now saved, Flutter alert won't race with Navigator.pop
+    for (const item of zeroStockItems) {
+      console.log(`📢 [STOCK] Emitting STOCK_UPDATE for: ${item.name}`);
+      emitStockUpdate(cafeteriaId, {
+        menuItemId: item.id,
+        name: item.name,
+        stock: 0,
+        reason: "OUT_OF_STOCK",
+        message: `🚨 ${item.name} is now out of stock!`,
+      });
+    }
 
     // 6. Invalidate Cache
     await clearAnalyticsCache(cafeteriaId);

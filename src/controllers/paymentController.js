@@ -578,7 +578,8 @@ export const confirmPayment = async (req, res) => {
         await OrderItem.bulkCreate(formattedItems, { transaction: t });
         console.log(`✅ Created ${formattedItems.length} order items`);
 
-        // 📦 [STOCK] Update stock for all items (universal policy — same as manual orders)
+        // 📦 [STOCK] Update stock for all items — collect zero-stock items, emit AFTER commit
+        const zeroStockItems = [];
         for (const item of formattedItems) {
           if (!item.menuItemId) continue; // skip items with no menu item reference
 
@@ -594,17 +595,9 @@ export const confirmPayment = async (req, res) => {
 
           const updates = { stock: newStock };
           if (newStock === 0) {
-            console.log(`📉 [STOCK] Marking ${menuItem.name} as UNAVAILABLE (stock = 0)`);
+            console.log(`📉 [STOCK] ${menuItem.name} hit 0 — will emit after commit`);
             updates.isAvailable = false;
-            
-            // 🔔 REALTIME STOCK ALERT
-            emitStockUpdate(cafeteriaId, {
-              menuItemId: menuItem.id,
-              name: menuItem.name,
-              stock: 0,
-              reason: "OUT_OF_STOCK",
-              message: `🚨 ${menuItem.name} is now out of stock!`
-            });
+            zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
           }
 
           await menuItem.update(updates, { transaction: t });
@@ -618,6 +611,18 @@ export const confirmPayment = async (req, res) => {
     await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
 
     await t.commit();
+
+    // 🔔 Emit STOCK alerts AFTER commit
+    for (const item of zeroStockItems) {
+      console.log(`📢 [STOCK] Emitting STOCK_UPDATE for: ${item.name}`);
+      emitStockUpdate(cafeteriaId, {
+        menuItemId: item.id,
+        name: item.name,
+        stock: 0,
+        reason: "OUT_OF_STOCK",
+        message: `🚨 ${item.name} is now out of stock!`,
+      });
+    }
 
     console.log("✅ Transaction committed successfully");
 
