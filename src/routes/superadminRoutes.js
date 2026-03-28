@@ -980,7 +980,8 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
             response.responses.forEach((resp, idx) => {
                 if (!resp.success && (
                     resp.error.code === 'messaging/invalid-registration-token' ||
-                    resp.error.code === 'messaging/registration-token-not-registered'
+                    resp.error.code === 'messaging/registration-token-not-registered' ||
+                    resp.error.code === 'messaging/third-party-auth-error'
                 )) {
                     invalidTokens.push(tokens[idx]);
                 }

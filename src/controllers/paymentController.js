@@ -774,10 +774,14 @@ export const confirmPayment = async (req, res) => {
                 const errorCode = resp.error?.code;
                 console.log(`  ❌ FCM Token ${idx} failed | Error: ${errorCode} | Msg: ${resp.error?.message}`);
                 
-                // If token is invalid or user uninstalled app, delete it
+                // Delete tokens that are permanently invalid:
+                // - registration-token-not-registered: app uninstalled
+                // - invalid-registration: malformed token
+                // - third-party-auth-error: token from a different Firebase project
                 if (
                   errorCode === "messaging/registration-token-not-registered" ||
-                  errorCode === "messaging/invalid-registration"
+                  errorCode === "messaging/invalid-registration" ||
+                  errorCode === "messaging/third-party-auth-error"
                 ) {
                   tokensToDelete.push(adminTokens[idx].fcmToken);
                 }

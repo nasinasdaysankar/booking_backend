@@ -748,7 +748,11 @@ export const updateOrderStatus = async (req, res) => {
               
               // Cleanup invalid tokens
               response.responses.forEach(async (res, idx) => {
-                if (!res.success && (res.error?.code === 'messaging/registration-token-not-registered' || res.error?.code === 'messaging/invalid-registration-token')) {
+                if (!res.success && (
+                  res.error?.code === 'messaging/registration-token-not-registered' ||
+                  res.error?.code === 'messaging/invalid-registration-token' ||
+                  res.error?.code === 'messaging/third-party-auth-error'
+                )) {
                   await UserFcmToken.destroy({ where: { fcmToken: userTokens[idx].fcmToken } });
                   console.log(`🗑️ Deleted invalid token: ${userTokens[idx].fcmToken.substring(0, 10)}...`);
                 }
