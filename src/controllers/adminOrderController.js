@@ -704,18 +704,18 @@ export const updateOrderStatus = async (req, res) => {
               titleText = "👨‍🍳 Order Preparing...";
               bodyText = `Order #${order.dailyOrderNumber ?? order.id} is being prepared.`;
             } else if (status === "READY") {
-              titleText = "✅ Order Ready!";
-              bodyText = `Please pick up your order within ${order.Cafeteria?.bufferTime || 20} mins at ${order.Cafeteria?.name || 'the cafeteria'}, or it will be cancelled without a refund.`;
+              const buffer = order.Cafeteria?.bufferTime || 20;
+              titleText = `✅ Ready! (Pick up in ${buffer}m)`;
+              bodyText = `Pick up soon or order cancels (No Refund).`;
             }
 
             const messages = userTokens.map(ut => ({
               token: ut.fcmToken,
-              notification: {
+              // 🚨 REMOVED top-level 'notification' to prevent OS-level truncation.
+              // This is now a "Data-Only" message. The app will handle display.
+              data: {
                 title: titleText,
                 body: bodyText,
-                ...(notificationImageUrl && { imageUrl: notificationImageUrl })
-              },
-              data: {
                 orderId: String(order.id),
                 status: order.status,
                 type: "ORDER_STATUS_UPDATE",
@@ -723,12 +723,7 @@ export const updateOrderStatus = async (req, res) => {
               },
               android: {
                 priority: "high",
-                notification: {
-                  channelId: "high_importance_channel",
-                  sound: "default",
-                  clickAction: "FLUTTER_NOTIFICATION_CLICK",
-                  imageUrl: notificationImageUrl
-                },
+                // 🛠️ data messages don't use android.notification
               },
               apns: {
                 payload: {
@@ -736,6 +731,7 @@ export const updateOrderStatus = async (req, res) => {
                     sound: "default",
                     badge: 1,
                     mutableContent: notificationImageUrl ? true : false,
+                    contentAvailable: true, // 🚨 Required for background 'data' messages on iOS
                     category: 'ORDER_UPDATE'
                   }
                 },

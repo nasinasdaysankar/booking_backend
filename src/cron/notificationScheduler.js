@@ -79,17 +79,17 @@ export const initNotificationScheduler = () => {
                         const reminderBody = `Hurry! You have only ${halfBufferMs} mins left to pick up Order #${order.dailyOrderNumber ?? order.id}, or it will be cancelled without a refund.`;
                         await admin.messaging().send({
                             token,
-                            notification: {
+                            // 🚨 REMOVED top-level 'notification' for the permanent solution.
+                            // The app will manually show a BigText alert from the data payload.
+                            data: {
                                 title: `⏳ ${halfBufferMs} Minutes Left!`,
-                                body: reminderBody,
+                                body: `Hurry! You have only ${halfBufferMs} mins left to pick up Order #${order.dailyOrderNumber ?? order.id}, or it will be cancelled without a refund.`,
+                                orderId: String(order.id),
+                                status: "READY",
+                                type: "ORDER_STATUS_UPDATE",
                             },
-                            data: { orderId: String(order.id), status: "READY" },
                             android: {
                                 priority: "high",
-                                notification: {
-                                    channelId: "high_importance_channel",
-                                    body: reminderBody,
-                                },
                             },
                         });
                         console.log(`🔔 Sent ${halfBufferMs}-min reminder for Order #${order.id}`);
