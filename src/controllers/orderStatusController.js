@@ -10,10 +10,10 @@ export const getActiveOrders = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    console.log("🔍 Fetching active orders for user:", userId);
+    console.log("🔍 Fetching ALL active orders for user:", userId);
 
-    // ✅ Query for UNPAID or PENDING orders
-    const order = await Order.findOne({
+    // ✅ Query for ALL active or unrated orders
+    const orders = await Order.findAll({
       where: {
         studentId: userId,
         [Op.or]: [
@@ -46,32 +46,28 @@ export const getActiveOrders = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    if (!order) {
+    if (!orders || orders.length === 0) {
       console.log("✅ No active orders for user:", userId);
-      return res.status(200).json({ data: null });
+      return res.status(200).json({ data: [] });
     }
 
-    console.log(
-      "✅ Found active order - ID:",
-      order.id,
-      "Status:",
-      order.status,
-      "isRated:",
-      order.isRated
-    );
+    console.log(`✅ Found ${orders.length} active orders for user: ${userId}`);
+
+    const formattedOrders = orders.map(order => ({
+      id: order.id,
+      dailyOrderNumber: order.dailyOrderNumber,
+      billId: order.billId,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      isRated: order.isRated,
+      cafeteriaId: order.cafeteriaId,
+      cafeteriaName: order.Cafeteria?.name ?? "",
+      items: order.items,
+      createdAt: order.createdAt,
+    }));
 
     return res.status(200).json({
-      data: {
-        id: order.id,
-        dailyOrderNumber: order.dailyOrderNumber,
-        billId: order.billId,
-        status: order.status,
-        totalAmount: order.totalAmount,
-        isRated: order.isRated,
-        cafeteriaId: order.cafeteriaId,
-        cafeteriaName: order.Cafeteria?.name ?? "",
-        items: order.items,
-      },
+      data: formattedOrders,
     });
   } catch (err) {
     console.error("❌ getActiveOrders ERROR:", err);
