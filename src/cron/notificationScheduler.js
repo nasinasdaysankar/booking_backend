@@ -76,7 +76,7 @@ export const initNotificationScheduler = () => {
                         const token = userTokens[0].fcmToken;
                         const bufferTime = order._bufferTime ?? 20;
                         const halfBufferMs = Math.round(bufferTime / 2);
-                        const reminderBody = `Hurry! Order #${order.dailyOrderNumber ?? order.id} is waiting. Please pick it up soon.`;
+                        const reminderBody = `Hurry! You have only ${halfBufferMs} mins left to pick up Order #${order.dailyOrderNumber ?? order.id}, or it will be cancelled without a refund.`;
                         await admin.messaging().send({
                             token,
                             notification: {

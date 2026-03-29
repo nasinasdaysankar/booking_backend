@@ -698,12 +698,15 @@ export const updateOrderStatus = async (req, res) => {
             const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
             
             let titleText = "";
+            let bodyText = "";
+
             if (status === "PREPARING") {
               titleText = "👨‍🍳 Order Preparing...";
+              bodyText = `Order #${order.dailyOrderNumber ?? order.id} is being prepared.`;
             } else if (status === "READY") {
               titleText = "✅ Order Ready!";
+              bodyText = `Please pick up your order within ${order.Cafeteria?.bufferTime || 20} mins at ${order.Cafeteria?.name || 'the cafeteria'}, or it will be cancelled without a refund.`;
             }
-            const bodyText = `Order #${order.dailyOrderNumber ?? order.id}`;
 
             const messages = userTokens.map(ut => ({
               token: ut.fcmToken,
