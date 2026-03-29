@@ -183,6 +183,7 @@ export const getMenuByCafeteria = async (req, res) => {
     return res.json({
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
+      cafeteriaOffline: cafeteria.isOffline,
       count: items.length,
       data: items,
     });
@@ -614,7 +615,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
 
     // ✅ CHECK CAFETERIA
     const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-      attributes: ["id", "isOpen"],
+      attributes: ["id", "isOpen", "isOffline"],
     });
 
     if (!cafeteria) {
@@ -662,6 +663,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     // ✅ BUILD RESPONSE OBJECT
     const response = {
       cafeteriaOpen: cafeteria.isOpen,
+      cafeteriaOffline: cafeteria.isOffline,
       count: items.length,
       data: items,
     };

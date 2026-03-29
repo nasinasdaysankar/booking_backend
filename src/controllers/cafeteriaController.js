@@ -24,7 +24,7 @@ export const getCafeterias = async (req, res) => {
         'id',
         'name',
         'isOpen',
-
+        'isOffline',
         'isUserVisible',
         'isInsideCampus',
         'latitude',
@@ -69,7 +69,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     // Check if cafeteria exists
     const cafeteria = await Cafeteria.findByPk(id, {
-      attributes: ['id', 'name', 'isOpen']
+      attributes: ['id', 'name', 'isOpen', 'isOffline']
     });
 
     if (!cafeteria) {

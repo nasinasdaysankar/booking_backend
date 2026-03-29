@@ -23,6 +23,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "latitude",
         "longitude",
         "isOpen",
+        "isOffline",
         "isInsideCampus",
 
         "gstType",
@@ -72,6 +73,7 @@ export const getMyCafeterias = async (req, res) => {
         "longitude",
 
         "isOpen",
+        "isOffline",
         "isInsideCampus",
         "gstType",
         "gstAmount",
@@ -111,6 +113,7 @@ export const updateCafeteria = async (req, res) => {
       latitude,
       longitude,
       isOpen,
+      isOffline,
       isInsideCampus,
       gstType,
       gstAmount,
@@ -143,6 +146,7 @@ export const updateCafeteria = async (req, res) => {
     if (latitude !== undefined) cafeteria.latitude = latitude;
     if (longitude !== undefined) cafeteria.longitude = longitude;
     if (isOpen !== undefined) cafeteria.isOpen = isOpen;
+    if (isOffline !== undefined) cafeteria.isOffline = isOffline;
     if (isInsideCampus !== undefined) cafeteria.isInsideCampus = isInsideCampus;
     if (gstType !== undefined) cafeteria.gstType = gstType;
     if (gstAmount !== undefined) cafeteria.gstAmount = gstAmount;
@@ -165,6 +169,7 @@ export const updateCafeteria = async (req, res) => {
         latitude: cafeteria.latitude,
         longitude: cafeteria.longitude,
         isOpen: cafeteria.isOpen,
+        isOffline: cafeteria.isOffline,
         isInsideCampus: cafeteria.isInsideCampus,
 
         gstType: cafeteria.gstType,
