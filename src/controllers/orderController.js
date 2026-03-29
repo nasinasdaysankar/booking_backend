@@ -284,7 +284,7 @@ export const getMyOrders = async (req, res) => {
         {
           model: OrderItem,
           as: "items", // MUST MATCH association
-          attributes: ["name", "imageUrl", "quantity", "priceAtOrder", "isParcel"], // ✅ Include isParcel
+          attributes: ["name", "imageUrl", "quantity", "priceAtOrder", "isParcel", "specialInstructions"], // ✅ Include specialInstructions
         },
         {
           model: OrderFeedback,
@@ -319,6 +319,7 @@ export const getOrderById = async (req, res) => {
         {
           model: OrderItem,
           as: "items",
+          attributes: ["name", "imageUrl", "quantity", "priceAtOrder", "isParcel", "specialInstructions"], // ✅ Include specialInstructions
         },
         {
           model: OrderFeedback,
@@ -360,7 +361,7 @@ export const getOrderByBillId = async (req, res) => {
         {
           model: OrderItem,
           as: "items", // MUST MATCH association
-          attributes: ["name", "quantity", "priceAtOrder", "imageUrl", "isParcel"], // ✅ Include isParcel
+          attributes: ["name", "quantity", "priceAtOrder", "imageUrl", "isParcel", "specialInstructions"], // ✅ Include specialInstructions
         },
         {
           model: Cafeteria,
