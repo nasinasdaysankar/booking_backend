@@ -876,23 +876,22 @@ export const getAdminStats = async (req, res) => {
         dateFilter = { createdAt: { [Op.lte]: endDate } };
       }
     } else {
-      // Use range-based filtering
-      const now = new Date();
+      // Use range-based filtering in IST (UTC+5:30)
+      const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+      const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+      const istYear = nowIST.getUTCFullYear();
+      const istMonth = nowIST.getUTCMonth();
+      const istDate = nowIST.getUTCDate();
 
       if (range === "daily") {
-        const startOfDay = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
+        // Midnight IST as UTC timestamp
+        const startOfDay = new Date(Date.UTC(istYear, istMonth, istDate) - IST_OFFSET_MS);
         dateFilter = { createdAt: { [Op.gte]: startOfDay } };
       } else if (range === "weekly") {
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
+        const startOfWeek = new Date(Date.UTC(istYear, istMonth, istDate - nowIST.getUTCDay()) - IST_OFFSET_MS);
         dateFilter = { createdAt: { [Op.gte]: startOfWeek } };
       } else if (range === "monthly") {
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfMonth = new Date(Date.UTC(istYear, istMonth, 1) - IST_OFFSET_MS);
         dateFilter = { createdAt: { [Op.gte]: startOfMonth } };
       }
       // "all" range has no date filter
@@ -926,7 +925,7 @@ export const getAdminStats = async (req, res) => {
       const commission = Number(order.commissionAmount || 0);
       const cfCharge = amount * 0.0195;
       const cfGst = cfCharge * 0.18;
-      
+
       totalAmountBase += amount;
       totalCashfreeCharges += cfCharge;
       totalCashfreeGst += cfGst;
@@ -935,9 +934,10 @@ export const getAdminStats = async (req, res) => {
 
     const netRevenue = totalAmountBase - totalCashfreeCharges - totalCashfreeGst - totalCommissions;
 
-    // 📅 TODAY'S CALCULATIONS
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 📅 TODAY'S CALCULATIONS (IST midnight)
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+    const startOfToday = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate()) - IST_OFFSET_MS);
     const todayOrders = orders.filter(o => new Date(o.createdAt) >= startOfToday);
     
     const grossRevenueToday = todayOrders.reduce((s, o) => s + (Number(o.totalAmount || 0) - Number(o.platformFee || 0)), 0);
