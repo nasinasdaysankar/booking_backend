@@ -940,65 +940,81 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
         const tokens = [...new Set(userTokens.map(t => t.fcmToken))];
         console.log(`📣 Broadcasting to ${tokens.length} unique tokens`);
 
-        // Multicast notification
-        const response = await admin.messaging().sendEachForMulticast({
-            tokens,
-            notification: {
-                title,
-                body,
-            },
-            data: data || {
-                type: 'BROADCAST',
-                click_action: 'FLUTTER_NOTIFICATION_CLICK'
-            },
-            android: {
-                priority: "high",
+        // Firebase sendEachForMulticast accepts max 500 tokens at a time.
+        const chunkSize = 500;
+        const batches = [];
+        for (let i = 0; i < tokens.length; i += chunkSize) {
+            batches.push(tokens.slice(i, i + chunkSize));
+        }
+
+        let totalSuccess = 0;
+        let totalFailure = 0;
+        let invalidTokens = [];
+
+        // Process batches
+        for (const batchTokens of batches) {
+            const response = await admin.messaging().sendEachForMulticast({
+                tokens: batchTokens,
                 notification: {
-                    channelId: "high_importance_channel",
-                    body: body,
-                }
-            },
-            apns: {
-                payload: {
-                    aps: {
-                        sound: "default",
-                        badge: 1,
-                        alert: {
-                            title: title,
-                            body: body,
-                        },
+                    title,
+                    body,
+                },
+                data: data || {
+                    type: 'BROADCAST',
+                    click_action: 'FLUTTER_NOTIFICATION_CLICK'
+                },
+                android: {
+                    priority: "high",
+                    notification: {
+                        channelId: "high_importance_channel",
+                        body: body,
                     }
-                }
-            }
-        });
-
-        console.log(`✅ Broadcast successful. Success: ${response.successCount}, Failure: ${response.failureCount}`);
-
-        // Cleanup invalid tokens if any failures occurred
-        if (response.failureCount > 0) {
-            const invalidTokens = [];
-            response.responses.forEach((resp, idx) => {
-                if (!resp.success && (
-                    resp.error.code === 'messaging/invalid-registration-token' ||
-                    resp.error.code === 'messaging/registration-token-not-registered' ||
-                    resp.error.code === 'messaging/third-party-auth-error'
-                )) {
-                    invalidTokens.push(tokens[idx]);
+                },
+                apns: {
+                    payload: {
+                        aps: {
+                            sound: "default",
+                            badge: 1,
+                            alert: {
+                                title: title,
+                                body: body,
+                            },
+                        }
+                    }
                 }
             });
 
-            if (invalidTokens.length > 0) {
-                console.log(`🧹 Removing ${invalidTokens.length} invalid tokens`);
-                await UserFcmToken.destroy({
-                    where: { fcmToken: invalidTokens }
+            totalSuccess += response.successCount;
+            totalFailure += response.failureCount;
+
+            // Collect invalid tokens to clean up
+            if (response.failureCount > 0) {
+                response.responses.forEach((resp, idx) => {
+                    if (!resp.success && (
+                        resp.error?.code === 'messaging/invalid-registration-token' ||
+                        resp.error?.code === 'messaging/registration-token-not-registered' ||
+                        resp.error?.code === 'messaging/third-party-auth-error'
+                    )) {
+                        invalidTokens.push(batchTokens[idx]);
+                    }
                 });
             }
         }
 
+        console.log(`✅ Broadcast successful. Success: ${totalSuccess}, Failure: ${totalFailure}`);
+
+        // Cleanup invalid tokens if any failures occurred
+        if (invalidTokens.length > 0) {
+            console.log(`🧹 Removing ${invalidTokens.length} invalid tokens`);
+            await UserFcmToken.destroy({
+                where: { fcmToken: invalidTokens }
+            });
+        }
+
         res.json({
             success: true,
-            sentCount: response.successCount,
-            failureCount: response.failureCount
+            sentCount: totalSuccess,
+            failureCount: totalFailure
         });
     } catch (error) {
         console.error('Broadcast notification error:', error);
