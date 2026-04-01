@@ -855,29 +855,40 @@ export const getAdminStats = async (req, res) => {
 
     let dateFilter = {};
 
-    // ✅ FIX: Support custom date ranges with inclusive time (00:00:00 to 23:59:59)
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+    // ✅ FIX: Support custom date ranges with inclusive IST time boundaries
+    // The 'from'/'to' params are IST date strings (e.g. "2026-04-01").
+    // We must compute IST midnight (= UTC midnight minus 5h30m) as the boundary.
     if (from || to) {
-      // If only 'from' is provided, we treat it as a single day query (from that day start to that day end)
-      const startDate = from ? new Date(from) : null;
-      if (startDate) startDate.setHours(0, 0, 0, 0);
+      let startUTC = null;
+      let endUTC   = null;
 
-      const endDate = to ? new Date(to) : (from ? new Date(from) : null);
-      if (endDate) endDate.setHours(23, 59, 59, 999);
+      if (from) {
+        // IST midnight of the 'from' date = UTC midnight − 5h30m
+        const [fy, fm, fd] = from.split('-').map(Number);
+        startUTC = new Date(Date.UTC(fy, fm - 1, fd) - IST_OFFSET_MS); // 18:30 UTC prev day
+      }
 
-      if (startDate && endDate) {
-        dateFilter = {
-          createdAt: {
-            [Op.between]: [startDate, endDate],
-          },
-        };
-      } else if (startDate) {
-        dateFilter = { createdAt: { [Op.gte]: startDate } };
-      } else if (endDate) {
-        dateFilter = { createdAt: { [Op.lte]: endDate } };
+      if (to) {
+        // End of IST day = next IST midnight minus 1ms
+        const [ty, tm, td] = to.split('-').map(Number);
+        endUTC = new Date(Date.UTC(ty, tm - 1, td + 1) - IST_OFFSET_MS - 1); // 18:29:59.999 UTC
+      } else if (from) {
+        // Single day: same as from
+        const [fy, fm, fd] = from.split('-').map(Number);
+        endUTC = new Date(Date.UTC(fy, fm - 1, fd + 1) - IST_OFFSET_MS - 1);
+      }
+
+      if (startUTC && endUTC) {
+        dateFilter = { createdAt: { [Op.between]: [startUTC, endUTC] } };
+      } else if (startUTC) {
+        dateFilter = { createdAt: { [Op.gte]: startUTC } };
+      } else if (endUTC) {
+        dateFilter = { createdAt: { [Op.lte]: endUTC } };
       }
     } else {
       // Use range-based filtering in IST (UTC+5:30)
-      const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
       const nowIST = new Date(Date.now() + IST_OFFSET_MS);
       const istYear = nowIST.getUTCFullYear();
       const istMonth = nowIST.getUTCMonth();
@@ -934,8 +945,7 @@ export const getAdminStats = async (req, res) => {
 
     const netRevenue = totalAmountBase - totalCashfreeCharges - totalCashfreeGst - totalCommissions;
 
-    // 📅 TODAY'S CALCULATIONS (IST midnight)
-    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    // 📅 TODAY'S CALCULATIONS (IST midnight) — IST_OFFSET_MS already declared above
     const nowIST = new Date(Date.now() + IST_OFFSET_MS);
     const startOfToday = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate()) - IST_OFFSET_MS);
     const todayOrders = orders.filter(o => new Date(o.createdAt) >= startOfToday);

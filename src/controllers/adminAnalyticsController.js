@@ -19,6 +19,23 @@ const buildPaymentMethodClause = (paymentMethod) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
+// Helper: Convert a TIMESTAMPTZ column to IST (Asia/Kolkata) local time.
+//
+//   PostgreSQL:  "created_at" AT TIME ZONE 'Asia/Kolkata'
+//
+// When the source column is TIMESTAMPTZ (which Sequelize's DataTypes.DATE
+// maps to), applying AT TIME ZONE <tz> returns a TIMESTAMP WITHOUT TIME
+// ZONE representing the wall-clock time in that zone.
+//
+// IMPORTANT: Do NOT wrap this in COALESCE("col" AT TIME ZONE ..., "col")
+// because the fallback branch is still TIMESTAMPTZ, and PostgreSQL will
+// silently cast it using the *server* timezone (UTC on Railway), which
+// defeats the purpose and causes midnight–05:30 orders to land on the
+// wrong day.
+// ─────────────────────────────────────────────────────────────────────────
+const istExpr = (col) => `(${col} AT TIME ZONE 'Asia/Kolkata')`;
+
+// ─────────────────────────────────────────────────────────────────────────
 // TREND
 // ─────────────────────────────────────────────────────────────────────────
 export const getTrendData = async (req, res) => {
@@ -41,36 +58,37 @@ export const getTrendData = async (req, res) => {
     if (cached) return res.json(cached);
 
     let dateExpr, whereDate, groupByExpr, orderByExpr;
+    const ist = istExpr('"created_at"');
 
     if (range === "daily") {
-      dateExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT`;
-      groupByExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT`;
-      orderByExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT`;
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
+      dateExpr = `EXTRACT(HOUR FROM ${ist})::INT`;
+      groupByExpr = `EXTRACT(HOUR FROM ${ist})::INT`;
+      orderByExpr = `EXTRACT(HOUR FROM ${ist})::INT`;
+      whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      dateExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      groupByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      orderByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      dateExpr = `CAST(${ist} AS DATE)`;
+      groupByExpr = `CAST(${ist} AS DATE)`;
+      orderByExpr = `CAST(${ist} AS DATE)`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
     } else if (range === "monthly") {
-      dateExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      groupByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      orderByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      whereDate = `AND DATE_TRUNC('month', COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at")) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
+      dateExpr = `CAST(${ist} AS DATE)`;
+      groupByExpr = `CAST(${ist} AS DATE)`;
+      orderByExpr = `CAST(${ist} AS DATE)`;
+      whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {
-      dateExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      groupByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      orderByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
+      dateExpr = `CAST(${ist} AS DATE)`;
+      groupByExpr = `CAST(${ist} AS DATE)`;
+      orderByExpr = `CAST(${ist} AS DATE)`;
       whereDate = `
         AND (
-          (:from IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= :from::date)
-          AND (:to IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) <= :to::date)
+          (:from IS NULL OR CAST(${ist} AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(${ist} AS DATE) <= :to::date)
         )
       `;
     } else {
-      dateExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      groupByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      orderByExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
+      dateExpr = `CAST(${ist} AS DATE)`;
+      groupByExpr = `CAST(${ist} AS DATE)`;
+      orderByExpr = `CAST(${ist} AS DATE)`;
       whereDate = "";
     }
 
@@ -143,18 +161,19 @@ export const getTopItems = async (req, res) => {
     if (cached) return res.json(cached);
 
     let whereDate = "";
+    const ist = istExpr('o."created_at"');
 
     if (range === "daily") {
-      whereDate = `AND CAST(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at") AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
+      whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      whereDate = `AND CAST(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at") AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
     } else if (range === "monthly") {
-      whereDate = `AND DATE_TRUNC('month', COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at")) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
+      whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {
       whereDate = `
         AND (
-          (:from IS NULL OR CAST(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at") AS DATE) >= :from::date)
-          AND (:to IS NULL OR CAST(COALESCE(o."created_at" AT TIME ZONE 'Asia/Kolkata', o."created_at") AS DATE) <= :to::date)
+          (:from IS NULL OR CAST(${ist} AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(${ist} AS DATE) <= :to::date)
         )
       `;
     }
@@ -224,36 +243,37 @@ export const getOrdersOverview = async (req, res) => {
     if (cached) return res.json(cached);
 
     let groupExpr, labelExpr, orderExpr, whereDate = "";
+    const ist = istExpr('"created_at"');
 
     if (range === "daily") {
-      groupExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT`;
-      labelExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT || ':00'`;
-      orderExpr = `EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT`;
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
+      groupExpr = `EXTRACT(HOUR FROM ${ist})::INT`;
+      labelExpr = `EXTRACT(HOUR FROM ${ist})::INT || ':00'`;
+      orderExpr = `EXTRACT(HOUR FROM ${ist})::INT`;
+      whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      groupExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      labelExpr = `TO_CHAR(CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE), 'DD Mon')`;
-      orderExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      groupExpr = `CAST(${ist} AS DATE)`;
+      labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
+      orderExpr = `CAST(${ist} AS DATE)`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
     } else if (range === "monthly") {
-      groupExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      labelExpr = `TO_CHAR(CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE), 'DD Mon')`;
-      orderExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      whereDate = `AND DATE_TRUNC('month', COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at")) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
+      groupExpr = `CAST(${ist} AS DATE)`;
+      labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
+      orderExpr = `CAST(${ist} AS DATE)`;
+      whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {
-      groupExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      labelExpr = `TO_CHAR(CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE), 'DD Mon')`;
-      orderExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
+      groupExpr = `CAST(${ist} AS DATE)`;
+      labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
+      orderExpr = `CAST(${ist} AS DATE)`;
       whereDate = `
         AND (
-          (:from IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= :from::date)
-          AND (:to IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) <= :to::date)
+          (:from IS NULL OR CAST(${ist} AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(${ist} AS DATE) <= :to::date)
         )
       `;
     } else {
-      groupExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
-      labelExpr = `TO_CHAR(CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE), 'DD Mon')`;
-      orderExpr = `CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE)`;
+      groupExpr = `CAST(${ist} AS DATE)`;
+      labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
+      orderExpr = `CAST(${ist} AS DATE)`;
     }
 
     const query = `
@@ -306,25 +326,26 @@ export const getPeakHours = async (req, res) => {
     if (cached) return res.json(cached);
 
     let whereDate = "";
+    const ist = istExpr('"created_at"');
 
     if (range === "daily") {
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
+      whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      whereDate = `AND CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
     } else if (range === "monthly") {
-      whereDate = `AND DATE_TRUNC('month', COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at")) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
+      whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {
       whereDate = `
         AND (
-          (:from IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) >= :from::date)
-          AND (:to IS NULL OR CAST(COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at") AS DATE) <= :to::date)
+          (:from IS NULL OR CAST(${ist} AS DATE) >= :from::date)
+          AND (:to IS NULL OR CAST(${ist} AS DATE) <= :to::date)
         )
       `;
     }
 
     const query = `
       SELECT
-        EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT AS hour,
+        EXTRACT(HOUR FROM ${ist})::INT AS hour,
         COUNT(*)::INT AS orders
       FROM orders
       WHERE
@@ -332,7 +353,7 @@ export const getPeakHours = async (req, res) => {
         AND "paymentstatus" = 'SUCCESS'
         ${pmClause}
         ${whereDate}
-      GROUP BY EXTRACT(HOUR FROM COALESCE("created_at" AT TIME ZONE 'Asia/Kolkata', "created_at"))::INT
+      GROUP BY EXTRACT(HOUR FROM ${ist})::INT
       ORDER BY hour ASC
     `;
 
@@ -366,9 +387,11 @@ export const getCommissionStats = async (req, res) => {
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
+    // ✅ FIX: Use IST for commission date filtering too
+    const ist = istExpr('"created_at"');
     let whereDate = "";
     if (from && to) {
-      whereDate = `AND ("created_at" >= :from::date AND "created_at" <= :to::date)`;
+      whereDate = `AND (CAST(${ist} AS DATE) >= :from::date AND CAST(${ist} AS DATE) <= :to::date)`;
     }
 
     const result = await sequelize.query(
