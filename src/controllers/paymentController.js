@@ -279,7 +279,7 @@ export const createCashfreeOrder = async (req, res) => {
     // /confirm is called, the webhook handler uses this snapshot to
     // auto-create the order so money is never debited without an order.
     // =====================================================================
-    const cashfreeOrderId = req.body.orderId;
+    const cashfreeOrderId = response.data?.order_id || response.data?.orderId;
     const studentId = req.user?.id;
     const orderAmount = req.body.orderAmount;
 
@@ -913,8 +913,13 @@ export const verifyPaymentStatus = async (req, res) => {
 
       const payments = paymentsResponse.data;
       if (Array.isArray(payments) && payments.length > 0) {
-        const latest = payments[payments.length - 1];
-        paymentStatus = latest.payment_status || "";
+        const successfulPayment = payments.find(p => p.payment_status === "SUCCESS");
+        if (successfulPayment) {
+          paymentStatus = "SUCCESS";
+        } else {
+          const latest = payments[payments.length - 1];
+          paymentStatus = latest.payment_status || "";
+        }
       }
     } catch (payErr) {
       console.log("⚠️ [VERIFY] /payments endpoint error:", payErr.message);
@@ -962,7 +967,7 @@ export const verifyPaymentStatus = async (req, res) => {
       message: isSuccess ? "Payment verified successfully" : `Payment not completed: ${paymentStatus || orderStatus}`,
     };
 
-    const isFinal = isSuccess || paymentStatus === "FAILED" || paymentStatus === "USER_DROPPED";
+    const isFinal = isSuccess; // FAILED/USER_DROPPED are not final since user can retry
     const ttl = isFinal ? PAYMENT_STATUS_FINAL_TTL : PAYMENT_STATUS_PENDING_TTL;
     await setCache(cacheKey, responsePayload, ttl);
 
