@@ -1274,6 +1274,28 @@ export const syncFromWebhook = async (req, res) => {
             });
           }
 
+          // Notify the User (Student) to confirm background order
+          try {
+            const userTokens = await UserFcmToken.findAll({ where: { userId: recoveredOrder.studentId } });
+            if (userTokens.length > 0) {
+              await admin.messaging().sendEachForMulticast({
+                tokens: userTokens.map((t) => t.fcmToken),
+                notification: {
+                  title: "✅ Payment Successful",
+                  body: `Your delayed payment was processed. Order placed and sent to the cafeteria!`,
+                },
+                data: {
+                  type: "ORDER_RECOVERED",
+                  orderId: String(recoveredOrder.id),
+                },
+                android: { priority: "high", notification: { channelId: "high_importance_channel", sound: "default" } },
+                apns: { payload: { aps: { sound: "default", badge: 1 } } },
+              });
+            }
+          } catch (userNotifyErr) {
+            console.error("⚠️ [WEBHOOK RECOVERY] Failed to notify user:", userNotifyErr.message);
+          }
+
           clearAnalyticsCache(recoveredOrder.cafeteriaId).catch(() => {});
         } catch (notifyErr) {
           console.error("⚠️ [WEBHOOK RECOVERY] Notification error:", notifyErr.message);
