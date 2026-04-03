@@ -244,6 +244,17 @@ export const createCashfreeOrder = async (req, res) => {
     console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
     const payload = req.body;
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
+
+    // 🔥 INJECT WEBHOOK URL: Point Cashfree strictly to the Firebase Webhook Wrapper
+    // (Firebase handles Cashfree signature validation, then securely forwards it to Railway)
+    const firebaseWebhookUrl = financeBackendUrl.replace("createcashfreeorder", "cashfreewebhook");
+    
+    if (payload.orderMeta) {
+      payload.orderMeta.notify_url = firebaseWebhookUrl;
+    } else {
+      payload.orderMeta = { notify_url: firebaseWebhookUrl };
+    }
+
     const internalApiKey = process.env.WEBHOOK_API_KEY;
 
     console.log(`🔗 [PROXY] Finance URL: ${financeBackendUrl}`);
@@ -1210,6 +1221,20 @@ export const syncFromWebhook = async (req, res) => {
             specialInstructions: item.note || null,
           }));
           await OrderItem.bulkCreate(formattedItems, { transaction: t });
+
+          // 📦 [STOCK] Deduct inventory securely
+          for (const item of formattedItems) {
+            if (!item.menuItemId) continue;
+            const menuItem = await sequelize.models.MenuItem.findByPk(item.menuItemId, { transaction: t });
+            if (!menuItem) continue;
+
+            const newStock = Math.max(0, menuItem.stock - item.quantity);
+            const updates = { stock: newStock };
+            if (newStock === 0) updates.isAvailable = false;
+            
+            await menuItem.update(updates, { transaction: t });
+            console.log(`📦 [WEBHOOK STOCK] ${menuItem.name} ${menuItem.stock} → ${newStock}`);
+          }
         }
 
         await updateUserStreak(snapStudentId, snapCafeteriaId, t);
