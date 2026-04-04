@@ -220,7 +220,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
   try {
-    const { items, cafeteriaId } = req.body;
+    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount } = req.body;
 
     // 🔍 STOCK CHECK (IF ITEMS PROVIDED)
     if (items && Array.isArray(items) && items.length > 0) {
@@ -299,21 +299,33 @@ export const createCashfreeOrder = async (req, res) => {
         try {
           await sequelize.query(
             `CREATE TABLE IF NOT EXISTS order_snapshots (
-              cashfree_order_id VARCHAR(255) PRIMARY KEY,
-              student_id        INTEGER NOT NULL,
-              cafeteria_id      INTEGER NOT NULL,
-              amount            DECIMAL(10,2) NOT NULL,
-              items             JSONB NOT NULL DEFAULT '[]',
-              created_at        TIMESTAMP DEFAULT NOW(),
-              expires_at        TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
+              cashfree_order_id   VARCHAR(255) PRIMARY KEY,
+              student_id          INTEGER NOT NULL,
+              cafeteria_id        INTEGER NOT NULL,
+              amount              DECIMAL(10,2) NOT NULL,
+              items               JSONB NOT NULL DEFAULT '[]',
+              commission_amount   DECIMAL(10,2) NOT NULL DEFAULT 0,
+              platform_fee        DECIMAL(10,2) NOT NULL DEFAULT 0,
+              gst_amount          DECIMAL(10,2) NOT NULL DEFAULT 0,
+              is_parcel           BOOLEAN NOT NULL DEFAULT false,
+              parcel_amount       DECIMAL(10,2) NOT NULL DEFAULT 0,
+              created_at          TIMESTAMP DEFAULT NOW(),
+              expires_at          TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
             )`,
             { type: QueryTypes.RAW }
           );
 
+          // Ensure new columns exist for existing tables (safe migration)
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS gst_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS is_parcel BOOLEAN NOT NULL DEFAULT false`, { type: QueryTypes.RAW }).catch(() => {});
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS parcel_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+
           await sequelize.query(
             `INSERT INTO order_snapshots
-               (cashfree_order_id, student_id, cafeteria_id, amount, items)
-             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items)
+               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount)
+             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount)
              ON CONFLICT (cashfree_order_id) DO NOTHING`,
             {
               replacements: {
@@ -322,6 +334,11 @@ export const createCashfreeOrder = async (req, res) => {
                 cafeteriaId: Number(cafeteriaId),
                 amount: Number(orderAmount) || 0,
                 items: JSON.stringify(Array.isArray(items) ? items : []),
+                commissionAmount: Number(snapCommission) || 0,
+                platformFee: Number(snapPlatformFee) || 0,
+                gstAmount: Number(snapGst) || 0,
+                isParcel: Boolean(snapIsParcel),
+                parcelAmount: Number(snapParcelAmount) || 0,
               },
               type: QueryTypes.INSERT,
             }
@@ -1194,16 +1211,20 @@ export const syncFromWebhook = async (req, res) => {
           {
             cashfreeOrderId,
             billId,
-            studentId:    snapStudentId,
-            cafeteriaId:  snapCafeteriaId,
-            totalAmount:  snapAmount,
-            status:       "PAID",
-            paymentStatus: "SUCCESS",
+            studentId:       snapStudentId,
+            cafeteriaId:     snapCafeteriaId,
+            totalAmount:     snapAmount,
+            status:          "PAID",
+            paymentStatus:   "SUCCESS",
+            paymentMethod:   "ONLINE",
             kotNumber,
             dailyOrderNumber,
             totalOrderNumber,
-            isParcel: false,
-            parcelAmount: 0,
+            commissionAmount: Number(snap.commission_amount) || 0,
+            platformFee:      Number(snap.platform_fee) || 0,
+            gstAmount:        Number(snap.gst_amount) || 0,
+            isParcel:         Boolean(snap.is_parcel),
+            parcelAmount:     Number(snap.parcel_amount) || 0,
           },
           { transaction: t }
         );
