@@ -88,6 +88,28 @@ export default (sequelize) => {
       type: DataTypes.DATE,
       field: "updated_at",
     },
+    isUninstalled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: "is_uninstalled",
+    },
+    uninstalledAt: {
+      type: DataTypes.DATE,
+      field: "uninstalled_at",
+    },
+    isAccountDeleted: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: "is_account_deleted",
+    },
+    accountDeletedAt: {
+      type: DataTypes.DATE,
+      field: "account_deleted_at",
+    },
+    originalEmail: {
+      type: DataTypes.STRING,
+      field: "original_email",
+    },
   }, {
     tableName: 'users',
     timestamps: true,

@@ -289,6 +289,7 @@ import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria } 
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
+import { sendBatchNotifications } from "../utils/notificationUtils.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
@@ -742,20 +743,8 @@ export const updateOrderStatus = async (req, res) => {
             }));
 
             try {
-              const response = await admin.messaging().sendEach(messages);
+              const response = await sendBatchNotifications(messages, userTokens);
               console.log(`✅ FCM (${status}) Batch sent. Success: ${response.successCount}, Failure: ${response.failureCount}`);
-              
-              // Cleanup invalid tokens
-              response.responses.forEach(async (res, idx) => {
-                if (!res.success && (
-                  res.error?.code === 'messaging/registration-token-not-registered' ||
-                  res.error?.code === 'messaging/invalid-registration-token' ||
-                  res.error?.code === 'messaging/third-party-auth-error'
-                )) {
-                  await UserFcmToken.destroy({ where: { fcmToken: userTokens[idx].fcmToken } });
-                  console.log(`🗑️ Deleted invalid token: ${userTokens[idx].fcmToken.substring(0, 10)}...`);
-                }
-              });
             } catch (batchError) {
               console.error("❌ FCM Batch Send Error:", batchError.message);
             }

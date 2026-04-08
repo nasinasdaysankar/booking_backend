@@ -12,6 +12,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
 import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics } from "../controllers/superadminController.js";
+import { sendNotification, sendBatchNotifications, sendMulticastNotification } from "../utils/notificationUtils.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
 
 const router = express.Router();
@@ -329,24 +330,32 @@ router.get('/stats', superadminAuth, async (req, res) => {
 // ============================================
 router.get('/orders', superadminAuth, async (req, res) => {
     try {
-        const { status, cafeteriaId, limit = 100, offset = 0, days } = req.query;
-
-        const where = {
-            paymentStatus: 'SUCCESS'
-        };
-
-        if (status) {
-            where.status = status;
-        }
-
-        if (cafeteriaId) {
-            where.cafeteriaId = cafeteriaId;
-        }
+        const { status, statusGroup, cafeteriaId, limit = 500, offset = 0, days, search } = req.query;
 
         // Build date filter for SQL
         let dateFilter = '';
         if (days) {
             dateFilter = `AND orders."created_at" >= NOW() - INTERVAL '${parseInt(days)} days'`;
+        }
+
+        // Build search filter for SQL (search by customer name or email)
+        let searchFilter = '';
+        if (search) {
+            searchFilter = `AND (users.name ILIKE :search OR users.email ILIKE :search OR orders."billid" ILIKE :search OR orders."kotnumber" ILIKE :search)`;
+        }
+
+        // Build status filter — supports single status OR comma-separated statusGroup
+        let statusFilter = '';
+        let statusList = [];
+        if (statusGroup) {
+            // Multi-status group from tab selection (e.g. "PAID,PREPARING,READY")
+            statusList = String(statusGroup).split(',').map(s => s.trim()).filter(Boolean);
+            if (statusList.length > 0) {
+                statusFilter = `AND orders.status IN (:statusList)`;
+            }
+        } else if (status) {
+            // Single status filter
+            statusFilter = `AND orders.status = :status`;
         }
 
         const orders = await sequelize.query(
@@ -376,23 +385,98 @@ router.get('/orders', superadminAuth, async (req, res) => {
             FROM orders
             LEFT JOIN cafeterias ON orders."cafeteriaid" = cafeterias.id
             LEFT JOIN users ON orders."studentid" = users.id
-            WHERE orders."paymentstatus" = 'SUCCESS'
-            ${status ? `AND orders.status = :status` : ''}
+            WHERE 1=1
+            ${statusFilter}
             ${cafeteriaId ? `AND orders."cafeteriaid" = :cafeteriaId` : ''}
             ${dateFilter}
+            ${searchFilter}
             ORDER BY orders."created_at" DESC
             LIMIT :limit OFFSET :offset
             `,
             {
                 replacements: {
                     status: status || null,
+                    statusList: statusList.length > 0 ? statusList : null,
                     cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null,
                     limit: parseInt(limit),
-                    offset: parseInt(offset)
+                    offset: parseInt(offset),
+                    search: search ? `%${search}%` : null
                 },
                 type: QueryTypes.SELECT
             }
         );
+
+        // Get total count for the current tab (respects statusFilter)
+        const countResult = await sequelize.query(
+            `
+            SELECT COUNT(*) as count
+            FROM orders
+            LEFT JOIN users ON orders."studentid" = users.id
+            WHERE 1=1
+            ${statusFilter}
+            ${cafeteriaId ? `AND orders."cafeteriaid" = :cafeteriaId` : ''}
+            ${dateFilter}
+            ${searchFilter}
+            `,
+            {
+                replacements: {
+                    status: status || null,
+                    statusList: statusList.length > 0 ? statusList : null,
+                    cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null,
+                    search: search ? `%${search}%` : null
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+        const totalCount = parseInt(countResult[0].count) || 0;
+
+        // Get per-status counts (always unfiltered by status, but respects cafeteria/date/search)
+        // so the dashboard stats cards show accurate totals regardless of status filter
+        const statusCountsResult = await sequelize.query(
+            `
+            SELECT
+                orders.status,
+                COUNT(*) as count
+            FROM orders
+            LEFT JOIN users ON orders."studentid" = users.id
+            WHERE 1=1
+            ${cafeteriaId ? `AND orders."cafeteriaid" = :cafeteriaId` : ''}
+            ${dateFilter}
+            ${searchFilter}
+            GROUP BY orders.status
+            `,
+            {
+                replacements: {
+                    cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null,
+                    search: search ? `%${search}%` : null
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        // Build a statusCounts map: { PICKED_UP: 1402, PREPARING: 12, ... }
+        const statusCounts = {};
+        for (const row of statusCountsResult) {
+            statusCounts[row.status] = parseInt(row.count) || 0;
+        }
+
+        // allOrdersCount = total across ALL statuses (always global, ignores tab filter)
+        const allOrdersCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+
+        // Total revenue from ALL successful payment orders (global, respects cafeteria filter only)
+        const revenueResult = await sequelize.query(
+            `
+            SELECT COALESCE(SUM(totalamount - COALESCE(platform_fee, 0) - COALESCE(commission_amount, 0)), 0) AS "totalRevenue"
+            FROM orders
+            WHERE paymentstatus = 'SUCCESS'
+            ${cafeteriaId ? `AND cafeteriaid = :cafeteriaId` : ''}
+            `,
+            {
+                replacements: { cafeteriaId: cafeteriaId ? parseInt(cafeteriaId) : null },
+                type: QueryTypes.SELECT
+            }
+        );
+        const totalRevenue = parseFloat(revenueResult[0]?.totalRevenue || 0);
 
         // Get order items for each order
         if (orders.length > 0) {
@@ -430,7 +514,10 @@ router.get('/orders', superadminAuth, async (req, res) => {
 
             return res.json({
                 success: true,
-                count: combinedData.length,
+                count: totalCount,        // count for current tab/filter
+                allOrdersCount,           // always the real total across all statuses
+                totalRevenue,             // always global revenue
+                statusCounts,
                 data: combinedData
             });
         }
@@ -438,6 +525,9 @@ router.get('/orders', superadminAuth, async (req, res) => {
         res.json({
             success: true,
             count: 0,
+            allOrdersCount,
+            totalRevenue,
+            statusCounts,
             data: []
         });
     } catch (error) {
@@ -657,7 +747,7 @@ router.get('/advanced-analytics', superadminAuth, getAdvancedAnalytics);
 // ============================================
 router.get('/customers', superadminAuth, async (req, res) => {
     try {
-        const { limit = 100, offset = 0, search, cafeteriaId } = req.query;
+        const { limit = 1000, offset = 0, search, cafeteriaId, type } = req.query;
 
         // If cafeteriaId is provided, get customers who have ordered from that cafeteria
         if (cafeteriaId) {
@@ -668,6 +758,13 @@ router.get('/customers', superadminAuth, async (req, res) => {
                     u.name,
                     u.email,
                     u.phone,
+                    u.role,
+                    COALESCE(u.is_blocked, false) AS "isBlocked",
+                    COALESCE(u.is_uninstalled, false) AS "isUninstalled",
+                    u.uninstalled_at AS "uninstalledAt",
+                    COALESCE(u.is_account_deleted, false) AS "isAccountDeleted",
+                    u.account_deleted_at AS "accountDeletedAt",
+                    u.original_email AS "originalEmail",
                     u."created_at" AS "createdAt",
                     u."updated_at" AS "updatedAt",
                     (SELECT COUNT(*) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS' AND o.cafeteriaid = :cafeteriaId) as "orderCount",
@@ -675,8 +772,10 @@ router.get('/customers', superadminAuth, async (req, res) => {
                     (SELECT COALESCE(SUM(durationseconds), 0) FROM user_activities ua WHERE ua.userid = u.id AND ua.activitytype = 'SESSION_END') as "totalUsageSeconds"
                 FROM users u
                 WHERE EXISTS (SELECT 1 FROM orders o WHERE o.studentid = u.id AND o.cafeteriaid = :cafeteriaId)
-                ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-                ORDER BY u."created_at" DESC
+                ${type === 'uninstalled' ? 'AND u.is_uninstalled = true' : ''}
+                ${type === 'deleted' ? 'AND u.is_account_deleted = true' : ''}
+                ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search OR u.original_email ILIKE :search)` : ''}
+                ORDER BY ${type === 'uninstalled' ? 'u.uninstalled_at DESC' : type === 'deleted' ? 'u.account_deleted_at DESC' : '"orderCount" DESC, u."created_at" DESC'}
                 LIMIT :limit OFFSET :offset
                 `,
                 {
@@ -698,6 +797,7 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 INNER JOIN orders o ON u.id = o."studentid"
                 WHERE o."cafeteriaid" = :cafeteriaId
                 AND o."paymentstatus" = 'SUCCESS'
+                ${type === 'uninstalled' ? 'AND u.is_uninstalled = true' : ''}
                 ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
                 `,
                 {
@@ -724,14 +824,27 @@ router.get('/customers', superadminAuth, async (req, res) => {
                 u.name,
                 u.email,
                 u.phone,
+                u.role,
+                COALESCE(u.is_blocked, false) AS "isBlocked",
+                COALESCE(u.is_uninstalled, false) AS "isUninstalled",
+                u.uninstalled_at AS "uninstalledAt",
+                COALESCE(u.is_account_deleted, false) AS "isAccountDeleted",
+                u.account_deleted_at AS "accountDeletedAt",
+                u.original_email AS "originalEmail",
                 u."created_at" AS "createdAt",
                 u."updated_at" AS "updatedAt",
+                (SELECT COUNT(*) FROM users) as "totalCustomers",
+                (SELECT COUNT(*) FROM users WHERE is_uninstalled = true) as "uninstalledCount",
+                (SELECT COUNT(*) FROM users WHERE is_account_deleted = true) as "deletedCount",
                 (SELECT COUNT(*) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS') as "orderCount",
                 (SELECT COALESCE(SUM(totalamount), 0) FROM orders o WHERE o.studentid = u.id AND o.paymentstatus = 'SUCCESS') as "totalSpent",
                 (SELECT COALESCE(SUM(durationseconds), 0) FROM user_activities ua WHERE ua.userid = u.id AND ua.activitytype = 'SESSION_END') as "totalUsageSeconds"
             FROM users u
-            ${search ? `WHERE (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search)` : ''}
-            ORDER BY u."created_at" DESC
+            WHERE 1=1
+            ${type === 'uninstalled' ? 'AND u.is_uninstalled = true' : ''}
+            ${type === 'deleted' ? 'AND u.is_account_deleted = true' : ''}
+            ${search ? `AND (u.name ILIKE :search OR u.email ILIKE :search OR u.phone ILIKE :search OR u.original_email ILIKE :search)` : ''}
+            ORDER BY ${type === 'uninstalled' ? 'u.uninstalled_at DESC' : type === 'deleted' ? 'u.account_deleted_at DESC' : '"orderCount" DESC, u."created_at" DESC'}
             LIMIT :limit OFFSET :offset
             `,
             {
@@ -744,28 +857,104 @@ router.get('/customers', superadminAuth, async (req, res) => {
             }
         );
 
-        // Get total count
+        // Get total count (for the current search filter)
         const countResult = await sequelize.query(
             `
             SELECT COUNT(*) as count FROM users
-            ${search ? `WHERE (name ILIKE :search OR email ILIKE :search OR phone ILIKE :search)` : ''}
+            WHERE 1=1
+            ${type === 'uninstalled' ? 'AND is_uninstalled = true' : ''}
+            ${type === 'deleted' ? 'AND is_account_deleted = true' : ''}
+            ${search ? `AND (name ILIKE :search OR email ILIKE :search OR phone ILIKE :search OR original_email ILIKE :search)` : ''}
             `,
             {
-                replacements: {
-                    search: search ? `%${search}%` : null
-                },
+                replacements: { search: search ? `%${search}%` : null },
                 type: QueryTypes.SELECT
             }
+        );
+
+        // Get global stats (ignores search filter, always correct)
+        const globalStatsResult = await sequelize.query(
+            `
+            SELECT 
+                COUNT(*) as "totalCustomers",
+                COUNT(CASE WHEN COALESCE(is_blocked, false) = true THEN 1 END) as "blockedCustomers",
+                COUNT(CASE WHEN COALESCE(is_account_deleted, false) = true THEN 1 END) as "deletedCount",
+                COUNT(CASE WHEN "created_at" >= date_trunc('month', CURRENT_DATE) THEN 1 END) as "newThisMonth"
+            FROM users
+            `,
+            { type: QueryTypes.SELECT }
+        );
+
+        const activeCustomersResult = await sequelize.query(
+            `SELECT COUNT(DISTINCT u.id) as "activeCustomers" 
+             FROM users u JOIN orders o ON u.id = o.studentid 
+             WHERE o.paymentstatus = 'SUCCESS' AND COALESCE(u.is_blocked, false) = false AND COALESCE(u.is_account_deleted, false) = false`,
+            { type: QueryTypes.SELECT }
+        );
+
+        const globalRevenueResult = await sequelize.query(
+            `SELECT COALESCE(SUM(totalamount - COALESCE(platform_fee, 0) - COALESCE(commission_amount, 0)), 0) as "totalRevenue" 
+             FROM orders WHERE paymentstatus = 'SUCCESS'`,
+            { type: QueryTypes.SELECT }
         );
 
         res.json({
             success: true,
             count: parseInt(countResult[0].count),
+            globalStats: {
+                totalCustomers: parseInt(globalStatsResult[0].totalCustomers) || 0,
+                blockedCustomers: parseInt(globalStatsResult[0].blockedCustomers) || 0,
+                newThisMonth: parseInt(globalStatsResult[0].newThisMonth) || 0,
+                activeCustomers: parseInt(activeCustomersResult[0].activeCustomers) || 0,
+                totalRevenue: parseFloat(globalRevenueResult[0].totalRevenue) || 0,
+            },
             data: customers
         });
     } catch (error) {
         console.error('Superadmin customers error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch customers' });
+    }
+});
+
+// ============================================
+// BLOCK / UNBLOCK CUSTOMER (SUPERADMIN)
+// ============================================
+router.put('/users/:id/block', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isBlocked } = req.body;
+
+        if (typeof isBlocked !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'isBlocked must be a boolean' });
+        }
+
+        // Ensure column exists (safe to run multiple times)
+        await sequelize.query(
+            `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT false`,
+            { type: QueryTypes.RAW }
+        );
+
+        // Update using raw SQL since User model doesn't have this column yet
+        const [, affected] = await sequelize.query(
+            `UPDATE users SET is_blocked = :isBlocked WHERE id = :id`,
+            {
+                replacements: { isBlocked, id: parseInt(id) },
+                type: QueryTypes.UPDATE
+            }
+        );
+
+        if (affected === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json({
+            success: true,
+            message: `User ${isBlocked ? 'blocked' : 'unblocked'} successfully`,
+            data: { id: parseInt(id), isBlocked }
+        });
+    } catch (error) {
+        console.error('Block/unblock user error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update user block status' });
     }
 });
 
@@ -782,8 +971,18 @@ router.get('/admins', superadminAuth, async (req, res) => {
                 a."staffid" AS "staffId",
                 a.role,
                 a."cafeteriaid" AS "cafeteriaId",
+                COALESCE(a.is_active, true) AS "isActive",
                 a."created_at" AS "createdAt",
-                c.name as "cafeteriaName"
+                c.name as "cafeteriaName",
+                (
+                    SELECT json_agg(json_build_object(
+                        'deviceInfo', af."device_info",
+                        'lastActive', af."updated_at",
+                        'token', af."fcmtoken"
+                    ))
+                    FROM admin_fcm_tokens af
+                    WHERE af.adminid = a.id AND af."fcmtoken" IS NOT NULL
+                ) AS "devices"
             FROM admins a
             LEFT JOIN cafeterias c ON a."cafeteriaid" = c.id
             ORDER BY a.id ASC
@@ -791,9 +990,14 @@ router.get('/admins', superadminAuth, async (req, res) => {
             { type: QueryTypes.SELECT }
         );
 
+        const processedAdmins = admins.map(a => ({
+            ...a,
+            devices: a.devices || []
+        }));
+
         res.json({
             success: true,
-            data: admins
+            data: processedAdmins
         });
     } catch (error) {
         console.error('Superadmin admins error:', error);
@@ -837,6 +1041,66 @@ router.post('/admins', superadminAuth, async (req, res) => {
     } catch (error) {
         console.error('Superadmin create admin error:', error);
         res.status(500).json({ success: false, message: 'Failed to create admin' });
+    }
+});
+
+// ============================================
+// UPDATE ADMIN STATUS / SUSPEND (SUPERADMIN)
+// ============================================
+router.put('/admins/:id/status', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isActive } = req.body;
+
+        const result = await sequelize.query(
+            `UPDATE admins SET is_active = :isActive WHERE id = :id RETURNING id, is_active`,
+            {
+                replacements: { id, isActive },
+                type: QueryTypes.UPDATE
+            }
+        );
+
+        if (!result || result[1] === 0) {
+            return res.status(404).json({ success: false, message: 'Admin not found' });
+        }
+
+        res.json({ success: true, message: 'Admin status updated successfully' });
+    } catch (error) {
+        console.error('Superadmin update admin status error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update admin status' });
+    }
+});
+
+// ============================================
+// RESET ADMIN PASSWORD (SUPERADMIN)
+// ============================================
+router.put('/admins/:id/reset-password', superadminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+
+        if (!password) {
+            return res.status(400).json({ success: false, message: 'New password is required' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const result = await sequelize.query(
+            `UPDATE admins SET password = :password WHERE id = :id RETURNING id`,
+            {
+                replacements: { id, password: hashedPassword },
+                type: QueryTypes.UPDATE
+            }
+        );
+
+        if (!result || result[1] === 0) {
+            return res.status(404).json({ success: false, message: 'Admin not found' });
+        }
+
+        res.json({ success: true, message: 'Password reset successfully' });
+    } catch (error) {
+        console.error('Superadmin reset admin password error:', error);
+        res.status(500).json({ success: false, message: 'Failed to reset password' });
     }
 });
 
@@ -930,7 +1194,7 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
 
         // Fetch all user tokens
         const userTokens = await UserFcmToken.findAll({
-            attributes: ['fcmToken']
+            attributes: ['fcmToken', 'userId']
         });
 
         if (userTokens.length === 0) {
@@ -938,6 +1202,11 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
         }
 
         const tokens = [...new Set(userTokens.map(t => t.fcmToken))];
+        const userTokenMap = userTokens.reduce((map, ut) => {
+            map[ut.fcmToken] = ut.userId;
+            return map;
+        }, {});
+        
         console.log(`📣 Broadcasting to ${tokens.length} unique tokens`);
 
         // Firebase sendEachForMulticast accepts max 500 tokens at a time.
@@ -949,11 +1218,10 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
 
         let totalSuccess = 0;
         let totalFailure = 0;
-        let invalidTokens = [];
 
         // Process batches
         for (const batchTokens of batches) {
-            const response = await admin.messaging().sendEachForMulticast({
+            const multicastMessage = {
                 tokens: batchTokens,
                 notification: {
                     title,
@@ -968,48 +1236,25 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
                     notification: {
                         channelId: "high_importance_channel",
                         body: body,
+                        sound: "default"
                     }
                 },
                 apns: {
                     payload: {
                         aps: {
                             sound: "default",
-                            badge: 1,
-                            alert: {
-                                title: title,
-                                body: body,
-                            },
+                            badge: 1
                         }
                     }
                 }
-            });
+            };
 
+            const response = await sendMulticastNotification(multicastMessage, userTokenMap);
             totalSuccess += response.successCount;
             totalFailure += response.failureCount;
-
-            // Collect invalid tokens to clean up
-            if (response.failureCount > 0) {
-                response.responses.forEach((resp, idx) => {
-                    if (!resp.success && (
-                        resp.error?.code === 'messaging/invalid-registration-token' ||
-                        resp.error?.code === 'messaging/registration-token-not-registered' ||
-                        resp.error?.code === 'messaging/third-party-auth-error'
-                    )) {
-                        invalidTokens.push(batchTokens[idx]);
-                    }
-                });
-            }
         }
 
         console.log(`✅ Broadcast successful. Success: ${totalSuccess}, Failure: ${totalFailure}`);
-
-        // Cleanup invalid tokens if any failures occurred
-        if (invalidTokens.length > 0) {
-            console.log(`🧹 Removing ${invalidTokens.length} invalid tokens`);
-            await UserFcmToken.destroy({
-                where: { fcmToken: invalidTokens }
-            });
-        }
 
         res.json({
             success: true,
@@ -1506,7 +1751,12 @@ router.put('/support-tickets/:id/resolve', superadminAuth, async (req, res) => {
 
                 if (tokens.length > 0) {
                     const uniqueTokens = [...new Set(tokens)];
-                    await admin.messaging().sendEachForMulticast({
+                    const userTokenMap = uniqueTokens.reduce((map, token) => {
+                        map[token] = ticket.userId;
+                        return map;
+                    }, {});
+
+                    const multicastMessage = {
                         tokens: uniqueTokens,
                         notification: {
                             title: notifTitle,
@@ -1538,7 +1788,9 @@ router.put('/support-tickets/:id/resolve', superadminAuth, async (req, res) => {
                                 },
                             },
                         },
-                    });
+                    };
+
+                    await sendMulticastNotification(multicastMessage, userTokenMap, ticketSource === 'admin');
                     console.log(`✅ Support ticket notification sent to ${ticketSource} ${ticket.userId}`);
                 } else {
                     console.log(`⚠️ No FCM tokens found for ${ticketSource} ${ticket.userId}`);

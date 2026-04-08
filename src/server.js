@@ -69,6 +69,59 @@ const start = async () => {
     logger.info("🔗 Connecting to database...");
     await sequelize.authenticate();
     logger.info("✅ Database connected");
+
+    // ✅ Ensure is_blocked column exists on users table (safe migration)
+    try {
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT false`
+      );
+      logger.info("✅ users.is_blocked column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure is_blocked column: " + colErr.message);
+    }
+
+    // ✅ Ensure is_active column exists on admins table for suspension support
+    try {
+      await sequelize.query(
+        `ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`
+      );
+      logger.info("✅ admins.is_active column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure admins is_active column: " + colErr.message);
+    }
+
+    // ✅ Ensure device_info column exists on admin_fcm_tokens
+    try {
+      await sequelize.query(
+        `ALTER TABLE admin_fcm_tokens ADD COLUMN IF NOT EXISTS device_info VARCHAR(255) DEFAULT 'Unknown Device'`
+      );
+      logger.info("✅ admin_fcm_tokens.device_info column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure admin_fcm_tokens device_info column: " + colErr.message);
+    }
+
+    // ✅ Ensure uninstalled columns exist on users table
+    try {
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_uninstalled BOOLEAN NOT NULL DEFAULT false`
+      );
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS uninstalled_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_account_deleted BOOLEAN NOT NULL DEFAULT false`
+      );
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS account_deleted_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS original_email VARCHAR(255)`
+      );
+      logger.info("✅ users.is_uninstalled and deletion columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure uninstalled/deletion status columns: " + colErr.message);
+    }
+
     //Redis
     // ============================================
     // 🔥 REDIS CONNECTION

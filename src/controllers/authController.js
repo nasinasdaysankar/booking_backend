@@ -561,6 +561,15 @@ export const googleLogin = async (req, res) => {
       });
       console.log(`✅ New Google user created: ${email} (Firebase uid: ${uid})`);
     } else {
+      // ✅ Check if account is deleted
+      if (user.isAccountDeleted) {
+        console.warn(`⚠️ Google login attempt for deleted account: ${email}`);
+        return res.status(403).json({
+          success: false,
+          message: "This account has been closed. Please sign up with a new account.",
+          code: "ACCOUNT_CLOSED"
+        });
+      }
       console.log(`✅ Existing user found: ${email}`);
     }
 
@@ -647,6 +656,15 @@ export const appleLogin = async (req, res) => {
       });
       console.log(`✅ New Apple user created: ${email}`);
     } else {
+      // ✅ Check if account is deleted
+      if (user.isAccountDeleted) {
+        console.warn(`⚠️ Apple login attempt for deleted account: ${email}`);
+        return res.status(403).json({
+          success: false,
+          message: "This account has been closed. Please sign up with a new account.",
+          code: "ACCOUNT_CLOSED"
+        });
+      }
       console.log(`✅ Existing user found (Apple login): ${email}`);
     }
 
@@ -738,6 +756,14 @@ export const login = async (req, res) => {
     const user = await User.findOne({ where: { email } });
     if (!user) return res.status(400).json({ message: "Invalid email or password ❌" });
 
+    // ✅ Check if account is deleted
+    if (user.isAccountDeleted) {
+      return res.status(403).json({ 
+        message: "This account has been closed. Please sign up with a new account.",
+        code: "ACCOUNT_CLOSED" 
+      });
+    }
+
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(400).json({ message: "Invalid email or password ❌" });
 
@@ -813,6 +839,14 @@ export const verifyOtp = async (req, res) => {
 
     const user = await User.findOne({ where: { email } });
     if (!user) return res.status(400).json({ message: "User not found" });
+
+    // ✅ Check if account is deleted
+    if (user.isAccountDeleted) {
+      return res.status(403).json({ 
+        message: "This account has been closed. Please sign up with a new account.",
+        code: "ACCOUNT_CLOSED" 
+      });
+    }
 
     if (
       user.otpCode !== otp ||

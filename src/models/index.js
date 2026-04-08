@@ -21,6 +21,9 @@ import AppFeedbackModel from "./AppFeedback.js";
 import UserActivityModel from "./UserActivity.js";
 import SupportTicketModel from "./SupportTicket.js";
 import CampusBoundaryModel from "./CampusBoundary.js";
+import InventoryProductModel from "./InventoryProduct.js";
+import InventoryBatchModel from "./InventoryBatch.js";
+import InventoryTransactionModel from "./InventoryTransaction.js";
 
 import app from "../app.js";
 import http from "http";
@@ -64,7 +67,9 @@ const AppFeedback = AppFeedbackModel(sequelize);
 const UserActivity = UserActivityModel(sequelize);
 const SupportTicket = SupportTicketModel(sequelize);
 const CampusBoundary = CampusBoundaryModel(sequelize);
-
+const InventoryProduct = InventoryProductModel(sequelize);
+const InventoryBatch = InventoryBatchModel(sequelize);
+const InventoryTransaction = InventoryTransactionModel(sequelize);
 
 // ================= RELATIONS =================
 
@@ -149,6 +154,16 @@ Admin.hasMany(AuditLog, { foreignKey: { name: "adminId", field: "adminid" } });
 Payment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } });
 Order.hasMany(Payment, { foreignKey: { name: "orderId", field: "orderid" } });
 
+// ================= INVENTORY RELATIONS =================
+Cafeteria.hasMany(InventoryProduct, { foreignKey: "cafeteria_id", as: "inventoryProducts" });
+InventoryProduct.belongsTo(Cafeteria, { foreignKey: "cafeteria_id" });
+
+InventoryProduct.hasMany(InventoryBatch, { foreignKey: "product_id", as: "batches" });
+InventoryBatch.belongsTo(InventoryProduct, { foreignKey: "product_id", as: "product" });
+
+InventoryProduct.hasMany(InventoryTransaction, { foreignKey: "product_id", as: "transactions" });
+InventoryTransaction.belongsTo(InventoryProduct, { foreignKey: "product_id", as: "product" });
+
 
 // ================= EXPORT =================
 export {
@@ -174,4 +189,9 @@ export {
   UserActivity,
   SupportTicket, // 🎫 SUPPORT TICKETS
   CampusBoundary,
+
+  // 📦 INVENTORY
+  InventoryProduct,
+  InventoryBatch,
+  InventoryTransaction,
 };

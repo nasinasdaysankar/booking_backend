@@ -22,7 +22,7 @@ import superadminRoutes from "./routes/superadminRoutes.js"; // ✅ SUPERADMIN
 import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
 import supportTicketRoutes from "./routes/supportTicketRoutes.js";
 import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js";
-
+import inventoryRoutes from "./routes/inventoryRoutes.js"; // 📦 RAW MATERIALS
 
 
 
@@ -155,6 +155,10 @@ logger.info("✅ Support ticket routes mounted");
 
 app.use("/api/campus-boundary", campusBoundaryRoutes);
 logger.info("✅ Campus boundary routes mounted");
+
+app.use("/api/inventory", inventoryRoutes); // 📦 Raw materials inventory
+logger.info("✅ Inventory routes mounted");
+
 
 
 

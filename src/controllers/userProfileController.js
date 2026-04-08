@@ -147,21 +147,24 @@ export const deleteAccount = async (req, res) => {
     console.log(`   ✅ Deleted ${deletedFeedback} order feedback records`);
 
     // ====================================
-    // 4. ANONYMIZE USER DATA (GDPR Compliant)
-    // Instead of hard delete, we anonymize to keep order history
+    // 4. PRESERVE & MARK AS DELETED
+    // We keep Name and Phone for investigation.
+    // To allow re-entry, we move the original email to 'originalEmail' 
+    // and rename the 'email' field to free it up.
     // ====================================
-    const anonymizedEmail = `deleted_${userId}_${Date.now()}@deleted.velish.app`;
-    const anonymizedPhone = null;
-    const anonymizedName = "Deleted User";
+    const originalEmail = user.email;
+    const deletedLoginEmail = `closed_${userId}_${Date.now()}@closed.velish.app`;
 
     await user.update({
-      name: anonymizedName,
-      email: anonymizedEmail,
-      phone: anonymizedPhone,
+      email: deletedLoginEmail,
+      originalEmail: originalEmail,
+      isAccountDeleted: true,
+      accountDeletedAt: new Date(),
+      isUninstalled: true,
+      uninstalledAt: new Date(),
       googleId: null,
-      // Add a flag to mark account as deleted (optional)
     });
-    console.log(`   ✅ Anonymized user data`);
+    console.log(`   ✅ Account marked as DELETED while preserving details`);
 
     // ====================================
     // 5. ALTERNATIVELY: HARD DELETE USER

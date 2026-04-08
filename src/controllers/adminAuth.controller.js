@@ -22,6 +22,11 @@ export const adminLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid Staff ID or Password" });
     }
 
+    if (admin.is_active === false) {
+      console.log("❌ [ADMIN LOGIN] Admin account is suspended:", staffId);
+      return res.status(403).json({ message: "Account has been suspended. Please contact Superadmin." });
+    }
+
     console.log("✅ [ADMIN LOGIN] Admin found:");
     console.log("   📋 Admin ID:", admin.id);
     console.log("   📋 Staff ID:", admin.staffId);

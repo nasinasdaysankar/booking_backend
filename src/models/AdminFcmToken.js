@@ -25,6 +25,12 @@ export default (sequelize) => {
         unique: true,
         field: "fcmtoken",
       },
+      deviceInfo: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        defaultValue: "Unknown Device",
+        field: "device_info",
+      },
 
       createdAt: {
         type: DataTypes.DATE,

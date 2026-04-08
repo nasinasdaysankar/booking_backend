@@ -1,6 +1,7 @@
 import express from "express";
 import { auth } from "../middleware/auth.js";
-import { AdminFcmToken, UserFcmToken } from "../models/index.js";
+import { AdminFcmToken, UserFcmToken, User } from "../models/index.js";
+import { sendNotification } from "../utils/notificationUtils.js";
 import admin from "../config/firebaseAdmin.js";
 
 const router = express.Router();
@@ -18,7 +19,7 @@ router.post("/save-token", auth, async (req, res) => {
     console.log("🧾 req.user:", req.user);
     console.log("📦 req.body:", req.body);
 
-    const { token } = req.body;
+    const { token, deviceInfo } = req.body;
     const { id: adminId, cafeteriaId } = req.user;
 
     if (!token) {
@@ -29,15 +30,12 @@ router.post("/save-token", auth, async (req, res) => {
     console.log("💾 Saving FCM token (multi-device support):", {
       adminId,
       cafeteriaId,
+      deviceInfo: deviceInfo || "Unknown Device",
       token: token.substring(0, 20) + "...",
     });
 
     /**
      * ✅ MULTI-DEVICE SUPPORT
-     * Each device has a unique FCM token, so we upsert by token.
-     * This allows the same admin to receive notifications on ALL devices.
-     * We do NOT delete old tokens — they stay until they become invalid
-     * (invalid tokens are cleaned up when FCM send fails).
      */
     const [savedToken, created] = await AdminFcmToken.findOrCreate({
       where: { fcmToken: token },
@@ -45,12 +43,13 @@ router.post("/save-token", auth, async (req, res) => {
         adminId,
         cafeteriaId,
         fcmToken: token,
+        deviceInfo: deviceInfo || "Unknown Device",
       },
     });
 
     if (!created) {
-      // Token already exists, just update the admin/cafeteria association
-      await savedToken.update({ adminId, cafeteriaId });
+      // Token already exists, update admin association and device info
+      await savedToken.update({ adminId, cafeteriaId, deviceInfo: deviceInfo || savedToken.deviceInfo || "Unknown Device" });
       console.log("🔄 Existing FCM token updated");
     } else {
       console.log("✅ New FCM token saved for device");
@@ -119,7 +118,15 @@ router.post("/save-user-token", auth, async (req, res) => {
       fcmToken: token,
     });
 
-    console.log("✅ User FCM token saved");
+    // ✅ AUTO-CLEANUP: If user was marked as uninstalled, clear it now (reinstalled)
+    await User.update({
+      isUninstalled: false,
+      uninstalledAt: null
+    }, {
+      where: { id: userId }
+    });
+
+    console.log("✅ User FCM token saved (Uninstalled status cleared if any)");
     res.json({ success: true });
   } catch (e) {
     console.error("❌ User FCM error:", e);
@@ -164,13 +171,14 @@ router.post("/api/notify/geofence-event", auth, async (req, res) => {
       },
     };
 
-    await admin.messaging().send(message);
+    const { success, error } = await sendNotification(message, userId);
 
-    console.log("✅ FCM push sent");
-
-    res.json({ success: true });
+    if (success) {
+        console.log("✅ FCM push sent");
+        res.json({ success: true });
+    }
   } catch (error) {
-    console.error("❌ FCM error:", error);
+    console.error("❌ Geofence notification error:", error);
     res.status(500).json({ success: false });
   }
 });
