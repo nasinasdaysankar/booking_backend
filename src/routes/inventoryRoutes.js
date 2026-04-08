@@ -5,6 +5,8 @@ import {
   createProduct,
   updateProduct,
   archiveProduct,
+  getArchivedProducts,
+  restoreProduct,
   getProductBatches,
   addStock,
   previewUsage,
@@ -27,6 +29,12 @@ router.get("/products", ...adminAuth, getProducts);
 router.post("/products", ...adminAuth, createProduct);
 router.put("/products/:id", ...adminAuth, updateProduct);
 router.delete("/products/:id", ...adminAuth, archiveProduct);
+
+// ─── Archived / Restore ─────────────────────────────────────────
+// GET  /api/inventory/archived                — list archived products
+// PUT  /api/inventory/products/:id/restore    — restore archived product back to active
+router.get("/archived", ...adminAuth, getArchivedProducts);
+router.put("/products/:id/restore", ...adminAuth, restoreProduct);
 
 // ─── Batches ────────────────────────────────────────────────
 // GET  /api/inventory/products/:id/batches   — FIFO batch list

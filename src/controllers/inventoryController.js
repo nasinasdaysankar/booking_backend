@@ -131,6 +131,61 @@ export const archiveProduct = async (req, res) => {
 };
 
 // ─────────────────────────────────────────
+// GET ARCHIVED PRODUCTS
+// ─────────────────────────────────────────
+export const getArchivedProducts = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+
+    const products = await InventoryProduct.findAll({
+      where: { cafeteriaId, isActive: false },
+      order: [["updated_at", "DESC"]], // Most recently archived first
+    });
+
+    const productsWithStock = await Promise.all(
+      products.map(async (p) => {
+        const totalStock = await getTotalStock(p.id);
+        return { ...p.toJSON(), totalStock };
+      })
+    );
+
+    return res.json({ success: true, count: productsWithStock.length, data: productsWithStock });
+  } catch (err) {
+    console.error("❌ getArchivedProducts error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// RESTORE ARCHIVED PRODUCT
+// ─────────────────────────────────────────
+export const restoreProduct = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const { id } = req.params;
+
+    const product = await InventoryProduct.findOne({ where: { id, cafeteriaId, isActive: false } });
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Archived product not found" });
+    }
+
+    product.isActive = true;
+    await product.save();
+
+    return res.json({
+      success: true,
+      message: `"${product.name}" restored to active inventory`,
+      data: product,
+    });
+  } catch (err) {
+    console.error("❌ restoreProduct error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+
+// ─────────────────────────────────────────
 // GET BATCHES FOR A PRODUCT (FIFO ordered)
 // ─────────────────────────────────────────
 export const getProductBatches = async (req, res) => {
