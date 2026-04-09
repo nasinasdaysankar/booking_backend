@@ -643,19 +643,29 @@ export const confirmPayment = async (req, res) => {
     let formattedItems = [];
     const zeroStockItems = [];
     if (Array.isArray(items) && items.length > 0) {
-      formattedItems = items.map((item) => {
+      // 📂 FETCH CATEGORIES: For Printer Splitting
+      formattedItems = await Promise.all(items.map(async (item) => {
+        const miId = item.menuItemId || item.id || item.menu_item_id || null;
+        let category = item.category || null;
+
+        if (miId && !category) {
+          const mi = await MenuItem.findByPk(miId, { transaction: t });
+          category = mi?.category || null;
+        }
+
         const isParcelForThisItem = Boolean(item.isParcelSelected);
         return {
           orderId: order.id,
-          menuItemId: item.menuItemId || item.id || item.menu_item_id || null,
+          menuItemId: miId,
           name: item.name,
           quantity: item.quantity || item.qty,
           priceAtOrder: item.price,
           imageUrl: item.imageUrl || item.img || null,
           isParcel: isParcelForThisItem,
-          specialInstructions: item.specialInstructions || item.note || null, // 📝 Customer note
+          specialInstructions: item.specialInstructions || item.note || null,
+          category: category, // 📂 Essential for printing
         };
-      });
+      }));
 
       const existingItem = await OrderItem.findOne({
         where: { orderId: order.id },
@@ -1290,6 +1300,11 @@ export const syncFromWebhook = async (req, res) => {
       // Notify admin (async, non-blocking)
       (async () => {
         try {
+          // 📋 FETCH ITEMS FOR SOCKET (including categories)
+          const itemsForSocket = await OrderItem.findAll({
+            where: { orderId: recoveredOrder.id }
+          });
+
           emitNewOrder(recoveredOrder.cafeteriaId, {
             orderId:          recoveredOrder.id,
             id:               recoveredOrder.id,
@@ -1300,6 +1315,7 @@ export const syncFromWebhook = async (req, res) => {
             createdAt:        recoveredOrder.createdAt,
             isParcel:         recoveredOrder.isParcel,
             dailyOrderNumber: recoveredOrder.dailyOrderNumber,
+            items:            itemsForSocket, // ✅ Added items with categories
           });
 
           const adminTokens = await AdminFcmToken.findAll({ where: { cafeteriaId: recoveredOrder.cafeteriaId } });

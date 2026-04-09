@@ -357,15 +357,27 @@ export const createManualOrder = async (req, res) => {
     );
 
     // 4. Create Order Items (include menuItemId for stock tracking)
-    const orderItems = items.map((item) => ({
-      orderId: order.id,
-      menuItemId: item.id || item.menuItemId || null, // ✅ preserve menu item reference
-      name: item.name,
-      quantity: item.quantity,
-      priceAtOrder: item.price,
-      imageUrl: item.imageUrl,
-      isParcel: item.isParcel || false,
-      specialInstructions: item.specialInstructions || item.note || null,
+    // 📂 FETCH CATEGORIES: For Printer Splitting
+    const orderItems = await Promise.all(items.map(async (item) => {
+      const miId = item.id || item.menuItemId || null;
+      let category = item.category || null;
+
+      if (miId && !category) {
+        const mi = await MenuItem.findByPk(miId, { transaction: t });
+        category = mi?.category || null;
+      }
+
+      return {
+        orderId: order.id,
+        menuItemId: miId,
+        name: item.name,
+        quantity: item.quantity,
+        priceAtOrder: item.price,
+        imageUrl: item.imageUrl,
+        isParcel: item.isParcel || false,
+        specialInstructions: item.specialInstructions || item.note || null,
+        category: category, // 📂 Essential for printing
+      };
     }));
 
     await OrderItem.bulkCreate(orderItems, { transaction: t });
@@ -421,7 +433,7 @@ export const createManualOrder = async (req, res) => {
       netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
       createdAt: order.createdAt,
       isParcel: order.isParcel,
-      items: orderItems,
+      items: orderItems, // These now match the format of other orders
     });
 
     // 7. Sync to Google Sheets (Async)
@@ -550,15 +562,18 @@ export const getAdminOrders = async (req, res) => {
     const orderIds = orders.map((o) => o.id);
 
     const allItems = await sequelize.query(
-      `SELECT id,
-              "orderid" AS "orderId",
-              "name",
-              "imageurl" AS "imageUrl",
-              "quantity",
-              "priceatorder" AS "priceAtOrder",
-              "isparcel" AS "isParcel",
-              "special_instructions" AS "specialInstructions"
-       FROM order_items WHERE "orderid" IN (:ids)`,
+      `SELECT oi.id,
+              oi."orderid" AS "orderId",
+              oi."name",
+              oi."imageurl" AS "imageUrl",
+              oi."quantity",
+              oi."priceatorder" AS "priceAtOrder",
+              oi."isparcel" AS "isParcel",
+              oi."special_instructions" AS "specialInstructions",
+              mi.category AS "category"
+       FROM order_items oi
+       LEFT JOIN menu_items mi ON mi.id = oi.menuitemid
+       WHERE oi."orderid" IN (:ids)`,
       {
         replacements: { ids: orderIds },
         type: QueryTypes.SELECT,
@@ -629,14 +644,17 @@ export const updateOrderStatus = async (req, res) => {
     // 🔔 REALTIME → ADMIN (SOCKET)
     // 🧺 Fetch items to include in socket payload for "Instant Injection"
     const items = await sequelize.query(
-      `SELECT id,
-              "orderid" AS "orderId",
-              "name",
-              "imageurl" AS "imageUrl",
-              "quantity",
-              "priceatorder" AS "priceAtOrder",
-              "isparcel" AS "isParcel"
-       FROM order_items WHERE "orderid" = :orderId`,
+      `SELECT oi.id,
+              oi."orderid" AS "orderId",
+              oi."name",
+              oi."imageurl" AS "imageUrl",
+              oi."quantity",
+              oi."priceatorder" AS "priceAtOrder",
+              oi."isparcel" AS "isParcel",
+              mi.category AS "category"
+       FROM order_items oi
+       LEFT JOIN menu_items mi ON mi.id = oi.menuitemid
+       WHERE oi."orderid" = :orderId`,
       {
         replacements: { orderId: order.id },
         type: QueryTypes.SELECT
