@@ -257,6 +257,55 @@ export const addStock = async (req, res) => {
 };
 
 // ─────────────────────────────────────────
+// UPDATE BATCH (Correction)
+// ─────────────────────────────────────────
+export const updateBatch = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const { id, batchId } = req.params;
+    const { quantityRemaining, unitCost } = req.body;
+
+    const product = await InventoryProduct.findOne({ where: { id, cafeteriaId } });
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+    const batch = await InventoryBatch.findOne({
+      where: { id: batchId, productId: id },
+    });
+
+    if (!batch) {
+      return res.status(404).json({ success: false, message: "Batch not found" });
+    }
+
+    if (quantityRemaining !== undefined) {
+      if (quantityRemaining < 0) {
+          return res.status(400).json({ success: false, message: "Quantity cannot be less than 0" });
+      }
+      batch.quantityRemaining = parseFloat(quantityRemaining);
+    }
+    
+    if (unitCost !== undefined) {
+        if (unitCost < 0) {
+            return res.status(400).json({ success: false, message: "Unit cost cannot be less than 0" });
+        }
+        batch.unitCost = parseFloat(unitCost);
+    }
+
+    await batch.save();
+    
+    const totalStock = await getTotalStock(id);
+
+    return res.json({
+      success: true,
+      message: "Batch updated successfully",
+      data: { batch, totalStock },
+    });
+  } catch (err) {
+    console.error("❌ updateBatch error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────
 // PREVIEW CONSUMPTION  —  Dry-run FIFO
 // ─────────────────────────────────────────
 export const previewUsage = async (req, res) => {
@@ -421,6 +470,82 @@ export const getLowStockAlerts = async (req, res) => {
     return res.json({ success: true, count: lowStockItems.length, data: lowStockItems });
   } catch (err) {
     console.error("❌ getLowStockAlerts error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────
+// GET ALL TRANSACTIONS (ACROSS ALL PRODUCTS)
+// ─────────────────────────────────────────
+export const getAllTransactions = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const { type, limit = 1000, offset = 0, from, to } = req.query;
+
+    const where = {};
+    if (type && ["IN", "OUT"].includes(type.toUpperCase())) {
+      where.type = type.toUpperCase();
+    }
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt[Op.gte] = new Date(from);
+      if (to) where.createdAt[Op.lte] = new Date(to);
+    }
+
+    const { count, rows } = await InventoryTransaction.findAndCountAll({
+      where,
+      include: [
+        {
+          model: InventoryProduct,
+          as: "product",
+          where: { cafeteriaId },
+          attributes: ["id", "name", "unit"],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    // Running totals for summary across the fetched range
+    const allTx = await InventoryTransaction.findAll({
+      where,
+      include: [
+        {
+          model: InventoryProduct,
+          as: "product",
+          where: { cafeteriaId },
+          attributes: [],
+        },
+      ],
+    });
+
+    const totalIn = allTx
+        .filter((t) => t.type === "IN")
+        .reduce((s, t) => s + Number(t.quantity), 0);
+    const totalOut = allTx
+        .filter((t) => t.type === "OUT")
+        .reduce((s, t) => s + Number(t.quantity), 0);
+    const totalCogsSpent = allTx
+        .filter((t) => t.type === "OUT")
+        .reduce((s, t) => s + Number(t.totalCost || 0), 0);
+    const totalInvestment = allTx
+        .filter((t) => t.type === "IN")
+        .reduce((s, t) => s + Number(t.totalCost || 0), 0);
+
+    return res.json({
+      success: true,
+      summary: {
+        totalIn: parseFloat(totalIn.toFixed(3)),
+        totalOut: parseFloat(totalOut.toFixed(3)),
+        totalCogsSpent: parseFloat(totalCogsSpent.toFixed(2)),
+        totalInvestment: parseFloat(totalInvestment.toFixed(2)),
+      },
+      count,
+      data: rows,
+    });
+  } catch (err) {
+    console.error("❌ getAllTransactions error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };

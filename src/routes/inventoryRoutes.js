@@ -13,6 +13,8 @@ import {
   recordUsage,
   getTransactions,
   getLowStockAlerts,
+  updateBatch,
+  getAllTransactions,
 } from "../controllers/inventoryController.js";
 
 const router = express.Router();
@@ -42,7 +44,9 @@ router.get("/products/:id/batches", ...adminAuth, getProductBatches);
 
 // ─── Stock In ───────────────────────────────────────────────
 // POST /api/inventory/products/:id/stock     — add stock (creates new batch)
+// PUT  /api/inventory/products/:id/batches/:batchId — edit batch (quantity/unitCost) directly
 router.post("/products/:id/stock", ...adminAuth, addStock);
+router.put("/products/:id/batches/:batchId", ...adminAuth, updateBatch);
 
 // ─── Consumption ────────────────────────────────────────────
 // POST /api/inventory/products/:id/preview   — dry-run COGS preview
@@ -58,5 +62,9 @@ router.get("/products/:id/transactions", ...adminAuth, getTransactions);
 // ─── Low Stock Alerts ───────────────────────────────────────
 // GET  /api/inventory/low-stock              — all items below threshold
 router.get("/low-stock", ...adminAuth, getLowStockAlerts);
+
+// ─── Overall Transactions ───────────────────────────────────
+// GET  /api/inventory/transactions    — full log across all products
+router.get("/transactions", ...adminAuth, getAllTransactions);
 
 export default router;
