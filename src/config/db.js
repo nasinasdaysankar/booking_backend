@@ -7,9 +7,13 @@ const envFile =
       ? ".env.test"
       : ".env.local";
 
-dotenv.config({ path: envFile });
+dotenv.config({ path: envFile, override: true });
+
+console.log(`📂 [DB] Loading env from: ${envFile} (NODE_ENV=${process.env.NODE_ENV})`);
 
 import { Sequelize } from "sequelize";
+
+const useSSL = process.env.DB_SSL === "true";
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
@@ -29,10 +33,12 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialectOptions: {
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
-    ssl: {
-      require: true,
-      rejectUnauthorized: false,
-    },
+    ...(useSSL && {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
+    }),
     connectTimeout: 30000,
     statement_timeout: 30000,
   },

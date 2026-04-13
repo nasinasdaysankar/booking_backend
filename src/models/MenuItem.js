@@ -122,11 +122,11 @@ export default (sequelize) => {
       updatedAt: "updated_at",
 
       indexes: [
-        { fields: ["cafeteriaId"] },
-        { fields: ["isAvailable"] },
-        { fields: ["isDeleted"] },
-        { fields: ["isTodaySpecial"] },
-        { fields: ["specialDate"] },
+        { fields: ["cafeteriaid"] },
+        { fields: ["isavailable"] },
+        { fields: ["isdeleted"] },
+        { fields: ["istodayspecial"] },
+        { fields: ["specialdate"] },
       ],
     }
   );

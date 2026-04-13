@@ -245,9 +245,17 @@ export const createCashfreeOrder = async (req, res) => {
     const payload = req.body;
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
 
+    if (!financeBackendUrl) {
+      console.error("❌ [PROXY] FINANCE_BACKEND_URL is not configured in .env.local");
+      return res.status(500).json({
+        success: false,
+        message: "Finance backend URL not configured",
+      });
+    }
+
     // 🔥 INJECT WEBHOOK URL: Point Cashfree strictly to the Firebase Webhook Wrapper
     // (Firebase handles Cashfree signature validation, then securely forwards it to Railway)
-    const firebaseWebhookUrl = financeBackendUrl.replace("createcashfreeorder", "cashfreewebhook");
+    const firebaseWebhookUrl = financeBackendUrl.replace(/createcashfreeorder/i, "cashfreewebhook");
     
     if (payload.orderMeta) {
       payload.orderMeta.notify_url = firebaseWebhookUrl;
@@ -908,6 +916,40 @@ export const verifyPaymentStatus = async (req, res) => {
 
     if (!orderId) {
       return res.status(400).json({ success: false, message: "orderId is required" });
+    }
+
+    // ================================================================
+    // 🔀 PROXY TO FINANCE BACKEND (Development / Emulator mode)
+    // In production, verify is done directly against Cashfree.
+    // In development, we proxy through the Finance Emulator so that
+    // sandbox credentials are used correctly.
+    // ================================================================
+    const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
+    if (financeBackendUrl && env !== "production") {
+      if (!financeBackendUrl) {
+        console.error("❌ [VERIFY] FINANCE_BACKEND_URL is not configured");
+        return res.status(500).json({ success: false, message: "Finance backend URL not configured" });
+      }
+
+      const verifyUrl = financeBackendUrl.replace(/createCashfreeOrder/i, "verifyCashfreePayment");
+      console.log(`🔀 [VERIFY PROXY] Routing to Finance Emulator: ${verifyUrl}`);
+      try {
+        const proxyResponse = await axios.post(verifyUrl, { orderId }, {
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.WEBHOOK_API_KEY,
+          },
+          timeout: 15000,
+        });
+        return res.status(200).json(proxyResponse.data);
+      } catch (proxyErr) {
+        console.error("❌ [VERIFY PROXY] Error:", proxyErr?.response?.data || proxyErr.message);
+        return res.status(proxyErr?.response?.status || 500).json({
+          success: false,
+          message: "Failed to verify via Finance Emulator",
+          error: proxyErr?.response?.data || proxyErr.message,
+        });
+      }
     }
 
     if (!clientId || !clientSecret) {

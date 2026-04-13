@@ -28,13 +28,13 @@ export default (sequelize) => {
       },
 
       role: {
-        type: DataTypes.ENUM("admin", "staff"),
+        type: DataTypes.ENUM("admin", "staff", "super_admin"),
         defaultValue: "staff",
       },
 
       cafeteriaId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         field: "cafeteriaid",
       },
 

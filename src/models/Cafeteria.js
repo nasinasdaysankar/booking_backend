@@ -18,12 +18,12 @@ export default (sequelize) => {
       // ✅ FIXED LOCATION (Anantha Aahara)
       latitude: {
         type: DataTypes.DECIMAL(10, 7),
-        allowNull: false,
+        allowNull: true,
       },
 
       longitude: {
         type: DataTypes.DECIMAL(10, 7),
-        allowNull: false,
+        allowNull: true,
       },
 
       isOpen: {
