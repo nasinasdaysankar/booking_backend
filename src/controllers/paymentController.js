@@ -4,6 +4,7 @@ import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { AdminFcmToken, UserStreak, UserFcmToken } from "../models/index.js";
+import { syncCategoryBanner } from "../utils/bannerSync.js";
 import { clearAnalyticsCache } from "../utils/cache.js";
 import { getCache, setCache, delCache } from "../config/redis.js";
 import dayjs from "dayjs";
@@ -291,20 +292,20 @@ export const createCashfreeOrder = async (req, res) => {
     });
 
     console.log("✅ [PROXY] Order created successfully via Finance Backend");
+    console.log("📄 [PROXY] Response Data:", JSON.stringify(response.data, null, 2));
 
     // =====================================================================
     // 💾 SAVE ORDER SNAPSHOT — safety net if /confirm never runs
-    // If the user's app crashes or network drops after payment but before
-    // /confirm is called, the webhook handler uses this snapshot to
-    // auto-create the order so money is never debited without an order.
     // =====================================================================
-    const cashfreeOrderId = response.data?.order_id || response.data?.orderId;
+    const cashfreeOrderId = response.data?.order_id || response.data?.orderId || response.data?.paymentSessionId;
     const studentId = req.user?.id;
     const orderAmount = req.body.orderAmount;
 
     if (cashfreeOrderId && studentId && cafeteriaId) {
+      // Run snapshot in background to avoid delaying the user's payment screen
       (async () => {
         try {
+          // 1. Ensure Table Exists
           await sequelize.query(
             `CREATE TABLE IF NOT EXISTS order_snapshots (
               cashfree_order_id   VARCHAR(255) PRIMARY KEY,
@@ -321,20 +322,28 @@ export const createCashfreeOrder = async (req, res) => {
               expires_at          TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
             )`,
             { type: QueryTypes.RAW }
-          );
+          ).catch(() => {});
 
-          // Ensure new columns exist for existing tables (safe migration)
-          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
-          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
-          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS gst_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
-          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS is_parcel BOOLEAN NOT NULL DEFAULT false`, { type: QueryTypes.RAW }).catch(() => {});
-          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS parcel_amount DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+          // 2. Safe Column Migrations
+          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount"];
+          for (const col of columns) {
+            const type = col === "is_parcel" ? "BOOLEAN NOT NULL DEFAULT false" : "DECIMAL(10,2) NOT NULL DEFAULT 0";
+            await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS ${col} ${type}`, { type: QueryTypes.RAW }).catch(() => {});
+          }
 
+          // 3. Ensure Primary Key exists (if table was created early without it)
+          await sequelize.query(`ALTER TABLE order_snapshots ADD PRIMARY KEY (cashfree_order_id)`, { type: QueryTypes.RAW }).catch(() => {});
+
+          // 4. Save Snapshot
           await sequelize.query(
             `INSERT INTO order_snapshots
                (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount)
              VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount)
-             ON CONFLICT (cashfree_order_id) DO NOTHING`,
+             ON CONFLICT (cashfree_order_id) 
+             DO UPDATE SET 
+               amount = EXCLUDED.amount,
+               items = EXCLUDED.items,
+               updated_at = NOW()`,
             {
               replacements: {
                 cashfreeOrderId,
@@ -353,8 +362,8 @@ export const createCashfreeOrder = async (req, res) => {
           );
           console.log(`💾 [SNAPSHOT] Saved order snapshot for ${cashfreeOrderId}`);
         } catch (snapErr) {
-          // Non-blocking — never fail the main response over snapshot errors
-          console.warn("⚠️ [SNAPSHOT] Failed to save snapshot:", snapErr.message);
+          // ULTIMATE SAFETY: This must NEVER crash the process
+          console.warn("⚠️ [SNAPSHOT] Background save skipped:", snapErr.message);
         }
       })();
     }
@@ -702,7 +711,6 @@ export const confirmPayment = async (req, res) => {
           const updates = { stock: newStock };
           if (newStock === 0) {
             console.log(`📉 [STOCK] ${menuItem.name} hit 0 — will emit after commit`);
-            updates.isAvailable = false;
             zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
           }
 
@@ -733,6 +741,12 @@ export const confirmPayment = async (req, res) => {
         reason: "OUT_OF_STOCK",
         message: `🚨 ${item.name} is now out of stock!`,
       });
+
+      // 🚀 SYNC BANNER (Async, non-blocking)
+      const menuItem = await MenuItem.findByPk(item.id);
+      if (menuItem) {
+        syncCategoryBanner(cafeteriaId, menuItem.category);
+      }
     }
 
     console.log("✅ Transaction committed successfully");

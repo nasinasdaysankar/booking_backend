@@ -59,3 +59,13 @@ export const emitStockUpdate = (cafeteriaId, payload) => {
     console.log(`📊 [STOCK] Room '${room}' has ${sockets.length} socket(s) after emit`);
   }).catch(() => {});
 };
+
+// ================= ADMIN & USER: CAFETERIA UPDATE =================
+export const emitCafeteriaUpdate = (cafeteriaId, payload) => {
+  if (!ioInstance) return;
+
+  console.log(`📢 Emitting global CAFETERIA_UPDATE for cafeteria ${cafeteriaId}`);
+
+  // Broadcast to all connected clients (users and admins)
+  ioInstance.emit("CAFETERIA_UPDATE", { cafeteriaId, ...payload });
+};

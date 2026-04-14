@@ -132,6 +132,7 @@ import { generateBillId, generateDailyOrderNumber } from './paymentController.js
 import { Op } from 'sequelize';
 import { appendOrderToSheet } from '../utils/googleSheets.js';
 import { emitStockUpdate } from '../socket.js';
+import { syncCategoryBanner } from '../utils/bannerSync.js';
 
 // Helpers moved to paymentController.js for sharing
 
@@ -210,7 +211,6 @@ export const createOrder = async (req, res) => {
 
       const updates = { stock: newStock };
       if (newStock === 0) {
-        updates.isAvailable = false;
         zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
       }
 
@@ -229,6 +229,12 @@ export const createOrder = async (req, res) => {
         reason: "OUT_OF_STOCK",
         message: `🚨 ${item.name} is now out of stock!`,
       });
+
+      // 🚀 SYNC BANNER (Async, non-blocking)
+      const menuItem = await MenuItem.findByPk(item.id);
+      if (menuItem) {
+        syncCategoryBanner(cafeteriaId, menuItem.category);
+      }
     }
 
     // 🗑️ INVALIDATE ANALYTICS CACHE immediately so admin dashboard

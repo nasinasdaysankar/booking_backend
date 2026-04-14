@@ -4,7 +4,7 @@ import { auth, requireRole } from '../middleware/auth.js';
 import {
   getAdminOrders,
   updateOrderStatus,
-
+  sendReadyReminder,
   getAdminStats
 } from '../controllers/adminOrderController.js';
 import {
@@ -45,6 +45,7 @@ router.get("/orders", auth, requireRole(['admin']), getAdminOrders);
  * Body: { status: "PREPARING" }
  */
 router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStatus);
+router.post("/orders/:id/ready-reminder", auth, requireRole(['admin']), sendReadyReminder);
 
 
 // ============================================

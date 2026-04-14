@@ -1,4 +1,6 @@
 import { Cafeteria } from "../models/index.js";
+import { emitCafeteriaUpdate } from "../socket.js";
+import { clearCafeteriaCache, clearMenuCache } from "../utils/cache.js";
 
 /**
  * 🔐 GET LOGGED-IN ADMIN'S CAFETERIA DETAILS
@@ -33,6 +35,9 @@ export const getCafeteriaDetails = async (req, res) => {
         "commissionType",
         "commissionAmount",
         "bufferTime",
+        "isBusy",
+        "openTime",
+        "closeTime",
       ],
     });
 
@@ -82,6 +87,9 @@ export const getMyCafeterias = async (req, res) => {
         "commissionType",
         "commissionAmount",
         "bufferTime",
+        "isBusy",
+        "openTime",
+        "closeTime",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -122,6 +130,9 @@ export const updateCafeteria = async (req, res) => {
       commissionType,
       commissionAmount,
       bufferTime,
+      isBusy,
+      openTime,
+      closeTime,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -155,10 +166,24 @@ export const updateCafeteria = async (req, res) => {
     if (commissionType !== undefined) cafeteria.commissionType = commissionType;
     if (commissionAmount !== undefined) cafeteria.commissionAmount = commissionAmount;
     if (bufferTime !== undefined) cafeteria.bufferTime = bufferTime;
+    if (isBusy !== undefined) cafeteria.isBusy = isBusy;
+    if (openTime !== undefined) cafeteria.openTime = openTime;
+    if (closeTime !== undefined) cafeteria.closeTime = closeTime;
 
     await cafeteria.save();
 
+    // 🗑️ Clear Cache instantly so changes are visible to users
+    await clearCafeteriaCache();
+    await clearMenuCache(cafeteriaId);
+
     console.log(`✅ Cafeteria ${cafeteriaId} updated by admin ${req.user.id}`);
+
+    // Emit real-time update to all connected clients
+    emitCafeteriaUpdate(cafeteriaId, {
+      isOpen: cafeteria.isOpen,
+      isOffline: cafeteria.isOffline,
+      isBusy: cafeteria.isBusy
+    });
 
     return res.json({
       success: true,
@@ -179,6 +204,9 @@ export const updateCafeteria = async (req, res) => {
         commissionType: cafeteria.commissionType,
         commissionAmount: cafeteria.commissionAmount,
         bufferTime: cafeteria.bufferTime,
+        isBusy: cafeteria.isBusy,
+        openTime: cafeteria.openTime,
+        closeTime: cafeteria.closeTime,
       },
     });
   } catch (err) {

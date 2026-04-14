@@ -40,7 +40,8 @@ export const getCafeterias = async (req, res) => {
         'showGst',
         'showPlatformFee',
         'showCommission',
-        'fssaiLicense'
+        'fssaiLicense',
+        'isBusy'
       ],
       order: [['id', 'ASC']]
     });
@@ -69,7 +70,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     // Check if cafeteria exists
     const cafeteria = await Cafeteria.findByPk(id, {
-      attributes: ['id', 'name', 'isOpen', 'isOffline']
+      attributes: ['id', 'name', 'isOpen', 'isOffline', 'isBusy']
     });
 
     if (!cafeteria) {
@@ -90,6 +91,8 @@ export const getCafeteriaMenu = async (req, res) => {
     res.json({
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
+      cafeteriaOffline: cafeteria.isOffline,
+      cafeteriaBusy: cafeteria.isBusy,
       data: items
     });
   } catch (err) {

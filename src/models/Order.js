@@ -177,6 +177,13 @@ export default (sequelize) => {
         field: "expirationnotificationsent",
       },
 
+      readyReminderCount: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        field: "ready_reminder_count",
+      },
+
       // ========================================
       // TIMESTAMPS
       // ========================================

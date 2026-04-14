@@ -5,6 +5,7 @@ import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
 import { emitStockUpdate } from "../socket.js";
+import { syncCategoryBanner } from "../utils/bannerSync.js";
 
 
 /* ================== ADD SINGLE MENU ITEM ================== */
@@ -32,6 +33,9 @@ export const addMenuItem = async (req, res) => {
     });
 
     res.json({ success: true, message: "Item Added ✔", data: item });
+
+    // 🚀 SYNC BANNER
+    syncCategoryBanner(cafeteriaId, category);
   } catch (err) {
     res.status(500).json({ success: false, message: "Insert failed", error: err.message });
   }
@@ -57,6 +61,12 @@ export const addBulkMenuItems = async (req, res) => {
       data: result
     });
 
+    // 🚀 SYNC BANNERS (Extract unique categories)
+    const categories = [...new Set(items.map(i => i.category).filter(Boolean))];
+    const cafeteriaId = items[0]?.cafeteriaId;
+    if (cafeteriaId) {
+      categories.forEach(cat => syncCategoryBanner(cafeteriaId, cat));
+    }
   } catch (err) {
     res.status(500).json({ success: false, message: "Bulk failed", error: err.message });
   }
@@ -184,6 +194,7 @@ export const getMenuByCafeteria = async (req, res) => {
       success: true,
       cafeteriaOpen: cafeteria.isOpen,
       cafeteriaOffline: cafeteria.isOffline,
+      cafeteriaBusy: cafeteria.isBusy,
       count: items.length,
       data: items,
     });
@@ -224,6 +235,11 @@ export const deleteMenuItem = async (req, res) => {
         success: false,
         message: "Item not found",
       });
+    }
+
+    const item = await MenuItem.findByPk(id);
+    if (item) {
+      syncCategoryBanner(item.cafeteriaId, item.category);
     }
 
     res.json({
@@ -386,7 +402,15 @@ export const updateMenuItem = async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: "Item Updated ✔", data: item });
+    const finalItem = await MenuItem.findByPk(id);
+    syncCategoryBanner(finalItem.cafeteriaId, finalItem.category);
+    
+    // If category was changed, sync the old category too
+    if (category && item.category !== category) {
+      syncCategoryBanner(item.cafeteriaId, item.category);
+    }
+
+    res.json({ success: true, message: "Item Updated ✔", data: finalItem });
   } catch (err) {
     res.status(500).json({ success: false, message: "Update failed", error: err.message });
   }
@@ -565,6 +589,7 @@ export const restoreMenuItem = async (req, res) => {
     }
 
     const item = await MenuItem.findByPk(id);
+    syncCategoryBanner(item.cafeteriaId, item.category);
 
     res.json({
       success: true,
@@ -615,7 +640,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
 
     // ✅ CHECK CAFETERIA
     const cafeteria = await Cafeteria.findByPk(cafeteriaId, {
-      attributes: ["id", "isOpen", "isOffline"],
+      attributes: ["id", "isOpen", "isOffline", "isBusy"],
     });
 
     if (!cafeteria) {
@@ -664,6 +689,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
     const response = {
       cafeteriaOpen: cafeteria.isOpen,
       cafeteriaOffline: cafeteria.isOffline,
+      cafeteriaBusy: cafeteria.isBusy,
       count: items.length,
       data: items,
     };

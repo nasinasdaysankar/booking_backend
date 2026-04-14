@@ -17,6 +17,7 @@ import compression from "compression";
 
 import { initSocket } from "./socket.js";
 import { initNotificationScheduler } from "./cron/notificationScheduler.js";
+import { initCafeteriaScheduler } from "./cron/cafeteriaScheduler.js";
 
 const PORT = process.env.PORT || 4000;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
@@ -100,6 +101,16 @@ const start = async () => {
       logger.warn("⚠️ Could not ensure admin_fcm_tokens device_info column: " + colErr.message);
     }
 
+    // ✅ Ensure ready_reminder_count exists on orders table
+    try {
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_reminder_count INTEGER NOT NULL DEFAULT 0`
+      );
+      logger.info("✅ orders.ready_reminder_count column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure orders ready_reminder_count column: " + colErr.message);
+    }
+
     // ✅ Ensure uninstalled columns exist on users table
     try {
       await sequelize.query(
@@ -159,12 +170,13 @@ const start = async () => {
     }
 
     // ========== START LISTENING ==========
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info("⚡ WebSocket enabled");
       logger.info("🔥 Optimized for 700-1000 concurrent users");
 
       initNotificationScheduler(); // ⏰ Start Cron
+      initCafeteriaScheduler(); // ⏰ Start Cafeteria Scheduler
     });
 
   } catch (err) {

@@ -136,6 +136,21 @@ export default (sequelize) => {
         defaultValue: 20,
         field: "buffer_time",
       },
+      isBusy: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "is_busy",
+      },
+      openTime: {
+        type: DataTypes.STRING(5),
+        allowNull: true,
+        field: "open_time",
+      },
+      closeTime: {
+        type: DataTypes.STRING(5),
+        allowNull: true,
+        field: "close_time",
+      },
     },
     {
       tableName: "cafeterias",

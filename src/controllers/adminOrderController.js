@@ -396,7 +396,6 @@ export const createManualOrder = async (req, res) => {
       const updates = { stock: newStock };
       if (newStock === 0) {
         console.log(`📉 [STOCK] ${menuItem.name} hit 0 — will emit after commit`);
-        updates.isAvailable = false;
         zeroStockItems.push({ id: menuItem.id, name: menuItem.name });
       }
 
@@ -792,7 +791,105 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
+/**
+ * ===============================
+ * SEND READY REMINDER (Follow-up)
+ * ===============================
+ */
+export const sendReadyReminder = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const order = await Order.findByPk(id, {
+      include: [{ model: User }]
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // 🛡️ GUARDIANS
+    if (order.status !== "READY") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Notifications can only be sent for READY orders." 
+      });
+    }
+
+    if (order.readyReminderCount >= 2) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Maximum limit (2) for ready reminders reached for this order." 
+      });
+    }
+
+    // 🔔 Send FCM notification
+    const userTokens = await UserFcmToken.findAll({
+      where: { userId: order.studentId },
+      order: [['updatedAt', 'DESC']],
+      limit: 3
+    });
+
+    if (userTokens.length > 0) {
+      const titleText = "🍽️ Ready for Pickup!";
+      const bodyText = "Your order is ready—please pick it up promptly!";
+      const tokens = userTokens.map(ut => ut.fcmToken);
+
+      await admin.messaging().sendEach(userTokens.map(ut => ({
+        token: ut.fcmToken,
+        notification: {
+          title: titleText,
+          body: bodyText,
+        },
+        data: {
+          title: titleText,
+          body: bodyText,
+          orderId: String(order.id),
+          status: order.status,
+          type: "ORDER_STATUS_UPDATE", // Reuse existing handler for UI navigation
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "high_importance_channel",
+            sound: "default",
+            defaultSound: true,
+            defaultVibrateTimings: true,
+            tag: `order_${order.id}_ready`, // Deduplicate locally
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+              category: "ORDER_READY"
+            }
+          }
+        }
+      })));
+
+      // 📈 Increment reminder count
+      await order.update({ readyReminderCount: order.readyReminderCount + 1 });
+
+      console.log(`🔔 Ready reminder #${order.readyReminderCount} sent for Order #${id}`);
+
+      return res.json({ 
+        success: true, 
+        message: "Reminder sent successfully",
+        readyReminderCount: order.readyReminderCount
+      });
+    } else {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No active device tokens found for this user." 
+      });
+    }
+  } catch (err) {
+    console.error("❌ sendReadyReminder error:", err);
+    return res.status(500).json({ success: false, message: "Failed to send reminder" });
+  }
+};
 
 /**
  * ===============================
