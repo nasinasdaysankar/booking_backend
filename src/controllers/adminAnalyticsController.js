@@ -69,7 +69,7 @@ export const getTrendData = async (req, res) => {
       dateExpr = `CAST(${ist} AS DATE)`;
       groupByExpr = `CAST(${ist} AS DATE)`;
       orderByExpr = `CAST(${ist} AS DATE)`;
-      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '6 days'`;
     } else if (range === "monthly") {
       dateExpr = `CAST(${ist} AS DATE)`;
       groupByExpr = `CAST(${ist} AS DATE)`;
@@ -166,7 +166,7 @@ export const getTopItems = async (req, res) => {
     if (range === "daily") {
       whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '6 days'`;
     } else if (range === "monthly") {
       whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {
@@ -254,7 +254,7 @@ export const getOrdersOverview = async (req, res) => {
       groupExpr = `CAST(${ist} AS DATE)`;
       labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
       orderExpr = `CAST(${ist} AS DATE)`;
-      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '6 days'`;
     } else if (range === "monthly") {
       groupExpr = `CAST(${ist} AS DATE)`;
       labelExpr = `TO_CHAR(CAST(${ist} AS DATE), 'DD Mon')`;
@@ -331,7 +331,7 @@ export const getPeakHours = async (req, res) => {
     if (range === "daily") {
       whereDate = `AND CAST(${ist} AS DATE) = (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE`;
     } else if (range === "weekly") {
-      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '7 days'`;
+      whereDate = `AND CAST(${ist} AS DATE) >= (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE - INTERVAL '6 days'`;
     } else if (range === "monthly") {
       whereDate = `AND DATE_TRUNC('month', ${ist}) = DATE_TRUNC('month', (NOW() AT TIME ZONE 'Asia/Kolkata')::DATE)`;
     } else if (range === "custom") {

@@ -11,7 +11,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import { replaceMenuImage } from "../controllers/menuController.js";
-import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics } from "../controllers/superadminController.js";
+import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics, getAllRadiusRequests, approveRadiusRequest, rejectRadiusRequest } from "../controllers/superadminController.js";
 import { sendNotification, sendBatchNotifications, sendMulticastNotification } from "../utils/notificationUtils.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
 
@@ -206,6 +206,13 @@ router.post('/cafeterias/upload-media/:id', superadminAuth, upload.single('file'
 // DELETE CAFETERIA MEDIA (SUPERADMIN)
 // ============================================
 router.post('/cafeterias/delete-media/:id', superadminAuth, deleteCafeteriaMedia);
+
+// ============================================
+// RADIUS REQUEST ROUTES (SUPERADMIN)
+// ============================================
+router.get('/radius-requests', superadminAuth, getAllRadiusRequests);
+router.put('/radius-requests/approve/:id', superadminAuth, approveRadiusRequest);
+router.put('/radius-requests/reject/:id', superadminAuth, rejectRadiusRequest);
 
 // ============================================
 // GET SUPERADMIN DASHBOARD STATS

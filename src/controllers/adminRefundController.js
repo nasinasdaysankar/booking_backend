@@ -498,6 +498,7 @@ const verifyAndSyncRefundInternal = async (orderId) => {
 export const getRefundHistory = async (req, res) => {
   try {
     const cafeteriaId = req.user.cafeteriaId;
+    const { from, to, status } = req.query;
 
     console.log(`📋 [REFUND HISTORY] Fetching for cafeteria: ${cafeteriaId}`);
 
@@ -513,10 +514,19 @@ export const getRefundHistory = async (req, res) => {
       await Promise.all(pendingRefunds.map(p => verifyAndSyncRefundInternal(p.orderId)));
     }
 
+    // Optional filters
+    const dateClause = (from && to) ? `AND p."refundedat" BETWEEN :from AND :to` : '';
+    const statusClause = (status && ['SUCCESS', 'PENDING', 'FAILED'].includes(status.toUpperCase()))
+      ? `AND p.status = :refundStatus`
+      : '';
+    const replacements = { cafeteriaId };
+    if (from && to) { replacements.from = from; replacements.to = to; }
+    if (statusClause) replacements.refundStatus = status.toUpperCase();
+
     // ✅ Use exact column names from database
     const refunds = await sequelize.query(
       `
-      SELECT 
+      SELECT
         p.id as "paymentId",
         p."refundid" AS "refundId",
         p."refundamount" AS "refundAmount",
@@ -534,15 +544,17 @@ export const getRefundHistory = async (req, res) => {
           WHERE oi.orderid = o.id
         ) AS "itemsSummary"
       FROM payments p
-      JOIN orders o 
+      JOIN orders o
         ON p."orderid" = o.id
-      WHERE 
+      WHERE
         o."cafeteriaid" = :cafeteriaId
         AND p."refundid" IS NOT NULL
+        ${dateClause}
+        ${statusClause}
       ORDER BY p."refundedat" DESC
       `,
       {
-        replacements: { cafeteriaId },
+        replacements,
         type: sequelize.QueryTypes.SELECT,
       }
     );

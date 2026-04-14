@@ -285,7 +285,7 @@
 // };
 
 
-import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria } from "../models/index.js";
+import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria, OrderFeedback } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -505,7 +505,7 @@ export const createManualOrder = async (req, res) => {
  */
 export const getAdminOrders = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, from, to, paymentMethod } = req.query;
     const cafeteriaId = req.user.cafeteriaId;
 
     // Handle multiple statuses (comma-separated or single)
@@ -518,6 +518,21 @@ export const getAdminOrders = async (req, res) => {
       replacements = { statusArray, cafeteriaId };
     }
 
+    // Optional date range filter
+    const dateClause = (from && to)
+      ? `AND orders."created_at" BETWEEN :from AND :to`
+      : from
+      ? `AND orders."created_at" >= :from`
+      : '';
+    if (from) replacements.from = from;
+    if (to) replacements.to = to;
+
+    // Optional payment method filter
+    const pmClause = (paymentMethod && ['ONLINE', 'CASH'].includes(paymentMethod.toUpperCase()))
+      ? `AND orders."payment_method" = :paymentMethod`
+      : '';
+    if (pmClause) replacements.paymentMethod = paymentMethod.toUpperCase();
+
     const orders = await sequelize.query(
       `
               SELECT orders.id,
@@ -528,6 +543,7 @@ export const getAdminOrders = async (req, res) => {
               orders."totalamount" AS "totalAmount",
               orders.status,
               orders."paymentstatus" AS "paymentStatus",
+              orders."payment_method" AS "paymentMethod",
               orders."etaminutes" AS "etaMinutes",
               orders."kotnumber" AS "kotNumber",
               orders."israted" AS "isRated",
@@ -547,6 +563,8 @@ export const getAdminOrders = async (req, res) => {
        LEFT JOIN users ON users.id = orders."studentid"
        WHERE ${statusCondition}
        AND orders."cafeteriaid" = :cafeteriaId
+       ${dateClause}
+       ${pmClause}
        ORDER BY orders."created_at" DESC
       `,
       {
@@ -1003,7 +1021,8 @@ export const getAdminStats = async (req, res) => {
         const startOfDay = new Date(Date.UTC(istYear, istMonth, istDate) - IST_OFFSET_MS);
         dateFilter = { createdAt: { [Op.gte]: startOfDay } };
       } else if (range === "weekly") {
-        const startOfWeek = new Date(Date.UTC(istYear, istMonth, istDate - nowIST.getUTCDay()) - IST_OFFSET_MS);
+        // Last 7 days (Today + 6 previous days)
+        const startOfWeek = new Date(Date.UTC(istYear, istMonth, istDate - 6) - IST_OFFSET_MS);
         dateFilter = { createdAt: { [Op.gte]: startOfWeek } };
       } else if (range === "monthly") {
         const startOfMonth = new Date(Date.UTC(istYear, istMonth, 1) - IST_OFFSET_MS);
@@ -1096,6 +1115,69 @@ export const getAdminStats = async (req, res) => {
       totalCustomers: 0,
       pendingOrders: 0,
       avgOrderValue: 0,
+    });
+  }
+};
+
+/**
+ * ===============================
+ * GET ADMIN FEEDBACK (Ratings & Comments)
+ * ===============================
+ */
+export const getAdminFeedback = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+
+    if (!cafeteriaId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cafeteria ID not found in session",
+      });
+    }
+
+    const { rating, from, to } = req.query;
+
+    const where = { cafeteriaId };
+
+    if (rating) {
+      where.rating = rating;
+    }
+
+    if (from && to) {
+      where.createdAt = {
+        [Op.between]: [new Date(from), new Date(to)],
+      };
+    } else if (from) {
+      where.createdAt = { [Op.gte]: new Date(from) };
+    } else if (to) {
+      where.createdAt = { [Op.lte]: new Date(to) };
+    }
+
+    const feedbacks = await OrderFeedback.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          attributes: ["id", "name", "email", "phone"],
+        },
+        {
+          model: Order,
+          attributes: ["id", "billId", "totalAmount", "status", "paymentMethod", "dailyOrderNumber", "pickedUpAt", "kotNumber", "createdAt"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: feedbacks,
+    });
+  } catch (error) {
+    console.error("❌ getAdminFeedback error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch feedback",
+      error: error.message,
     });
   }
 };

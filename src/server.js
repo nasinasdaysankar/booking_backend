@@ -133,6 +133,36 @@ const start = async () => {
       logger.warn("⚠️ Could not ensure uninstalled/deletion status columns: " + colErr.message);
     }
 
+    // ✅ Ensure visibility_radius columns exist on cafeterias table
+    try {
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS visibility_radius DOUBLE PRECISION DEFAULT 10`
+      );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS requested_visibility_radius DOUBLE PRECISION`
+      );
+      // Ensure the ENUM type exists if using postgres, but since we just store the string we just use VARCHAR
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS radius_request_status VARCHAR(20) DEFAULT 'none'`
+      );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS radius_request_feedback TEXT`
+      );
+      logger.info("✅ cafeterias.visibility_radius and request columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure cafeterias visibility radius columns: " + colErr.message);
+    }
+
+    // ✅ Ensure edit_reason column exists on inventory_batches table
+    try {
+      await sequelize.query(
+        `ALTER TABLE inventory_batches ADD COLUMN IF NOT EXISTS edit_reason VARCHAR(255)`
+      );
+      logger.info("✅ inventory_batches.edit_reason column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure inventory_batches edit_reason column: " + colErr.message);
+    }
+
     //Redis
     // ============================================
     // 🔥 REDIS CONNECTION

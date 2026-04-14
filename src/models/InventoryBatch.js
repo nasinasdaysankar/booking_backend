@@ -45,6 +45,12 @@ export default (sequelize) => {
         type: DataTypes.DATE,
         field: "updated_at",
       },
+
+      editReason: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: "edit_reason",
+      },
     },
     {
       tableName: "inventory_batches",

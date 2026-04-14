@@ -35,9 +35,14 @@ export const getCafeteriaDetails = async (req, res) => {
         "commissionType",
         "commissionAmount",
         "bufferTime",
+        "bufferTime",
         "isBusy",
         "openTime",
         "closeTime",
+        "visibilityRadius",
+        "requestedVisibilityRadius",
+        "radiusRequestStatus",
+        "radiusRequestFeedback",
       ],
     });
 
@@ -90,6 +95,10 @@ export const getMyCafeterias = async (req, res) => {
         "isBusy",
         "openTime",
         "closeTime",
+        "visibilityRadius",
+        "requestedVisibilityRadius",
+        "radiusRequestStatus",
+        "radiusRequestFeedback",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -133,6 +142,7 @@ export const updateCafeteria = async (req, res) => {
       isBusy,
       openTime,
       closeTime,
+      visibilityRadius,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -169,6 +179,25 @@ export const updateCafeteria = async (req, res) => {
     if (isBusy !== undefined) cafeteria.isBusy = isBusy;
     if (openTime !== undefined) cafeteria.openTime = openTime;
     if (closeTime !== undefined) cafeteria.closeTime = closeTime;
+
+    if (visibilityRadius !== undefined) {
+      // Only process radius changes if the new value is different from the currently active value.
+      // E.g., if it's already 60, don't put it in 'pending' again when updating buffer time!
+      if (Number(visibilityRadius) !== Number(cafeteria.visibilityRadius)) {
+        if (visibilityRadius <= 40) {
+          cafeteria.visibilityRadius = visibilityRadius;
+          cafeteria.radiusRequestStatus = "none";
+          cafeteria.requestedVisibilityRadius = null;
+          cafeteria.radiusRequestFeedback = null;
+        } else {
+          // If the admin is requesting a DIFFERENT radius > 40, set it to pending.
+          if (Number(visibilityRadius) !== Number(cafeteria.requestedVisibilityRadius)) {
+            cafeteria.requestedVisibilityRadius = visibilityRadius;
+            cafeteria.radiusRequestStatus = "pending";
+          }
+        }
+      }
+    }
 
     await cafeteria.save();
 
@@ -207,6 +236,10 @@ export const updateCafeteria = async (req, res) => {
         isBusy: cafeteria.isBusy,
         openTime: cafeteria.openTime,
         closeTime: cafeteria.closeTime,
+        visibilityRadius: cafeteria.visibilityRadius,
+        requestedVisibilityRadius: cafeteria.requestedVisibilityRadius,
+        radiusRequestStatus: cafeteria.radiusRequestStatus,
+        radiusRequestFeedback: cafeteria.radiusRequestFeedback,
       },
     });
   } catch (err) {

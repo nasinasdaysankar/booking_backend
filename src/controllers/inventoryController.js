@@ -260,46 +260,86 @@ export const addStock = async (req, res) => {
 // UPDATE BATCH (Correction)
 // ─────────────────────────────────────────
 export const updateBatch = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const cafeteriaId = req.user.cafeteriaId;
     const { id, batchId } = req.params;
-    const { quantityRemaining, unitCost } = req.body;
+    const { quantityRemaining, unitCost, editReason } = req.body;
 
-    const product = await InventoryProduct.findOne({ where: { id, cafeteriaId } });
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const product = await InventoryProduct.findOne({ where: { id, cafeteriaId }, transaction: t });
+    if (!product) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
 
     const batch = await InventoryBatch.findOne({
       where: { id: batchId, productId: id },
+      transaction: t
     });
 
     if (!batch) {
+      await t.rollback();
       return res.status(404).json({ success: false, message: "Batch not found" });
     }
 
     if (quantityRemaining !== undefined) {
       if (quantityRemaining < 0) {
-          return res.status(400).json({ success: false, message: "Quantity cannot be less than 0" });
+        await t.rollback();
+        return res.status(400).json({ success: false, message: "Quantity cannot be less than 0" });
       }
       batch.quantityRemaining = parseFloat(quantityRemaining);
     }
     
     if (unitCost !== undefined) {
         if (unitCost < 0) {
+            await t.rollback();
             return res.status(400).json({ success: false, message: "Unit cost cannot be less than 0" });
         }
         batch.unitCost = parseFloat(unitCost);
     }
+    
+    if (editReason) {
+        batch.editReason = editReason;
+    }
 
-    await batch.save();
+    await batch.save({ transaction: t });
+
+    // ✅ Update associated "Stock In" history entry
+    const historyEntry = await InventoryTransaction.findOne({
+      where: { batchId: batch.id, type: "IN" },
+      transaction: t
+    });
+
+    if (historyEntry) {
+      if (quantityRemaining !== undefined) {
+        historyEntry.quantity = parseFloat(quantityRemaining);
+      }
+      if (unitCost !== undefined) {
+        historyEntry.unitCost = parseFloat(unitCost);
+      }
+      if (quantityRemaining !== undefined || unitCost !== undefined) {
+        historyEntry.totalCost = parseFloat((historyEntry.quantity * historyEntry.unitCost).toFixed(2));
+      }
+      if (editReason) {
+        // Add reason to note for traceability in the history tab
+        historyEntry.note = historyEntry.note 
+          ? `${historyEntry.note} (Edit: ${editReason})`
+          : `Edited: ${editReason}`;
+      }
+      await historyEntry.save({ transaction: t });
+    }
+
+    await t.commit();
     
     const totalStock = await getTotalStock(id);
 
     return res.json({
       success: true,
-      message: "Batch updated successfully",
+      message: "Batch updated and history synchronized",
       data: { batch, totalStock },
     });
   } catch (err) {
+    if (t) await t.rollback();
     console.error("❌ updateBatch error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }

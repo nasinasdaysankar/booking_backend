@@ -41,7 +41,8 @@ export const getCafeterias = async (req, res) => {
         'showPlatformFee',
         'showCommission',
         'fssaiLicense',
-        'isBusy'
+        'isBusy',
+        'visibilityRadius'
       ],
       order: [['id', 'ASC']]
     });

@@ -442,3 +442,107 @@ export const getAdvancedAnalytics = async (req, res) => {
         });
     }
 };
+
+/**
+ * 📍 GET PENDING RADIUS REQUESTS
+ */
+export const getAllRadiusRequests = async (req, res) => {
+    try {
+        const requests = await Cafeteria.findAll({
+            where: { radiusRequestStatus: "pending" },
+            attributes: ["id", "name", "visibilityRadius", "requestedVisibilityRadius", "radiusRequestStatus", "ownerId"]
+        });
+        return res.json({ success: true, data: requests });
+    } catch (err) {
+        console.error("Fetch radius requests error:", err);
+        return res.status(500).json({ success: false, message: "Failed to fetch radius requests" });
+    }
+};
+
+/**
+ * ✅ APPROVE RADIUS REQUEST
+ */
+export const approveRadiusRequest = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const cafeteria = await Cafeteria.findByPk(id);
+        
+        if (!cafeteria || cafeteria.radiusRequestStatus !== "pending") {
+            return res.status(404).json({ success: false, message: "No pending radius request found" });
+        }
+
+        cafeteria.visibilityRadius = cafeteria.requestedVisibilityRadius;
+        cafeteria.requestedVisibilityRadius = null;
+        cafeteria.radiusRequestStatus = "approved";
+        cafeteria.radiusRequestFeedback = null;
+        await cafeteria.save();
+
+        await clearCafeteriaCache();
+
+        // Send push notification to Admin
+        import("../utils/notificationUtils.js").then(async ({ sendNotification }) => {
+            const { AdminFcmToken } = await import("../models/index.js");
+            const adminTokens = await AdminFcmToken.findAll({ where: { adminId: cafeteria.ownerId } });
+            if (adminTokens.length > 0) {
+                for (const tokenRecord of adminTokens) {
+                    await sendNotification({
+                        token: tokenRecord.fcmToken,
+                        notification: {
+                            title: "Radius Request Approved ✅",
+                            body: `Your request for ${cafeteria.visibilityRadius}km radius for ${cafeteria.name} has been approved.`
+                        }
+                    }, cafeteria.ownerId, true);
+                }
+            }
+        });
+
+        return res.json({ success: true, message: "Radius request approved", data: cafeteria });
+    } catch (err) {
+        console.error("Approve radius request error:", err);
+        return res.status(500).json({ success: false, message: "Failed to approve request" });
+    }
+};
+
+/**
+ * ❌ REJECT RADIUS REQUEST
+ */
+export const rejectRadiusRequest = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { feedback } = req.body;
+        
+        const cafeteria = await Cafeteria.findByPk(id);
+        
+        if (!cafeteria || cafeteria.radiusRequestStatus !== "pending") {
+            return res.status(404).json({ success: false, message: "No pending radius request found" });
+        }
+
+        cafeteria.radiusRequestStatus = "rejected";
+        cafeteria.radiusRequestFeedback = feedback || "Not approved";
+        await cafeteria.save();
+
+        await clearCafeteriaCache();
+
+        // Send push notification to Admin
+        import("../utils/notificationUtils.js").then(async ({ sendNotification }) => {
+            const { AdminFcmToken } = await import("../models/index.js");
+            const adminTokens = await AdminFcmToken.findAll({ where: { adminId: cafeteria.ownerId } });
+            if (adminTokens.length > 0) {
+                for (const tokenRecord of adminTokens) {
+                    await sendNotification({
+                        token: tokenRecord.fcmToken,
+                        notification: {
+                            title: "Radius Request Rejected ❌",
+                            body: `Your radius request for ${cafeteria.name} was rejected. Feedback: ${feedback || "None"}.`
+                        }
+                    }, cafeteria.ownerId, true);
+                }
+            }
+        });
+
+        return res.json({ success: true, message: "Radius request rejected", data: cafeteria });
+    } catch (err) {
+        console.error("Reject radius request error:", err);
+        return res.status(500).json({ success: false, message: "Failed to reject request" });
+    }
+};

@@ -151,6 +151,26 @@ export default (sequelize) => {
         allowNull: true,
         field: "close_time",
       },
+      visibilityRadius: {
+        type: DataTypes.DOUBLE,
+        defaultValue: 10,
+        field: "visibility_radius",
+      },
+      requestedVisibilityRadius: {
+        type: DataTypes.DOUBLE,
+        allowNull: true,
+        field: "requested_visibility_radius",
+      },
+      radiusRequestStatus: {
+        type: DataTypes.ENUM("none", "pending", "approved", "rejected"),
+        defaultValue: "none",
+        field: "radius_request_status",
+      },
+      radiusRequestFeedback: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: "radius_request_feedback",
+      },
     },
     {
       tableName: "cafeterias",

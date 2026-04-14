@@ -4,7 +4,8 @@ import {
   getAdminOrders, 
   updateOrderStatus,
   getAdminStats,
-  createManualOrder
+  createManualOrder,
+  getAdminFeedback
 } from "../controllers/adminOrderController.js";
 
 const router = express.Router();
@@ -34,5 +35,6 @@ router.patch(
 );
 
 router.get("/stats", auth, requireRole(['admin']), getAdminStats);
+router.get("/feedback", auth, requireRole(['staff', 'admin']), getAdminFeedback);
 
 export default router;
