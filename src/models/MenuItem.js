@@ -104,6 +104,20 @@ export default (sequelize) => {
         field: "trackstock",
       },
 
+      autoStockUpdate: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "autostockupdate",
+      },
+
+      defaultStockQuantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+        field: "defaultstockquantity",
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         field: "created_at",

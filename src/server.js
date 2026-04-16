@@ -18,6 +18,7 @@ import compression from "compression";
 import { initSocket } from "./socket.js";
 import { initNotificationScheduler } from "./cron/notificationScheduler.js";
 import { initCafeteriaScheduler } from "./cron/cafeteriaScheduler.js";
+import { initStockScheduler } from "./cron/stockScheduler.js";
 
 const PORT = process.env.PORT || 4000;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
@@ -153,6 +154,25 @@ const start = async () => {
       logger.warn("⚠️ Could not ensure cafeterias visibility radius columns: " + colErr.message);
     }
 
+    // ✅ Ensure is_busy, is_offline, open_time, close_time columns exist on cafeterias table
+    try {
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS is_busy BOOLEAN NOT NULL DEFAULT false`
+      );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS is_offline BOOLEAN NOT NULL DEFAULT false`
+      );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS open_time VARCHAR(5)`
+      );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS close_time VARCHAR(5)`
+      );
+      logger.info("✅ cafeterias missing columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure cafeterias missing columns: " + colErr.message);
+    }
+
     // ✅ Ensure edit_reason column exists on inventory_batches table
     try {
       await sequelize.query(
@@ -161,6 +181,19 @@ const start = async () => {
       logger.info("✅ inventory_batches.edit_reason column ensured");
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure inventory_batches edit_reason column: " + colErr.message);
+    }
+
+    // ✅ Ensure auto_stock_update columns exist on menu_items table
+    try {
+      await sequelize.query(
+        `ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS autostockupdate BOOLEAN NOT NULL DEFAULT false`
+      );
+      await sequelize.query(
+        `ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS defaultstockquantity INTEGER NOT NULL DEFAULT 0`
+      );
+      logger.info("✅ menu_items auto stock update columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure menu_items auto stock update columns: " + colErr.message);
     }
 
     //Redis
@@ -207,6 +240,7 @@ const start = async () => {
 
       initNotificationScheduler(); // ⏰ Start Cron
       initCafeteriaScheduler(); // ⏰ Start Cafeteria Scheduler
+      initStockScheduler(); // ⏰ Start Stock Scheduler
     });
 
   } catch (err) {
