@@ -1,7 +1,8 @@
 import express from 'express';
 import { Op, QueryTypes } from 'sequelize';
 import sequelize from '../config/db.js';
-import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, OrderItem, UserFcmToken, AdminFcmToken, AppFeedback, SupportTicket } from '../models/index.js';
+import { Order, Cafeteria, MenuItem, User, Admin, Payment, AuditLog, SystemSetting, OrderItem, UserFcmToken, AdminFcmToken, AppFeedback, SupportTicket, SupportMessage } from '../models/index.js';
+
 import { superadminAuth } from '../middleware/auth.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -14,6 +15,14 @@ import { replaceMenuImage } from "../controllers/menuController.js";
 import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics, getAllRadiusRequests, approveRadiusRequest, rejectRadiusRequest } from "../controllers/superadminController.js";
 import { sendNotification, sendBatchNotifications, sendMulticastNotification } from "../utils/notificationUtils.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
+import { 
+    getAllTickets, 
+    getAdminSupportTickets, 
+    getTicketMessages, 
+    addTicketMessage, 
+    resolveTicket, 
+    toggleMedia 
+} from "../controllers/supportTicketController.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
@@ -1623,199 +1632,30 @@ router.get('/analytics/advanced', superadminAuth, async (req, res) => {
 // ============================================
 // GET ALL SUPPORT TICKETS (SUPERADMIN) - User tickets only
 // ============================================
-router.get('/support-tickets', superadminAuth, async (req, res) => {
-    try {
-        const { status, category } = req.query;
-
-        const where = { source: 'user' };
-        if (status) where.status = status;
-        if (category) where.category = category;
-
-        const tickets = await SupportTicket.findAll({
-            where,
-            include: [
-                {
-                    model: User,
-                    as: "user",
-                    attributes: ["id", "name", "email", "phone"],
-                },
-            ],
-            order: [["createdAt", "DESC"]],
-        });
-
-        return res.json({
-            success: true,
-            count: tickets.length,
-            data: tickets,
-        });
-    } catch (error) {
-        console.error("❌ getSupportTickets ERROR:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
-    }
-});
+router.get('/support-tickets', superadminAuth, getAllTickets);
 
 // ============================================
 // GET ADMIN SUPPORT TICKETS (SUPERADMIN) - Admin app tickets
 // ============================================
-router.get('/admin-support-tickets', superadminAuth, async (req, res) => {
-    try {
-        const { status, category } = req.query;
+router.get('/admin-support-tickets', superadminAuth, getAdminSupportTickets);
 
-        const where = { source: 'admin' };
-        if (status) where.status = status;
-        if (category) where.category = category;
+// ============================================
+// CONVERSATION THREADS (SUPERADMIN)
+// ============================================
 
-        const tickets = await SupportTicket.findAll({
-            where,
-            order: [["createdAt", "DESC"]],
-            raw: true,
-        });
+// Get all messages for a ticket
+router.get('/support-tickets/:id/messages', superadminAuth, getTicketMessages);
 
-        // Fetch admin details for each ticket
-        const ticketsWithAdmin = await Promise.all(
-            tickets.map(async (ticket) => {
-                try {
-                    const admin = await Admin.findByPk(ticket.userId, {
-                        attributes: ["id", "name", "staffId", "role"],
-                        raw: true,
-                    });
-                    return {
-                        ...ticket,
-                        admin: admin || { id: ticket.userId, name: "Unknown Admin", staffId: "N/A", role: "N/A" },
-                    };
-                } catch {
-                    return {
-                        ...ticket,
-                        admin: { id: ticket.userId, name: "Unknown Admin", staffId: "N/A", role: "N/A" },
-                    };
-                }
-            })
-        );
+// Add a message to a ticket
+router.post('/support-tickets/:id/messages', superadminAuth, addTicketMessage);
 
-        return res.json({
-            success: true,
-            count: ticketsWithAdmin.length,
-            data: ticketsWithAdmin,
-        });
-    } catch (error) {
-        console.error("❌ getAdminSupportTickets ERROR:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
-    }
-});
+// Toggle Media Permission for a ticket
+router.put('/support-tickets/:id/toggle-media', superadminAuth, toggleMedia);
+
 
 // ============================================
 // RESOLVE SUPPORT TICKET (SUPERADMIN)
 // ============================================
-router.put('/support-tickets/:id/resolve', superadminAuth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { adminResponse, status } = req.body;
-
-        const ticket = await SupportTicket.findByPk(id);
-        if (!ticket) {
-            return res.status(404).json({
-                success: false,
-                message: "Ticket not found",
-            });
-        }
-
-        ticket.adminResponse = adminResponse || ticket.adminResponse;
-        ticket.status = status || "resolved";
-        if (status === "resolved" || (!status && adminResponse)) {
-            ticket.resolvedAt = new Date();
-            ticket.status = "resolved";
-        }
-        await ticket.save();
-
-        console.log(`✅ Support ticket #${id} ${ticket.status} by superadmin`);
-
-        // 🔔 SEND PUSH NOTIFICATION TO USER OR ADMIN
-        (async () => {
-            try {
-                const ticketSource = ticket.source || 'user';
-                const notifTitle = ticket.status === 'resolved'
-                    ? '✅ Support Ticket Resolved'
-                    : '💬 Support Ticket Update';
-                const notifBody = `Your ticket "${ticket.category}" has been updated: ${(adminResponse || '').substring(0, 100)}`;
-
-                let tokens = [];
-
-                if (ticketSource === 'admin') {
-                    // Send to admin FCM tokens
-                    const adminTokens = await AdminFcmToken.findAll({
-                        where: { adminId: ticket.userId },
-                    });
-                    tokens = adminTokens.map(t => t.fcmToken);
-                    console.log(`🔔 Sending notification to admin ${ticket.userId} (${tokens.length} tokens)`);
-                } else {
-                    // Send to user FCM tokens
-                    const userTokens = await UserFcmToken.findAll({
-                        where: { userId: ticket.userId },
-                    });
-                    tokens = userTokens.map(t => t.fcmToken);
-                    console.log(`🔔 Sending notification to user ${ticket.userId} (${tokens.length} tokens)`);
-                }
-
-                if (tokens.length > 0) {
-                    const uniqueTokens = [...new Set(tokens)];
-                    const userTokenMap = uniqueTokens.reduce((map, token) => {
-                        map[token] = ticket.userId;
-                        return map;
-                    }, {});
-
-                    const multicastMessage = {
-                        tokens: uniqueTokens,
-                        notification: {
-                            title: notifTitle,
-                            body: notifBody,
-                        },
-                        data: {
-                            type: 'SUPPORT_TICKET_UPDATE',
-                            ticketId: String(ticket.id),
-                            ticketStatus: ticket.status,
-                            click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                        },
-                        android: {
-                            priority: 'high',
-                            notification: {
-                                channelId: 'high_importance_channel',
-                                sound: 'default',
-                                clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-                            },
-                        },
-                        apns: {
-                            payload: {
-                                aps: {
-                                    sound: 'default',
-                                    badge: 1,
-                                    alert: {
-                                        title: notifTitle,
-                                        body: notifBody,
-                                    },
-                                },
-                            },
-                        },
-                    };
-
-                    await sendMulticastNotification(multicastMessage, userTokenMap, ticketSource === 'admin');
-                    console.log(`✅ Support ticket notification sent to ${ticketSource} ${ticket.userId}`);
-                } else {
-                    console.log(`⚠️ No FCM tokens found for ${ticketSource} ${ticket.userId}`);
-                }
-            } catch (notifErr) {
-                console.error('⚠️ Failed to send support ticket notification:', notifErr.message);
-            }
-        })();
-
-        return res.json({
-            success: true,
-            message: `Ticket ${ticket.status} successfully`,
-            ticket,
-        });
-    } catch (error) {
-        console.error("❌ resolveTicket ERROR:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
-    }
-});
+router.put('/support-tickets/:id/resolve', superadminAuth, resolveTicket);
 
 export default router;

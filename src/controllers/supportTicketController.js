@@ -1,4 +1,7 @@
-import { SupportTicket, User } from "../models/index.js";
+import { sequelize, SupportTicket, User, Admin, SupportMessage, UserFcmToken, AdminFcmToken } from "../models/index.js";
+import { sendNotification, sendPushNotification } from "../utils/notificationUtils.js";
+import { emitSupportMessage } from "../socket.js";
+import path from "path";
 
 // ============================================
 // PREDEFINED SUPPORT CATEGORIES, QUESTIONS & SOLUTIONS
@@ -6,76 +9,126 @@ import { SupportTicket, User } from "../models/index.js";
 const SUPPORT_CATEGORIES = {
     "Order Issues": [
         {
-            question: "Item not received?",
-            solution: "Once your order status changes to 'Ready' or 'Completed', you need to take the order within the designated buffer time. If you reached before in time please present your digital token at the cafeteria counter to collect your freshly prepared meal.",
+            question: "My order is stuck in 'Preparing' status for too long",
+            solution: "We apologize for the delay! Order preparation time depends on the cafeteria's current workload. If your order has been in 'Preparing' status for more than 15 minutes, this could be due to high demand or a temporary kitchen delay. You can visit the counter and show your digital token. If the issue persists, our team will look into it.",
         },
         {
-            question: "Received the wrong item?",
-            solution: "We sincerely apologize for the oversight! If the item you collected does not match your digital receipt, please show your bill to the cafeteria staff immediately. They will gladly replace it for you on the spot.",
+            question: "I picked up my order but the app still shows it as 'Ready'",
+            solution: "The order status updates automatically once the cafeteria staff scans or marks it as collected. If the status hasn't changed within a few minutes, try pulling down to refresh your order history. The status discrepancy doesn't affect your order record.",
         },
         {
-            question: "I want to cancel the order?",
-            solution: "To cancel an order, please contact the cafeteria staff at the counter immediately. They can cancel it for you, provided the kitchen hasn't started preparing your food. Cancellations cannot be processed once preparation has begun.",
+            question: "I received the wrong item",
+            solution: "We sincerely apologize for the mix-up! Please return to the cafeteria counter immediately and show your digital receipt/bill. The staff will replace the wrong item with the correct one. If you've already left, please submit this ticket and our team will follow up with the cafeteria.",
         },
         {
-            question: "There is a missing item in my order",
-            solution: "Please cross-verify your tray contents with your digital receipt. If an item is missing, simply return to the counter and notify the staff. They will provide the missing item to you right away.",
-        }
+            question: "An item is missing from my order",
+            solution: "Please cross-check all items in your tray against your digital bill. If an item is indeed missing, return to the counter and notify the staff — they will provide the missing item right away. If you cannot go back, submit this ticket and we'll coordinate with the cafeteria.",
+        },
+        {
+            question: "I want to cancel my order",
+            solution: "Orders can only be cancelled before the cafeteria begins preparation. Please visit the cafeteria counter as quickly as possible and inform the staff. Once preparation has started, cancellation is not possible. For future orders, you can check your order status and act promptly.",
+        },
+        {
+            question: "My order was marked as expired or cancelled automatically",
+            solution: "Orders are automatically cancelled if not collected within the designated buffer time after they become 'Ready'. This is done to ensure food freshness. Unfortunately, refunds for expired orders follow the standard refund policy — please submit a ticket and our team will review your case.",
+        },
+        {
+            question: "I see an order in my history that I didn't place",
+            solution: "If you notice an unauthorized order under your account, please do not ignore it. This could indicate an account security issue. Change your password immediately and contact our support team by submitting a ticket. We will investigate the transaction and take appropriate action.",
+        },
     ],
     "Payment Issues": [
         {
-            question: "Payment was deducted but order not placed",
-            solution: "Since this is a payment issue, our team will need to manually check this and issue a refund if applicable. Please provide your email and phone number below so we can contact you to resolve this.",
+            question: "Payment was deducted but my order was not placed",
+            solution: "This can happen due to a temporary network interruption between your bank and our payment gateway. In most cases, the amount is automatically refunded within 3-5 business days. Our team will need to manually verify this with the payment gateway. Please provide your contact details so we can follow up with you directly.",
             requiresContactDetails: true,
         },
         {
-            question: "I was charged twice",
-            solution: "Since you were charged twice, our team will need to verify the transactions and issue a refund manually. Please provide your contact details below.",
+            question: "I was charged twice for the same order",
+            solution: "A double charge usually occurs due to a network timeout causing your bank to retry the payment. Please provide your contact details below. Our team will verify both transactions in the payment gateway logs and initiate a refund for the duplicate charge within 3-5 business days.",
             requiresContactDetails: true,
         },
         {
-            question: "Refund not received",
-            solution: "To check the status of your refund, our team needs your contact details. Please provide your email and phone number below so we can assist you.",
+            question: "My refund has not been received",
+            solution: "Refunds typically take 3-7 business days to reflect in your account, depending on your bank. If it has been longer than that, our team will need to check the refund status with the payment gateway. Please share your contact details so we can investigate and provide an update.",
             requiresContactDetails: true,
         },
         {
-            question: "UPI payment stuck",
-            solution: "If your UPI payment is stuck, we will need to check the payment gateway logs. Please provide your contact details below so we can issue a refund if it failed.",
+            question: "My UPI payment is stuck or pending",
+            solution: "A UPI payment stuck in 'Pending' state usually resolves automatically within 24 hours. If the money was debited but the order was not placed, it will be refunded. If it hasn't resolved, our team will manually check the gateway logs. Please provide your contact details below.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "I paid but the payment screen shows an error",
+            solution: "If you encountered an error screen but the payment was deducted from your account, please don't attempt to pay again. Our system logs all payment attempts. Provide your contact details and we will verify the transaction status and ensure your order is processed or refunded.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "I want to request a refund for my order",
+            solution: "Refunds are processed on a case-by-case basis depending on the reason. If the cafeteria did not provide your ordered items or made an error, you may be eligible for a refund. Please provide your contact details so our team can review your order and initiate the refund process.",
             requiresContactDetails: true,
         },
     ],
     "Account Issues": [
         {
-            question: "Unable to login to my account",
-            solution: "Please ensure your internet connection is stable and you are using the correct credentials. If the issue persists, try clearing the application's cache data or reinstalling the app for a fresh instance.",
+            question: "I am unable to login to my account",
+            solution: "Please check that your internet connection is stable. Ensure you are entering the correct mobile number or email and password. If you've forgotten your password, use the 'Forgot Password' option on the login screen. If the issue persists after trying these steps, try reinstalling the app.",
         },
         {
-            question: "Need to update phone number or email",
-            solution: "For maximum security, modifying your primary contact details requires administrative verification. Please submit a request below, and our support infrastructure team will manually process the update.",
+            question: "I forgot my password",
+            solution: "Tap the 'Forgot Password' button on the login screen. Enter your registered email address and you will receive a password reset link. Check your spam folder if you don't see the email in your inbox. Complete the reset process and you should be able to log in with your new password.",
+        },
+        {
+            question: "My account has been locked or suspended",
+            solution: "Accounts may be temporarily suspended due to suspicious activity or repeated failed login attempts. Please submit this ticket with your registered email/phone and our team will review your account status and assist you in restoring access.",
+        },
+        {
+            question: "I need to update my phone number or email",
+            solution: "For security reasons, updating primary contact details requires manual verification by our team. Please go to your Profile page to update basic details. For changes to your registered phone/email, submit a ticket and our team will guide you through the verification process.",
+        },
+        {
+            question: "My profile picture or name is not updating",
+            solution: "Go to your Profile page and tap the edit button. Make your changes and ensure you press 'Save'. If you're updating a profile picture, ensure your internet connection is stable during the upload. If the update still doesn't save, try logging out and back in.",
+        },
+        {
+            question: "I want to delete my account",
+            solution: "Account deletion is a permanent action and cannot be undone. Before proceeding, ensure you have collected any pending orders. To request account deletion, please submit this ticket with your registered email address. Our team will process the deletion and confirm via email.",
         },
     ],
     "App Issues": [
         {
-            question: "App is crashing",
-            solution: "Please try clearing the app cache or updating the app to the latest version from the Play Store/App Store. Restarting your phone can also help.",
+            question: "The app is crashing or freezing",
+            solution: "Please try the following steps: (1) Force close the app and reopen it. (2) Clear the app's cache from your phone settings. (3) Check if your phone's storage is full. (4) Update the app to the latest version from the Play Store or App Store. (5) If none of these work, try reinstalling the app.",
         },
         {
-            question: "Menu not loading",
-            solution: "This usually happens due to a poor internet connection. Try turning your Wi-Fi or mobile data off and on again, or pull down to refresh the page.",
+            question: "The menu is not loading or is empty",
+            solution: "This is usually caused by a slow or unstable internet connection. Try the following: (1) Check your Wi-Fi or mobile data connection. (2) Pull down on the menu screen to refresh. (3) Toggle your Wi-Fi off and on again. (4) Close and reopen the app. If the menu still doesn't load, the cafeteria may be temporarily closed.",
         },
         {
-            question: "QR Scanner not working",
-            solution: "Ensure you have granted camera permissions to the app. You can verify this in your phone's settings under Apps > Booking App > Permissions.",
+            question: "I cannot see my order history",
+            solution: "Pull down on the Order History page to refresh. Ensure you are connected to the internet. If you've recently logged in on a new device, your history may take a moment to sync. If history is still missing, try logging out and back in. Your order data is saved on our servers and is never lost.",
         },
         {
-            question: "Location not detecting",
-            solution: "Please check if your device's GPS/Location service is turned on and that the app has permission to access your location.",
-        }
+            question: "Notifications are not working",
+            solution: "Please check: (1) Notification permissions for the app in your phone's Settings > Apps > [App Name] > Notifications. (2) Ensure 'Do Not Disturb' mode is not active. (3) Make sure the app is updated to the latest version. (4) On some Android phones, you may need to disable battery optimization for the app.",
+        },
+        {
+            question: "The QR code scanner is not working",
+            solution: "Ensure the app has camera permission: go to Phone Settings > Apps > [App Name] > Permissions > Camera and enable it. Also make sure your camera lens is clean and you're holding the device steady. If the scanner still doesn't work, try restarting the app.",
+        },
+        {
+            question: "My location is not being detected",
+            solution: "Please ensure: (1) Your device's Location/GPS is turned on. (2) The app has location permission (Settings > Apps > [App Name] > Permissions > Location). (3) Set location mode to 'High Accuracy' for best results. If you're indoors, GPS may be less accurate — try moving closer to a window.",
+        },
+        {
+            question: "Images and media are not loading",
+            solution: "Image loading issues are typically caused by a slow internet connection. Try switching between Wi-Fi and mobile data. Ensure you have enough storage space on your device. Clearing the app cache can also help load images faster. If a specific item has no image, it may not have been added by the cafeteria.",
+        },
     ],
     "Other": [
         {
             question: "I have a different issue (describe below)",
-            solution: "Our intelligent support system is here to help! Please describe your issue in the text box below. Our dedicated support team will review your ticket and provide a tailored resolution promptly.",
+            solution: "No problem! Our support team is ready to help with any issue you have. Please describe your problem in detail in the text box below. Include any relevant information such as order ID, time of incident, and screenshots if possible. Our team will get back to you as soon as possible.",
         },
     ],
 };
@@ -86,83 +139,112 @@ const SUPPORT_CATEGORIES = {
 const ADMIN_SUPPORT_CATEGORIES = {
     "Order Management": [
         {
-            question: "Customer says order not received but status shows completed",
-            solution: "Please verify the order timeline in the Order History section. If the order was marked as 'Completed' or 'Ready', the customer should have collected it within the designated buffer time. Check the pickup timestamp and confirm with your cafeteria staff if the order was physically collected.",
+            question: "A customer says their order was not received but app shows 'Completed'",
+            solution: "Please check the order's detailed timeline in the Order History section. Verify the 'Completed' or 'Ready' timestamp. If the order was marked complete but the customer claims they didn't receive it, check with your cafeteria staff if the order was physically prepared and placed at the counter. If confirmed as an error, please submit a ticket for our team to process a refund.",
         },
         {
-            question: "How to cancel a customer's order?",
-            solution: "Go to the active orders section, find the customer's order, and tap the cancel button. You can only cancel orders that haven't started preparation. Once the kitchen has begun preparing, cancellation is not possible through the app.",
+            question: "How do I update an order's status manually?",
+            solution: "Go to the Orders section and find the specific order. Tap on it to open the order details. You will see options to update its status (e.g., from 'Preparing' to 'Ready'). Tap the appropriate status button and confirm. The customer's app will update in real-time. Only update statuses when they accurately reflect the kitchen's progress.",
         },
         {
-            question: "Order stuck in 'Preparing' status",
-            solution: "This usually happens when the order status wasn't updated after preparation. Go to the order and manually update its status to 'Ready' or 'Completed'. If the order is stuck and you cannot update it, try refreshing the orders page.",
+            question: "An order is stuck in 'Preparing' status",
+            solution: "This typically happens when the kitchen completes an order but the status isn't updated in the app. Go to the Order details and manually mark it as 'Ready'. If you are unable to update the status due to an app error, try refreshing the orders page or restarting the app. If the issue persists, submit a ticket.",
         },
         {
-            question: "Customer requesting a refund",
-            solution: "Navigate to the order in Order History, and use the Refund option. The refund will be processed through the original payment method. If you encounter issues processing the refund, please submit a ticket below.",
+            question: "A customer is requesting a refund for their order",
+            solution: "Navigate to the relevant order in Order History. Check if the order qualifies for a refund based on your cafeteria's policy (wrong item, missing item, not prepared etc.). If eligible, our support team processes refunds manually through the payment gateway. Submit a ticket with the Order ID and reason, and our team will action the refund.",
+        },
+        {
+            question: "Multiple orders came in at once and I'm overwhelmed",
+            solution: "The app displays all active orders in real-time. You can prioritize orders by their placement time. If the volume is too high, consider temporarily closing new orders from the app settings (Cafeteria Status toggle). Once you've caught up, switch the status back to 'Open'. If you need longer-term capacity management features, submit feedback via this ticket.",
+        },
+        {
+            question: "A customer's order was auto-cancelled but they're at the counter",
+            solution: "Orders auto-cancel if not collected within the buffer window. If the customer is present but the order was just cancelled, please check if the food was already prepared. If it was, use your discretion to serve them. Submit a ticket with the order ID if you feel the cancellation was in error, and our team will review and process a refund if applicable.",
         },
     ],
     "Payment & Refunds": [
         {
-            question: "Customer's payment received but order not created",
-            solution: "This is a payment-order sync issue. Our team will need to verify the payment gateway logs and manually create or refund the order. Please provide the customer details below.",
+            question: "A customer's payment is showing but the order was not created",
+            solution: "This is a payment-order sync issue, typically caused by a network interruption. Our backend team needs to verify the payment gateway logs and either manually create the order or process a refund. Please provide the customer's name, approximate order time, and amount so our team can investigate urgently.",
             requiresContactDetails: true,
         },
         {
-            question: "Refund not reflecting in customer's account",
-            solution: "Refunds typically take 3-5 business days to reflect. If it's been longer, our team will need to check the payment gateway. Please submit a ticket with the order details.",
+            question: "A refund was processed but the customer hasn't received it",
+            solution: "Refunds take 3-7 business days to reflect in the customer's bank account after being initiated. Please share the Order ID and refund initiation date. Our team will verify the refund status with the payment gateway and provide a tracking reference number to the customer.",
             requiresContactDetails: true,
         },
         {
-            question: "Daily sales report showing incorrect amounts",
-            solution: "Please verify if all orders for the day have been properly marked as completed. Cancelled orders and refunded orders may affect the totals. If the discrepancy persists after verification, submit a ticket below.",
+            question: "My daily revenue report shows incorrect totals",
+            solution: "Revenue reports are calculated based on completed orders minus refunds and cancellations. First, verify all orders are correctly marked as 'Completed' and check if any refunds were processed that day. If the discrepancy persists after this check, submit a ticket with the specific date and the expected vs. displayed amounts for our team to investigate.",
         },
         {
-            question: "UPI/Payment gateway errors",
-            solution: "Payment gateway issues require backend investigation. Please provide the details and timestamps so our team can check the gateway logs.",
+            question: "A customer was charged twice for the same order",
+            solution: "Double charges occur due to payment gateway retries during network issues. The duplicate amount should be automatically refunded within 24-48 hours by the payment gateway. If it hasn't been refunded, submit a ticket with the order ID and transaction details. Our team will contact the payment gateway to expedite the refund.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "Payment gateway showing errors during peak hours",
+            solution: "Payment gateway errors during peak hours can be caused by high transaction volume or temporary gateway downtime. Check the gateway's status page if available. These usually resolve within minutes. If errors persist for more than 30 minutes and are affecting multiple customers, submit a ticket immediately so our team can escalate to the payment gateway provider.",
             requiresContactDetails: true,
         },
     ],
     "Menu Management": [
         {
-            question: "Unable to add or edit menu items",
-            solution: "Ensure you have a stable internet connection. Try refreshing the menu page. If items still can't be added, clear the app cache and try again. Make sure item names don't contain special characters that aren't supported.",
+            question: "I am unable to add a new menu item",
+            solution: "Ensure you fill in all required fields: Item Name, Price, Category, and at least one image. Item names should not contain special characters. Check that your internet connection is stable before submitting. If the item still won't save, try using a shorter name or a different image format (JPEG recommended under 5MB).",
         },
         {
-            question: "Category visibility toggle not working",
-            solution: "The category visibility toggle controls what customers see on the user app. After toggling, wait a few seconds for the changes to sync. If it still doesn't reflect, try toggling it off and on again, then refresh.",
+            question: "A menu item's price update is not reflecting for customers",
+            solution: "After updating a price, the change should reflect for customers within 30-60 seconds. Ask the customer to pull-to-refresh their menu page. Price changes are not cached on the user's device for long. If the old price continues to show after a few minutes, try editing and saving the item again.",
         },
         {
-            question: "Menu items showing wrong prices",
-            solution: "Go to Menu Management, find the item, and update the price. Changes will be reflected in the user app immediately. If you're unable to edit the price, try deleting and re-adding the item.",
+            question: "A deleted item is still appearing for customers",
+            solution: "After deletion, it may take up to 1 minute for the change to propagate to all users. Ask the customer to refresh their app. If the item still appears after 5 minutes, try marking the item as 'Unavailable' first if a re-delete doesn't work, and submit a ticket so our team can clear the cache.",
         },
         {
-            question: "Deleted items still appearing for customers",
-            solution: "After deleting menu items, it may take a few seconds for the cache to clear. Ask the customer to pull-to-refresh or restart their app. If the issue persists, submit a ticket below.",
+            question: "I cannot toggle a category's visibility on or off",
+            solution: "The category visibility toggle in Menu Management controls what customers see. After toggling, wait 5-10 seconds for confirmation. If the toggle snaps back, this could be a UI sync issue. Force close the app, reopen it, and try again. If the problem persists, submit a ticket.",
+        },
+        {
+            question: "Menu item images are not uploading",
+            solution: "Ensure the image is under 5MB in size and is in JPEG or PNG format. Check your internet connection — image uploads require a stable connection. If upload fails, try compressing the image first. You can also try a different image. If all images fail to upload, the issue may be server-side and you should submit a ticket.",
+        },
+        {
+            question: "Stock levels are not updating after I mark an item as out of stock",
+            solution: "After marking an item as unavailable/out-of-stock, the change should reflect immediately. Try refreshing the menu management page. If the item still shows as available after a minute, try toggling the availability off, saving, and then re-checking. Submit a ticket if the stock status continues to be incorrect.",
         },
     ],
     "App & Technical": [
         {
-            question: "Admin app is crashing",
-            solution: "Please try clearing the app cache from your phone's settings, or update to the latest version from the Play Store/App Store. Restart your device and try again.",
+            question: "The admin app is crashing or freezing",
+            solution: "Please try the following steps in order: (1) Force close the app and reopen it. (2) Clear the app cache from Phone Settings > Apps > Admin App > Storage. (3) Check if your device storage is full. (4) Update the app to the latest version from the Play Store/App Store. (5) Restart your device. If crashes continue, submit a ticket with details of when it crashes.",
         },
         {
-            question: "Printer not connecting",
-            solution: "Ensure your thermal printer is powered on and Bluetooth is enabled on your device. Go to Printer Setup in Settings and try re-pairing the printer. Make sure you're within Bluetooth range (typically 10 meters).",
+            question: "New customer orders are not appearing in real-time",
+            solution: "Real-time order updates depend on a stable internet connection and active socket connection. Check: (1) Your internet connection is active. (2) The app is not in battery-saving mode (this can kill background connections). (3) Notifications are enabled for the app. (4) Your cafeteria status is set to 'Open'. Try closing and reopening the app to re-establish the socket connection.",
         },
         {
-            question: "Real-time orders not appearing",
-            solution: "This is usually a connectivity issue. Check your internet connection and make sure notifications are enabled for the app. Try closing and reopening the app. If orders are still not appearing in real-time, check if your cafeteria status is set to 'Open'.",
+            question: "I cannot log in to the admin panel",
+            solution: "Verify your admin credentials are correct. If you've forgotten your password, contact your system administrator. Ensure your device's date and time are set correctly (authentication tokens can fail with wrong time settings). If login fails consistently, submit a ticket with your admin email — do not share your password.",
         },
         {
-            question: "QR code scanner not working",
-            solution: "Ensure camera permissions are granted to the app. Go to your phone's Settings > Apps > Admin App > Permissions and enable Camera. Restart the app and try again.",
+            question: "The thermal printer is not connecting or printing",
+            solution: "Check: (1) The printer is powered on and has paper loaded. (2) Bluetooth is enabled on your device. (3) The printer is within Bluetooth range (within 10 meters). Go to Settings > Printer Setup and try re-pairing the device. If the printer was connected before, try 'Forget' and re-add it. Submit a ticket if the printer still won't connect after these steps.",
+        },
+        {
+            question: "Push notifications for new orders are not working",
+            solution: "Check: (1) Notification permissions for the admin app: Settings > Apps > Admin App > Notifications — ensure all are enabled. (2) Disable battery optimization for the app: Settings > Battery > Battery Optimization > Admin App > Don't Optimize. (3) Make sure the app is updated. (4) Try logging out and back in to refresh the notification token.",
+        },
+        {
+            question: "The dashboard analytics or charts are not loading",
+            solution: "Dashboard analytics require a stable internet connection to fetch data. Try pulling down to refresh the dashboard. If charts remain empty, check if the date range you've selected has any data. Try switching to a different date range and back. If the issue persists after refreshing, submit a ticket.",
         },
     ],
     "Other": [
         {
             question: "I have a different issue (describe below)",
-            solution: "Please describe your issue in the text box below. Our dedicated support team will review your ticket and provide a resolution as soon as possible.",
+            solution: "Please describe your issue in detail in the text box below. Include relevant information such as the feature affected, when the issue started, and what you were trying to do when it occurred. Our dedicated support team will review your ticket and provide a resolution as soon as possible.",
         },
     ],
 };
@@ -198,12 +280,13 @@ export const getAdminSupportCategories = async (req, res) => {
 };
 
 // ============================================
-// CREATE SUPPORT TICKET (user submits)
+// CREATE SUPPORT TICKET (user/admin submits)
 // ============================================
 export const createSupportTicket = async (req, res) => {
     try {
         const userId = req.user.id;
         const { category, question, description, platform, source } = req.body;
+        const senderType = source || "user";
 
         if (!category || !question) {
             return res.status(400).json({
@@ -212,43 +295,55 @@ export const createSupportTicket = async (req, res) => {
             });
         }
 
+        console.log(`🔍 Validating ticket submission: Source=${senderType}, Category=${category}, Question=${question}`);
+
         // Use admin or user categories depending on source
-        const categories = source === "admin" ? ADMIN_SUPPORT_CATEGORIES : SUPPORT_CATEGORIES;
+        const categories = senderType === "admin" ? ADMIN_SUPPORT_CATEGORIES : SUPPORT_CATEGORIES;
 
         // Validate category exists
         if (!categories[category]) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid category",
-            });
+            console.warn(`⚠️ Unknown category submitted: ${category}. Defaulting to 'Other'.`);
         }
 
         // Validate question exists in category
-        const questionObj = categories[category].find(q => q.question === question);
+        const currentCategory = categories[category] || categories["Other"];
+        const questionObj = currentCategory.find(q => q.question === question);
+        
         if (!questionObj) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid question for this category",
-            });
+            console.warn(`⚠️ Question mismatch: "${question}" not found in category "${category}". Proceeding anyway.`);
         }
 
-        const ticket = await SupportTicket.create({
-            userId,
-            category,
-            question,
-            description: description || "",
-            platform: platform || "Unknown",
-            source: source || "user",
-            status: "open",
-        });
+        const ticket = await sequelize.transaction(async (t) => {
+            const newTicket = await SupportTicket.create({
+                userId,
+                category: category || "Other",
+                question: question || "Unknown Question",
+                description: description || "",
+                platform: platform || "Unknown",
+                source: senderType,
+                status: "open",
+            }, { transaction: t });
 
-        console.log(`🎫 New support ticket #${ticket.id} from ${source || "user"} ${userId}: ${category} → ${question}`);
+            console.log(`🎫 New support ticket #${newTicket.id} from ${senderType} ${userId}: ${category} → ${question}`);
+
+            // 💬 Create the initial message in the thread
+            const firstMessageText = description ? `${question}\n\nDetails: ${description}` : question;
+            await SupportMessage.create({
+                ticketId: newTicket.id,
+                senderId: userId,
+                senderType,
+                message: firstMessageText,
+            }, { transaction: t });
+
+            return newTicket;
+        });
 
         return res.status(201).json({
             success: true,
             message: "Support ticket submitted successfully",
             ticket,
         });
+
     } catch (error) {
         console.error("❌ createSupportTicket ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
@@ -261,9 +356,13 @@ export const createSupportTicket = async (req, res) => {
 export const getMyTickets = async (req, res) => {
     try {
         const userId = req.user.id;
+        const userType = req.user.userType || "user"; // "user" or "admin"
 
         const tickets = await SupportTicket.findAll({
-            where: { userId },
+            where: { 
+                userId,
+                source: userType 
+            },
             order: [["createdAt", "DESC"]],
         });
 
@@ -278,13 +377,13 @@ export const getMyTickets = async (req, res) => {
 };
 
 // ============================================
-// GET ALL TICKETS (admin/owner view)
+// GET ALL TICKETS (admin/owner view) - User side tickets
 // ============================================
 export const getAllTickets = async (req, res) => {
     try {
         const { status, category } = req.query;
 
-        const where = {};
+        const where = { source: 'user' };
         if (status) where.status = status;
         if (category) where.category = category;
 
@@ -307,6 +406,40 @@ export const getAllTickets = async (req, res) => {
         });
     } catch (error) {
         console.error("❌ getAllTickets ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// GET ALL TICKETS (admin/owner view) - Admin side tickets
+// ============================================
+export const getAdminSupportTickets = async (req, res) => {
+    try {
+        const { status, category } = req.query;
+
+        const where = { source: 'admin' };
+        if (status) where.status = status;
+        if (category) where.category = category;
+
+        const tickets = await SupportTicket.findAll({
+            where,
+            include: [
+                {
+                    model: Admin,
+                    as: "admin",
+                    attributes: ["id", "name", "staffId", "role"],
+                },
+            ],
+            order: [["createdAt", "DESC"]],
+        });
+
+        return res.json({
+            success: true,
+            count: tickets.length,
+            data: tickets,
+        });
+    } catch (error) {
+        console.error("❌ getAdminSupportTickets ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -343,7 +476,56 @@ export const resolveTicket = async (req, res) => {
         }
         await ticket.save();
 
-        console.log(`✅ Ticket #${id} ${ticket.status} by admin`);
+        // 💬 Add admin response as a message in the thread
+        await SupportMessage.create({
+            ticketId: id,
+            senderId: 0, // 0 for superadmin/owner
+            senderType: "owner",
+            message: adminResponse || `Status updated to ${ticket.status}`,
+        });
+
+        // Increment user unread count for the message
+        ticket.userUnreadCount = (ticket.userUnreadCount || 0) + 1;
+        await ticket.save();
+
+
+        // 🔔 Send push notification
+        const notifyUser = async () => {
+            try {
+                const ticketSource = ticket.source || 'user';
+                const notifTitle = ticket.status === 'resolved' ? '✅ Support Ticket Resolved' : '💬 Support Ticket Update';
+                const notifBody = adminResponse ? adminResponse.substring(0, 100) : `Your ticket has been marked as ${ticket.status}`;
+
+                let tokens = [];
+                if (ticketSource === 'admin') {
+                    const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
+                    tokens = adminTokens.map(t => t.fcmToken);
+                } else {
+                    const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
+                    tokens = userTokens.map(t => t.fcmToken);
+                }
+
+                if (tokens.length > 0) {
+                    await sendPushNotification(tokens, notifTitle, notifBody, {
+                        type: "SUPPORT_UPDATE",
+                        ticketId: id.toString(),
+                        category: ticket.category,
+                    }, ticket.userId, ticketSource === 'admin');
+                }
+
+                // 🌐 Real-time socket update
+                emitSupportMessage(id, {
+                    type: "SUPPORT_UPDATE",
+                    ticketId: id,
+                    status: ticket.status,
+                    message: adminResponse || `Status updated to ${ticket.status}`
+                });
+            } catch (err) {
+                console.error("❌ Notification error in resolveTicket:", err.message);
+            }
+        };
+
+        notifyUser();
 
         return res.json({
             success: true,
@@ -356,51 +538,293 @@ export const resolveTicket = async (req, res) => {
     }
 };
 
+
 // ============================================
 // VERIFY TICKET RESOLUTION (user response to admin)
 // ============================================
 export const verifyTicketResolution = async (req, res) => {
     try {
         const { id } = req.params;
-        const { isSolved, email, phone } = req.body;
-        const userId = req.user.id;
+        const { isSolved } = req.body;
+        const currentUserId = req.user.id;
+        const currentUserType = req.user.userType; // "user" or "admin"
 
-        const ticket = await SupportTicket.findOne({ where: { id, userId } });
+        const ticket = await SupportTicket.findByPk(id);
         if (!ticket) {
-            return res.status(404).json({
-                success: false,
-                message: "Ticket not found",
-            });
+            return res.status(404).json({ success: false, message: "Ticket not found" });
         }
 
-        // Only allow if admin asked for confirmation
-        if (!ticket.ownerRequestedConfirmation) {
-            return res.status(400).json({
-                success: false,
-                message: "Confirmation not requested for this ticket",
-            });
+        // Security: Ensure only the creator of the ticket can verify it
+        if (ticket.userId !== currentUserId || ticket.source !== currentUserType) {
+            return res.status(403).json({ success: false, message: "Unauthorized access to this ticket" });
         }
 
+        // Update ticket status
         if (isSolved) {
             ticket.status = "resolved";
             ticket.ownerRequestedConfirmation = false;
         } else {
-            ticket.status = "open"; // Or in_progress
+            ticket.status = "in_progress"; 
             ticket.ownerRequestedConfirmation = false;
-            if (email) ticket.userEmail = email;
-            if (phone) ticket.userPhone = phone;
         }
 
         await ticket.save();
 
-        return res.json({
-            success: true,
-            message: "Feedback submitted successfully",
-            ticket,
+        // 💬 Add user response as a message in the thread
+        const feedbackMsg = isSolved 
+            ? "✅ Yes, my issue is solved. Thank you!" 
+            : "❌ No, the issue is still persistent.";
+            
+        await SupportMessage.create({
+            ticketId: id,
+            senderId: currentUserId,
+            senderType: currentUserType, 
+            message: feedbackMsg,
         });
 
+        // Increment owner unread count for user feedback
+        ticket.ownerUnreadCount = (ticket.ownerUnreadCount || 0) + 1;
+        await ticket.save();
+
+        return res.json({
+            success: true,
+            message: `Response recorded: Issue ${isSolved ? 'solved' : 'reopened'}`,
+            ticket
+        });
     } catch (error) {
         console.error("❌ verifyTicketResolution ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// ADD MESSAGE TO TICKET (Conversational)
+// ============================================
+export const addTicketMessage = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { message, mediaUrl1, mediaUrl2 } = req.body;
+        const senderId = req.user.id;
+
+        // Determine senderType from user object/role
+        let senderType = "user";
+        if (req.user.role === "superadmin") senderType = "owner";
+        else if (req.user.role === "admin" || req.user.role === "vendor") senderType = "admin";
+
+        const ticket = await SupportTicket.findByPk(id);
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: "Ticket not found" });
+        }
+
+        // Check permissions: users/admins can only reply to their own tickets
+        const isRequestOwner = ticket.userId === senderId && ticket.source === req.user.userType;
+        if (senderType !== "owner" && !isRequestOwner) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        // Check media permissions (limit to 2 as per requirement)
+        const hasMedia = mediaUrl1 || mediaUrl2;
+        if (hasMedia && senderType !== "owner" && !ticket.isMediaEnabled) {
+            return res.status(403).json({ success: false, message: "Media uploads are not enabled for this ticket. Please contact support to enable them." });
+        }
+
+        const newMessage = await SupportMessage.create({
+            ticketId: id,
+            senderId,
+            senderType,
+            message,
+            mediaUrl1: mediaUrl1 || null,
+            mediaUrl2: mediaUrl2 || null,
+        });
+
+        // Update ticket status and unread counts
+        if (senderType === "owner") {
+            if (ticket.status === "open") {
+                ticket.status = "in_progress";
+            }
+            ticket.userUnreadCount += 1;
+        } else {
+            ticket.ownerUnreadCount += 1;
+        }
+        await ticket.save();
+
+
+        // 🔔 Send Push Notification to the other party
+        const notifyOtherParty = async () => {
+            try {
+                let tokens = [];
+                let title = "💬 New Support Message";
+                let body = message.substring(0, 100) + (message.length > 100 ? "..." : "");
+
+                console.log(`🔍 [NOTIFY] Attempting to notify other party for ticket ${id}. Source: ${ticket.source}, Sender: ${senderType}`);
+
+                if (senderType === "owner") {
+                    // Notify User or Admin
+                    if (ticket.source === "admin") {
+                        console.log(`🔍 [NOTIFY] Fetching Admin tokens for adminId: ${ticket.userId}`);
+                        const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
+                        tokens = adminTokens.map(t => t.fcmToken);
+                        console.log(`🔍 [NOTIFY] Found ${tokens.length} Admin tokens.`);
+                    } else {
+                        console.log(`🔍 [NOTIFY] Fetching User tokens for userId: ${ticket.userId}`);
+                        const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
+                        tokens = userTokens.map(t => t.fcmToken);
+                        console.log(`🔍 [NOTIFY] Found ${tokens.length} User tokens.`);
+                    }
+                } else {
+                    console.log(`🔍 [NOTIFY] Ticket creator (${senderType}) replied. Superadmin dashboard update via socket.`);
+                }
+
+                if (tokens.length > 0) {
+                    await sendPushNotification(tokens, title, body, {
+                        type: "SUPPORT_MESSAGE",
+                        ticketId: id.toString(),
+                        category: ticket.category || "Support",
+                    }, ticket.userId, ticket.source === 'admin');
+                } else if (senderType === "owner") {
+                    console.log(`⚠️ [NOTIFY] No tokens found for recipient ${ticket.userId} (source: ${ticket.source})`);
+                }
+
+                // 🌐 Real-time socket update for everyone in the ticket room
+                emitSupportMessage(id, {
+                    type: "SUPPORT_MESSAGE",
+                    ticketId: id,
+                    message: newMessage,
+                });
+
+            } catch (err) {
+                console.error("❌ Notification error in addTicketMessage:", err.message);
+            }
+        };
+
+        notifyOtherParty(); // Fire and forget
+
+        return res.status(201).json({
+            success: true,
+            message: "Message sent successfully",
+            data: newMessage,
+        });
+    } catch (error) {
+        console.error("❌ addTicketMessage ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// GET TICKET MESSAGES (Thread history)
+// ============================================
+export const getTicketMessages = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const currentId = req.user.id;
+        const userRole = req.user.role;
+        const userType = req.user.userType; // "user" or "admin"
+
+        const ticket = await SupportTicket.findByPk(id);
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: "Ticket not found" });
+        }
+
+        const isSuperadmin = userRole === "superadmin" || userRole === "owner";
+        const isRequestOwner = ticket.userId === currentId && ticket.source === userType;
+
+        // Check permissions
+        if (!isSuperadmin && !isRequestOwner) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
+
+        // Reset unread counts for the viewer
+        if (isSuperadmin) {
+            if (ticket.ownerUnreadCount > 0) {
+                ticket.ownerUnreadCount = 0;
+                await ticket.save();
+            }
+        } else {
+            if (ticket.userUnreadCount > 0) {
+                ticket.userUnreadCount = 0;
+                await ticket.save();
+            }
+        }
+
+        const messages = await SupportMessage.findAll({
+            where: { ticketId: id },
+            order: [["createdAt", "ASC"]],
+        });
+
+        return res.json({
+            success: true,
+            data: messages,
+            ticket: {
+                isMediaEnabled: ticket.isMediaEnabled,
+                ownerRequestedConfirmation: ticket.ownerRequestedConfirmation,
+                status: ticket.status
+            }
+        });
+    } catch (error) {
+        console.error("❌ getTicketMessages ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// TOGGLE MEDIA PERMISSION (superadmin only)
+// ============================================
+export const toggleMedia = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isMediaEnabled } = req.body;
+
+        const ticket = await SupportTicket.findByPk(id);
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: "Ticket not found" });
+        }
+
+        ticket.isMediaEnabled = isMediaEnabled;
+        await ticket.save();
+
+        // 🔔 Notify User/Admin about media permission toggle
+        const notifyToggle = async () => {
+            try {
+                const title = "🛠️ Support Ticket Update";
+                const body = `Media uploads have been ${isMediaEnabled ? 'ENABLED' : 'DISABLED'} for your ticket #${id}`;
+                
+                let tokens = [];
+                if (ticket.source === "admin") {
+                    const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
+                    tokens = adminTokens.map(t => t.fcmToken);
+                } else {
+                    const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
+                    tokens = userTokens.map(t => t.fcmToken);
+                }
+
+                if (tokens.length > 0) {
+                    await sendPushNotification(tokens, title, body, {
+                        type: "SUPPORT_MEDIA_TOGGLE",
+                        ticketId: id.toString(),
+                        isMediaEnabled: isMediaEnabled.toString()
+                    }, ticket.userId, ticket.source === 'admin');
+                }
+
+                // 🌐 Real-time socket update for media toggle
+                emitSupportMessage(id, {
+                    type: "SUPPORT_MEDIA_TOGGLE",
+                    ticketId: id,
+                    isMediaEnabled: isMediaEnabled,
+                    message: `Media uploads have been ${isMediaEnabled ? "enabled" : "disabled"} for this ticket.`
+                });
+            } catch (err) {
+                console.error("❌ Notification error in toggleMedia:", err.message);
+            }
+        };
+
+        notifyToggle();
+
+        return res.json({
+            success: true,
+            message: `Media support ${isMediaEnabled ? "enabled" : "disabled"} successfully`,
+        });
+    } catch (error) {
+        console.error("❌ toggleMedia ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

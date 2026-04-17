@@ -24,6 +24,8 @@ import CampusBoundaryModel from "./CampusBoundary.js";
 import InventoryProductModel from "./InventoryProduct.js";
 import InventoryBatchModel from "./InventoryBatch.js";
 import InventoryTransactionModel from "./InventoryTransaction.js";
+import SupportMessageModel from "./SupportMessage.js";
+
 
 import app from "../app.js";
 import http from "http";
@@ -70,6 +72,8 @@ const CampusBoundary = CampusBoundaryModel(sequelize);
 const InventoryProduct = InventoryProductModel(sequelize);
 const InventoryBatch = InventoryBatchModel(sequelize);
 const InventoryTransaction = InventoryTransactionModel(sequelize);
+const SupportMessage = SupportMessageModel(sequelize);
+
 
 // ================= RELATIONS =================
 
@@ -143,9 +147,17 @@ UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "caf
 User.hasMany(UserActivity, { foreignKey: { name: "userId", field: "userid" } });
 UserActivity.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
-// User → Support Tickets (constraints: false to allow admin IDs too)
+// User/Admin → Support Tickets (constraints: false to allow both user and admin IDs)
 User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
 SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user", constraints: false });
+
+Admin.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
+SupportTicket.belongsTo(Admin, { foreignKey: { name: "userId", field: "userid" }, as: "admin", constraints: false });
+
+// Support Ticket → Messages
+SupportTicket.hasMany(SupportMessage, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "messages" });
+SupportMessage.belongsTo(SupportTicket, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "ticket" });
+
 
 // ================= SYSTEM RELATIONS =================
 AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
@@ -194,4 +206,6 @@ export {
   InventoryProduct,
   InventoryBatch,
   InventoryTransaction,
+  SupportMessage,
 };
+

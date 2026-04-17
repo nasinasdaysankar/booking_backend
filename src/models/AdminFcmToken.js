@@ -16,7 +16,7 @@ export default (sequelize) => {
       },
       cafeteriaId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         field: "cafeteriaid",
       },
       fcmToken: {

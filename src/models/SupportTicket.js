@@ -74,6 +74,24 @@ export default (sequelize) => {
                 allowNull: false,
                 comment: "Whether ticket was submitted from user app or admin app",
             },
+            isMediaEnabled: {
+                type: DataTypes.BOOLEAN,
+                defaultValue: false,
+                field: "is_media_enabled",
+                comment: "Whether the user/admin can upload images to this ticket (controlled by owner)",
+            },
+            userUnreadCount: {
+                type: DataTypes.INTEGER,
+                defaultValue: 0,
+                field: "user_unread_count",
+                comment: "Number of unread messages for the user/admin",
+            },
+            ownerUnreadCount: {
+                type: DataTypes.INTEGER,
+                defaultValue: 0,
+                field: "owner_unread_count",
+                comment: "Number of unread messages for the velish support team",
+            },
         },
         {
             tableName: "support_tickets",

@@ -59,6 +59,19 @@ io.on("connection", (socket) => {
     logger.info(`👤 User joined room: ${room}`);
   });
 
+  // ===== SUPPORT TICKET rooms =====
+  socket.on("JOIN_TICKET", (ticketId) => {
+    const room = `ticket_${ticketId}`;
+    socket.join(room);
+    logger.info(`🎫 Socket ${socket.id} joined room: ${room}`);
+  });
+
+  socket.on("LEAVE_TICKET", (ticketId) => {
+    const room = `ticket_${ticketId}`;
+    socket.leave(room);
+    logger.info(`🎫 Socket ${socket.id} left room: ${room}`);
+  });
+
   socket.on("disconnect", () => {
     logger.info("❌ Socket disconnected: " + socket.id);
   });
@@ -194,6 +207,61 @@ const start = async () => {
       logger.info("✅ menu_items auto stock update columns ensured");
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure menu_items auto stock update columns: " + colErr.message);
+    }
+
+    // ✅ Ensure support system tables and columns (media, unread tracking, source)
+    try {
+      // 🎫 1. Create support_tickets if missing
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS support_tickets (
+          id SERIAL PRIMARY KEY,
+          userid INTEGER NOT NULL,
+          category VARCHAR(100) NOT NULL,
+          question VARCHAR(255) NOT NULL,
+          description TEXT,
+          status VARCHAR(20) DEFAULT 'open',
+          admin_response TEXT,
+          resolved_at TIMESTAMP WITH TIME ZONE,
+          owner_requested_confirmation BOOLEAN DEFAULT false,
+          user_email VARCHAR(255),
+          user_phone VARCHAR(255),
+          platform VARCHAR(50),
+          source VARCHAR(20) DEFAULT 'user',
+          is_media_enabled BOOLEAN DEFAULT false,
+          user_unread_count INTEGER DEFAULT 0,
+          owner_unread_count INTEGER DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+        )
+      `);
+
+      // 💬 2. Create support_messages if missing
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS support_messages (
+          id SERIAL PRIMARY KEY,
+          ticket_id INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+          sender_id INTEGER NOT NULL,
+          sender_type VARCHAR(20) NOT NULL,
+          message TEXT NOT NULL,
+          media_url1 VARCHAR(255),
+          media_url2 VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+        )
+      `);
+
+      // 🛠️ 3. Ensure all columns exist (in case tables were partially created)
+      await sequelize.query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS is_media_enabled BOOLEAN NOT NULL DEFAULT false`);
+      await sequelize.query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS user_unread_count INTEGER NOT NULL DEFAULT 0`);
+      await sequelize.query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS owner_unread_count INTEGER NOT NULL DEFAULT 0`);
+      await sequelize.query(`ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'user'`);
+      
+      await sequelize.query(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS media_url1 VARCHAR(255)`);
+      await sequelize.query(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS media_url2 VARCHAR(255)`);
+      
+      logger.info("✅ support_tickets and support_messages tables/columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure support system tables/columns: " + colErr.message);
     }
 
     //Redis

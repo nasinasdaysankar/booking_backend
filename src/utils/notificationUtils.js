@@ -1,5 +1,5 @@
 import admin from "../config/firebaseAdmin.js";
-import { User, UserFcmToken } from "../models/index.js";
+import { User, UserFcmToken, AdminFcmToken } from "../models/index.js";
 
 /**
  * Centralized Notification Helper
@@ -18,6 +18,55 @@ export const sendNotification = async (message, userId, isAdmin = false) => {
             await handleFcmError(error, message.token, userId, isAdmin);
         }
         return { success: false, error };
+    }
+};
+
+/**
+ * Robust notification helper for controllers
+ * Handles token arrays, titles, bodies, and data payload
+ */
+export const sendPushNotification = async (tokens, title, body, data = {}, userId = null, isAdmin = false, channelId = null) => {
+    try {
+        if (!tokens || (Array.isArray(tokens) && tokens.length === 0)) return;
+
+        const tokenList = Array.isArray(tokens) ? tokens : [tokens];
+        
+        const message = {
+            notification: { title, body },
+            data: data,
+            tokens: tokenList,
+            android: {
+                priority: "high",
+                notification: {
+                    sound: "default",
+                    channelId: channelId || (isAdmin ? "high_importance_channel_v2" : "high_importance_channel"),
+                },
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: "default",
+                        badge: 1,
+                    },
+                },
+            },
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+        
+        // Cleanup failed tokens
+        const cleanupPromises = response.responses.map(async (res, idx) => {
+            if (!res.success) {
+                const token = tokenList[idx];
+                await handleFcmError(res.error, token, userId, isAdmin);
+            }
+        });
+
+        await Promise.all(cleanupPromises);
+        return response;
+    } catch (error) {
+        console.error("❌ sendPushNotification ERROR:", error.message);
+        return null;
     }
 };
 

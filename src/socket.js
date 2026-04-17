@@ -69,3 +69,16 @@ export const emitCafeteriaUpdate = (cafeteriaId, payload) => {
   // Broadcast to all connected clients (users and admins)
   ioInstance.emit("CAFETERIA_UPDATE", { cafeteriaId, ...payload });
 };
+
+// ================= SUPPORT TICKETS: REAL-TIME CHAT =================
+export const emitSupportMessage = (ticketId, payload) => {
+  if (!ioInstance) {
+    console.log("❌ [SUPPORT] Socket not initialized");
+    return;
+  }
+
+  const room = `ticket_${ticketId}`;
+  console.log(`📢 [SUPPORT] Emitting SUPPORT_MESSAGE to room '${room}'`);
+
+  ioInstance.to(room).emit("SUPPORT_MESSAGE", payload);
+};

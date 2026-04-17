@@ -55,11 +55,11 @@ router.post("/save-token", auth, async (req, res) => {
       console.log("✅ New FCM token saved for device");
     }
 
-    // Count total tokens for this cafeteria
+    // Count total tokens for this admin or cafeteria
     const totalTokens = await AdminFcmToken.count({
-      where: { cafeteriaId },
+      where: cafeteriaId ? { cafeteriaId } : { adminId },
     });
-    console.log(`📊 Total FCM tokens for cafeteria ${cafeteriaId}: ${totalTokens}`);
+    console.log(`📊 Total FCM tokens associated: ${totalTokens}`);
 
     return res.json({ success: true });
   } catch (err) {
