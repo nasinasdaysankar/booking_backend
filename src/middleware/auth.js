@@ -1,10 +1,7 @@
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
 import { User, Admin } from "../models/index.js";
 import { getCache, setCache, delCache } from "../config/redis.js";
 import { CACHE_KEYS } from "../utils/cache.js";
-
-dotenv.config();
 
 // ============================================
 // 🔥 AUTH CACHE TTL (seconds)

@@ -1,16 +1,3 @@
-import dotenv from "dotenv";
-
-const envFile =
-  process.env.NODE_ENV === "production"
-    ? ".env.production"
-    : process.env.NODE_ENV === "test"
-      ? ".env.test"
-      : ".env.local";
-
-dotenv.config({ path: envFile, override: true });
-
-console.log(`📂 [DB] Loading env from: ${envFile} (NODE_ENV=${process.env.NODE_ENV})`);
-
 import { Sequelize } from "sequelize";
 
 const useSSL = process.env.DB_SSL === "true";
@@ -23,11 +10,11 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   // 🔧 OPTIMIZED FOR DEVELOPMENT STABILITY
   // ============================================
   pool: {
-    max: 10,
-    min: 0,       // Allow pool to drain fully — avoids keeping stale connections alive
-    acquire: 30000,
-    idle: 10000,  // Evict idle connections after 10s (Railway proxy drops them at ~30s)
-    evict: 5000,  // Check for idle connections every 5s
+    max: 50,      // ✅ Increased from 10 to 50 to handle more concurrent requests
+    min: 2,       // ✅ Keep at least 2 connections alive to avoid cold start latency
+    acquire: 45000, // ✅ Increased from 30s to 45s for more headroom
+    idle: 10000,  
+    evict: 5000,  
   },
 
   dialectOptions: {

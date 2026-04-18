@@ -403,12 +403,9 @@
 
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
 import { User } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 
-
-dotenv.config();
 
 // Generate JWT Token
 const signToken = (user) => {

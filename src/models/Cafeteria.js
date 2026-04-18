@@ -171,6 +171,16 @@ export default (sequelize) => {
         allowNull: true,
         field: "radius_request_feedback",
       },
+      isPureVeg: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "is_pure_veg",
+      },
+      promoImageUrl2: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: "promo_image_url_2",
+      },
     },
     {
       tableName: "cafeterias",

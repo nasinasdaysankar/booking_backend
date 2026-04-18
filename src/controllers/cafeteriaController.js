@@ -37,6 +37,10 @@ export const getCafeterias = async (req, res) => {
         'commissionAmount',
         'promoVideoUrl',
         'promoImageUrl',
+        'promoImageUrl2',
+        'isPureVeg',
+        'openTime',
+        'closeTime',
         'showGst',
         'showPlatformFee',
         'showCommission',
@@ -71,7 +75,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     // Check if cafeteria exists
     const cafeteria = await Cafeteria.findByPk(id, {
-      attributes: ['id', 'name', 'isOpen', 'isOffline', 'isBusy']
+      attributes: ['id', 'name', 'isOpen', 'isOffline', 'isBusy', 'promoImageUrl', 'promoImageUrl2']
     });
 
     if (!cafeteria) {

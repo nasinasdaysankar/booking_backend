@@ -1,5 +1,5 @@
-// ⚠️ CRITICAL: dotenv MUST be loaded first, before ANY other imports
-import "dotenv/config";
+// ⚠️ CRITICAL: Load environment configuration first
+import "./config/env.js";
 
 // Now all other imports can use process.env safely
 import app from "./app.js";
