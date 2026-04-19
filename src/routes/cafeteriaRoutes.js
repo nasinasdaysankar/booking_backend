@@ -106,16 +106,18 @@ router.get('/quote', async (req, res) => {
         const jsDay = new Date().getDay(); // 0=Sun,1=Mon…6=Sat
         const todayNum = jsDay === 0 ? 7 : jsDay;
 
-        const [textSetting, imageSetting] = await Promise.all([
+        const [textSetting, imageSetting, authorSetting] = await Promise.all([
             SystemSetting.findOne({ where: { key: `QUOTE_DAY_${todayNum}` } }),
-            SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${todayNum}` } })
+            SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${todayNum}` } }),
+            SystemSetting.findOne({ where: { key: `QUOTE_AUTHOR_DAY_${todayNum}` } })
         ]);
 
         res.json({
             success: true,
             data: {
                 quote: textSetting ? textSetting.value : 'Enjoy your meal!',
-                imageUrl: imageSetting ? imageSetting.value : ''
+                imageUrl: imageSetting ? imageSetting.value : '',
+                authorName: authorSetting ? authorSetting.value : ''
             }
         });
     } catch (error) {

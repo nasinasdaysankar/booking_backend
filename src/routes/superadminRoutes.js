@@ -1300,15 +1300,17 @@ router.get('/settings/quotes/weekly', superadminAuth, async (req, res) => {
     try {
         const days = await Promise.all(
             [1, 2, 3, 4, 5, 6, 7].map(async (day) => {
-                const [textSetting, imageSetting] = await Promise.all([
+                const [textSetting, imageSetting, authorSetting] = await Promise.all([
                     SystemSetting.findOne({ where: { key: `QUOTE_DAY_${day}` } }),
                     SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } }),
+                    SystemSetting.findOne({ where: { key: `QUOTE_AUTHOR_DAY_${day}` } }),
                 ]);
                 return {
                     day,
                     dayName: DAY_NAMES[day - 1],
                     quote: textSetting ? textSetting.value : '',
                     imageUrl: imageSetting ? imageSetting.value : '',
+                    authorName: authorSetting ? authorSetting.value : '',
                 };
             })
         );
@@ -1326,7 +1328,7 @@ router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'),
         if (!day || day < 1 || day > 7) {
             return res.status(400).json({ success: false, message: 'Day must be 1 (Mon) to 7 (Sun)' });
         }
-        const { quote } = req.body;
+        const { quote, authorName } = req.body;
         if (quote === undefined) {
             return res.status(400).json({ success: false, message: 'Quote is required' });
         }
@@ -1362,6 +1364,22 @@ router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'),
         textSetting.value = quote;
         await textSetting.save();
 
+        // 2.5. Upsert author text
+        if (authorName !== undefined) {
+            const [authorSetting] = await SystemSetting.findOrCreate({
+                where: { key: `QUOTE_AUTHOR_DAY_${day}` },
+                defaults: {
+                    value: authorName,
+                    type: 'STRING',
+                    group: 'QUOTES',
+                    isPublic: false,
+                    description: `Author for ${DAY_NAMES[day - 1]} quote`,
+                },
+            });
+            authorSetting.value = authorName;
+            await authorSetting.save();
+        }
+
         // 3. Upsert image URL (only if a new file was uploaded)
         if (imageUrl) {
             const [imageSetting] = await SystemSetting.findOrCreate({
@@ -1379,6 +1397,7 @@ router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'),
         }
 
         const finalImage = await SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } });
+        const finalAuthor = await SystemSetting.findOne({ where: { key: `QUOTE_AUTHOR_DAY_${day}` } });
         res.json({
             success: true,
             message: `${DAY_NAMES[day - 1]} quote updated successfully`,
@@ -1386,6 +1405,7 @@ router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'),
                 day,
                 dayName: DAY_NAMES[day - 1],
                 quote,
+                authorName: finalAuthor ? finalAuthor.value : authorName,
                 imageUrl: finalImage ? finalImage.value : imageUrl,
             },
         });
@@ -1399,15 +1419,17 @@ router.post('/settings/quotes/day/:day', superadminAuth, upload.single('image'),
 router.get('/settings/quote', superadminAuth, async (req, res) => {
     try {
         const day = getTodayDayNum();
-        const [textSetting, imageSetting] = await Promise.all([
+        const [textSetting, imageSetting, authorSetting] = await Promise.all([
             SystemSetting.findOne({ where: { key: `QUOTE_DAY_${day}` } }),
             SystemSetting.findOne({ where: { key: `QUOTE_IMAGE_DAY_${day}` } }),
+            SystemSetting.findOne({ where: { key: `QUOTE_AUTHOR_DAY_${day}` } }),
         ]);
         res.json({
             success: true,
             data: {
                 quote: textSetting ? textSetting.value : '',
                 imageUrl: imageSetting ? imageSetting.value : '',
+                authorName: authorSetting ? authorSetting.value : '',
             },
         });
     } catch (error) {
