@@ -75,6 +75,10 @@ export const initNotificationScheduler = () => {
                     if (userTokens.length > 0) {
                         const token = userTokens[0].fcmToken;
                         const bufferTime = order._bufferTime ?? 20;
+                        const bufferMs = bufferTime * 60 * 1000;
+                        const expiryTimestamp = new Date(order.updatedAt).getTime() + bufferMs;
+                        const expiryTimeISO = new Date(expiryTimestamp).toISOString();
+
                         const halfBufferMs = Math.round(bufferTime / 2);
                         const reminderBody = `Hurry! You have only ${halfBufferMs} mins left to pick up Order #${order.dailyOrderNumber ?? order.id}, or it will be cancelled without a refund.`;
                         await admin.messaging().send({
@@ -87,6 +91,8 @@ export const initNotificationScheduler = () => {
                                 orderId: String(order.id),
                                 status: "READY",
                                 type: "ORDER_STATUS_UPDATE",
+                                expiryTimestamp: String(expiryTimestamp),
+                                expiryTimeISO: expiryTimeISO,
                             },
                             android: {
                                 priority: "high",

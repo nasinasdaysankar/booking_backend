@@ -1208,13 +1208,39 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Title and body are required' });
         }
 
-        // Fetch all user tokens
-        const userTokens = await UserFcmToken.findAll({
-            attributes: ['fcmToken', 'userId']
-        });
+        // Fetch user tokens (Filtered by whitelist in development for safety)
+        let userTokens;
+        if (process.env.NODE_ENV === 'production') {
+            userTokens = await UserFcmToken.findAll({
+                attributes: ['fcmToken', 'userId']
+            });
+        } else {
+            console.log("🛡️ [BROADCAST] Local development detected. Filtering by whitelist...");
+            const whitelist = (process.env.DEVELOPER_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+            
+            userTokens = await UserFcmToken.findAll({
+                attributes: ['fcmToken', 'userId'],
+                include: [{
+                    model: User,
+                    where: {
+                        [Op.or]: [
+                            { email: { [Op.in]: whitelist } },
+                            { originalEmail: { [Op.in]: whitelist } }
+                        ]
+                    },
+                    attributes: [] // Don't fetch user data, just filter by it
+                }]
+            });
+        }
 
         if (userTokens.length === 0) {
-            return res.json({ success: true, message: 'No registered users with FCM tokens', sentCount: 0 });
+            return res.json({ 
+                success: true, 
+                message: process.env.NODE_ENV === 'production' 
+                    ? 'No registered users with FCM tokens' 
+                    : 'No whitelisted developers found in database for testing', 
+                sentCount: 0 
+            });
         }
 
         const tokens = [...new Set(userTokens.map(t => t.fcmToken))];
@@ -1245,6 +1271,7 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
                 },
                 data: data || {
                     type: 'BROADCAST',
+                    status: 'BROADCAST',
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
                 },
                 android: {

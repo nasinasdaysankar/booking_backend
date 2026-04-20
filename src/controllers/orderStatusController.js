@@ -12,12 +12,17 @@ export const getActiveOrders = async (req, res) => {
 
     console.log("🔍 Fetching ALL active orders for user:", userId);
 
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // ✅ Only show orders from the start of the current calendar day (12:00 AM)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-    // ✅ Query for ALL active or unrated orders (limit Picked up to last 24h)
+    // ✅ Query for ALL active or unrated orders (limit to last 24h)
     const orders = await Order.findAll({
       where: {
         studentId: userId,
+        createdAt: {
+          [Op.gte]: startOfToday,
+        },
         [Op.or]: [
           // Active orders (no feedback needed)
           {
@@ -26,13 +31,10 @@ export const getActiveOrders = async (req, res) => {
             },
             isRated: false,
           },
-          // Picked up but needs feedback (within 24 hours ONLY)
+          // Picked up but needs feedback
           {
             status: "PICKED_UP",
             isRated: false,
-            createdAt: {
-              [Op.gte]: twentyFourHoursAgo,
-            },
           },
         ],
       },

@@ -745,6 +745,10 @@ export const updateOrderStatus = async (req, res) => {
               bodyText = `Pick up soon or order cancels (No Refund).`;
             }
 
+            const bufferMinutes = order.Cafeteria?.bufferTime || 20;
+            const expiryTimestamp = Date.now() + (bufferMinutes * 60 * 1000);
+            const expiryTimeISO = new Date(expiryTimestamp).toISOString();
+
             const messages = userTokens.map(ut => ({
               token: ut.fcmToken,
               // 🚨 REMOVED top-level 'notification' to prevent OS-level truncation.
@@ -756,6 +760,8 @@ export const updateOrderStatus = async (req, res) => {
                 status: order.status,
                 type: "ORDER_STATUS_UPDATE",
                 image: notificationImageUrl || "",
+                expiryTimestamp: status === "READY" ? String(expiryTimestamp) : "",
+                expiryTimeISO: status === "READY" ? expiryTimeISO : "",
               },
               android: {
                 priority: "high",

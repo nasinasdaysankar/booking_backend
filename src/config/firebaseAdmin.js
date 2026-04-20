@@ -1,5 +1,6 @@
 // src/config/firebaseAdmin.js
 import admin from "firebase-admin";
+import { wrapMessaging } from "./notificationGuard.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -21,6 +22,9 @@ if (!admin.apps.length) {
   });
 
   console.log("✅ Firebase Admin initialized");
+
+  // 🛡️ Apply Safety Guard
+  wrapMessaging(admin.messaging());
 }
 
 export default admin;
