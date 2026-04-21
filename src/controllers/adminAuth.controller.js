@@ -34,7 +34,7 @@ export const adminLogin = async (req, res) => {
     console.log("   📋 Cafeteria ID:", admin.cafeteriaId);
     console.log("   📋 Password hash starts with:", admin.password?.substring(0, 10));
 
-    const isMatch = await bcrypt.compare(password, admin.password);
+    const isMatch = await bcrypt.compare(password.trim(), admin.password);
     console.log("🔍 [ADMIN LOGIN] Password comparison result:", isMatch);
 
     if (!isMatch) {
@@ -119,13 +119,14 @@ export const deleteAdminAccount = async (req, res) => {
     // We don't hard delete to maintain audit trail
     // ====================================
     const anonymizedStaffId = `deleted_${adminId}_${Date.now()}`;
-    const hashedDeletedPassword = await bcrypt.hash(`deleted_${Date.now()}`, 10);
+    const deletedPassword = `deleted_${Date.now()}`;
 
     await admin.update({
       staffId: anonymizedStaffId,
-      password: hashedDeletedPassword,
+      password: deletedPassword,
       // Keep cafeteriaId for audit purposes
     });
+
     console.log(`   ✅ Anonymized admin data`);
 
     // ====================================

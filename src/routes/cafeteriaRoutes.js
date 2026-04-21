@@ -126,4 +126,43 @@ router.get('/quote', async (req, res) => {
     }
 });
 
+
+/**
+ * @swagger
+ * /api/cafeterias/public-settings:
+ *   get:
+ *     summary: Get all public global system settings
+ *     tags: [Cafeterias]
+ *     responses:
+ *       200: { description: Settings fetched }
+ */
+router.get('/public-settings', async (req, res) => {
+    try {
+        const settings = await SystemSetting.findAll({ where: { isPublic: true } });
+        const settingsMap = {};
+        
+        settings.forEach(s => {
+            let val = s.value;
+            if (s.type === 'BOOLEAN') val = (val === 'true');
+            else if (s.type === 'NUMBER') val = Number(val);
+            else if (s.type === 'JSON') {
+                try {
+                    val = JSON.parse(val);
+                } catch (e) {
+                    console.error(`Error parsing JSON setting ${s.key}:`, e);
+                }
+            }
+            settingsMap[s.key] = val;
+        });
+
+        res.json({
+            success: true,
+            data: settingsMap
+        });
+    } catch (error) {
+        console.error('Public fetch settings error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch global settings' });
+    }
+});
+
 export default router;

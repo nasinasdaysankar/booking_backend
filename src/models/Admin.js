@@ -1,4 +1,5 @@
 import { DataTypes } from "sequelize";
+import bcrypt from "bcryptjs";
 
 export default (sequelize) => {
   const Admin = sequelize.define(
@@ -54,8 +55,17 @@ export default (sequelize) => {
       underscored: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
+      hooks: {
+        beforeSave: async (admin) => {
+          if (admin.changed("password") && admin.password) {
+            console.log(`🔐 [ADMIN MODEL] Hashing updated password for Admin ID: ${admin.id || 'NEW'}`);
+            admin.password = await bcrypt.hash(admin.password, 10);
+          }
+        },
+      },
     }
   );
 
   return Admin;
 };
+

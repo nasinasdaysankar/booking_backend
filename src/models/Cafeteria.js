@@ -1,4 +1,6 @@
 import { DataTypes } from "sequelize";
+import bcrypt from "bcryptjs";
+
 
 export default (sequelize) => {
   const Cafeteria = sequelize.define(
@@ -181,14 +183,33 @@ export default (sequelize) => {
         allowNull: true,
         field: "promo_image_url_2",
       },
+      ownerPin: {
+        type: DataTypes.STRING,
+        allowNull: true, // Optional initially
+        field: "owner_pin",
+      },
     },
+
     {
       tableName: "cafeterias",
       timestamps: true,
       underscored: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
+      hooks: {
+        beforeCreate: async (cafeteria) => {
+          if (cafeteria.ownerPin) {
+            cafeteria.ownerPin = await bcrypt.hash(cafeteria.ownerPin, 10);
+          }
+        },
+        beforeUpdate: async (cafeteria) => {
+          if (cafeteria.changed("ownerPin") && cafeteria.ownerPin) {
+            cafeteria.ownerPin = await bcrypt.hash(cafeteria.ownerPin, 10);
+          }
+        },
+      },
     }
+
   );
 
   return Cafeteria;

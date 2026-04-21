@@ -25,6 +25,8 @@ import InventoryProductModel from "./InventoryProduct.js";
 import InventoryBatchModel from "./InventoryBatch.js";
 import InventoryTransactionModel from "./InventoryTransaction.js";
 import SupportMessageModel from "./SupportMessage.js";
+import PromotionalPosterModel from "./PromotionalPoster.js";
+
 
 
 import app from "../app.js";
@@ -64,6 +66,8 @@ const InventoryProduct = InventoryProductModel(sequelize);
 const InventoryBatch = InventoryBatchModel(sequelize);
 const InventoryTransaction = InventoryTransactionModel(sequelize);
 const SupportMessage = SupportMessageModel(sequelize);
+const PromotionalPoster = PromotionalPosterModel(sequelize);
+
 
 
 // ================= RELATIONS =================
@@ -198,5 +202,7 @@ export {
   InventoryBatch,
   InventoryTransaction,
   SupportMessage,
+  PromotionalPoster,
 };
+
 

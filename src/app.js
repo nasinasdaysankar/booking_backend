@@ -23,6 +23,8 @@ import appFeedbackRoutes from "./routes/appFeedbackRoutes.js";
 import supportTicketRoutes from "./routes/supportTicketRoutes.js";
 import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js"; // 📦 RAW MATERIALS
+import promotionalPosterRoutes from "./routes/promotionalPosterRoutes.js";
+
 
 
 
@@ -158,6 +160,10 @@ logger.info("✅ Campus boundary routes mounted");
 
 app.use("/api/inventory", inventoryRoutes); // 📦 Raw materials inventory
 logger.info("✅ Inventory routes mounted");
+
+app.use("/api/promotional-posters", promotionalPosterRoutes);
+logger.info("✅ Promotional poster routes mounted");
+
 
 
 

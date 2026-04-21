@@ -14,6 +14,8 @@ const CAFETERIA_TTL = 300;   // 5 minutes for cafeteria list
 const BANNER_TTL = 300;      // 5 minutes for banners
 const ANALYTICS_TTL = 15;    // 15 seconds for analytics (real-time dashboard)
 const STATS_TTL = 10;        // 10 seconds for admin stats (real-time dashboard)
+const POSTER_TTL = 600;      // 10 minutes for promotional posters
+
 
 // ============================================
 // 📦 CACHE PREFIXES (namespace keys in Redis)
@@ -23,6 +25,10 @@ export const CACHE_KEYS = {
   MENU_ALL: "menu:all",
   CAFETERIAS_ALL: "cafeterias:all",
   BANNERS_ALL: "banners:all",
+  POSTERS_ALL: "posters:all",
+  POSTERS_ACTIVE: "posters:active",
+  AUTH: (userId) => `auth:${userId}`,
+
   AUTH: (userId) => `auth:${userId}`,
   OTP: (email) => `otp:${email}`,
   MOST_LOVED: (cafeteriaId) => `menu:loved:${cafeteriaId || "all"}`,
@@ -58,6 +64,13 @@ export const bannerCacheSet = (key, data) => setCache(key, data, BANNER_TTL);
 // ============================================
 export const analyticsCacheGet = (key) => getCache(key);
 export const analyticsCacheSet = (key, data) => setCache(key, data, ANALYTICS_TTL);
+
+// ============================================
+// 📦 POSTER CACHE
+// ============================================
+export const posterCacheGet = (key) => getCache(key);
+export const posterCacheSet = (key, data) => setCache(key, data, POSTER_TTL);
+
 
 // ============================================
 // 📦 ADMIN STATS CACHE
@@ -101,6 +114,17 @@ export const clearBannerCache = async () => {
   await delCache(CACHE_KEYS.BANNERS_ALL);
   console.log("🗑️ Redis cache cleared: all banners");
 };
+
+/**
+ * Clear poster cache
+ * Call this when posters are updated
+ */
+export const clearPosterCache = async () => {
+  await delCache(CACHE_KEYS.POSTERS_ALL);
+  await delCache(CACHE_KEYS.POSTERS_ACTIVE);
+  console.log("🗑️ Redis cache cleared: all posters");
+};
+
 
 /**
  * Clear analytics cache for a cafeteria

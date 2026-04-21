@@ -19,6 +19,8 @@ import {
 } from '../controllers/adminRefundController.js';
 import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';  // ✅ ADD THIS
 import { getRecentStockOuts } from '../controllers/menuController.js';
+import { verifyOwnerPin } from '../controllers/adminController.js';
+
 
 const router = express.Router();
 
@@ -219,5 +221,16 @@ router.delete("/delete-account", auth, requireRole(['admin']), deleteAdminAccoun
 // STOCK RECOVERY (called on socket reconnect)
 // ============================================
 router.get("/recent-stockouts", auth, requireRole(['admin']), getRecentStockOuts);
+
+// ============================================
+// SENSITIVE ACCESS (Dual Password/PIN)
+// ============================================
+/**
+ * POST /api/admin/verify-owner-pin
+ * Verify the 6-digit owner PIN for sensitive access
+ * Body: { pin: "123456" }
+ */
+router.post("/verify-owner-pin", auth, requireRole(['admin']), verifyOwnerPin);
+
 
 export default router;

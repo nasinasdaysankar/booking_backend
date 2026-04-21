@@ -181,7 +181,11 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS close_time VARCHAR(5)`
       );
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS owner_pin VARCHAR(255)`
+      );
       logger.info("✅ cafeterias missing columns ensured");
+
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure cafeterias missing columns: " + colErr.message);
     }

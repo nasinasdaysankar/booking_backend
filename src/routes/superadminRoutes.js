@@ -105,8 +105,10 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             promoImageUrl,
             showGst,
             showPlatformFee,
-            showCommission
+            showCommission,
+            ownerPin
         } = req.body;
+
 
         if (!name || !latitude || !longitude || !ownerId) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -133,7 +135,9 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showGst: showGst !== undefined ? showGst : true,
             showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
             showCommission: showCommission !== undefined ? showCommission : true,
+            ownerPin
         });
+
 
         // ✅ Clear cafeteria cache so mobile app sees new restaurant immediately
         await clearCafeteriaCache();
@@ -168,8 +172,10 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             promoImageUrl,
             showGst,
             showPlatformFee,
-            showCommission
+            showCommission,
+            ownerPin
         } = req.body;
+
 
         const cafeteria = await Cafeteria.findByPk(id);
         if (!cafeteria) {
@@ -191,7 +197,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(showGst !== undefined && { showGst }),
             ...(showPlatformFee !== undefined && { showPlatformFee }),
             ...(showCommission !== undefined && { showCommission }),
+            ...(ownerPin !== undefined && { ownerPin }),
         });
+
 
         // ✅ Clear cafeteria cache so mobile app sees updates immediately
         await clearCafeteriaCache();
@@ -1038,15 +1046,14 @@ router.post('/admins', superadminAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Staff ID already exists' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         const newAdmin = await Admin.create({
             name,
             staffId,
-            password: hashedPassword,
+            password,
             cafeteriaId,
             role: role || 'staff'
         });
+
 
         const { password: _, ...adminData } = newAdmin.toJSON();
 
@@ -1099,21 +1106,15 @@ router.put('/admins/:id/reset-password', superadminAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password is required' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const result = await sequelize.query(
-            `UPDATE admins SET password = :password WHERE id = :id RETURNING id`,
-            {
-                replacements: { id, password: hashedPassword },
-                type: QueryTypes.UPDATE
-            }
-        );
-
-        if (!result || result[1] === 0) {
+        const admin = await Admin.findByPk(id);
+        if (!admin) {
             return res.status(404).json({ success: false, message: 'Admin not found' });
         }
 
+        await admin.update({ password });
+
         res.json({ success: true, message: 'Password reset successfully' });
+
     } catch (error) {
         console.error('Superadmin reset admin password error:', error);
         res.status(500).json({ success: false, message: 'Failed to reset password' });
@@ -1200,12 +1201,38 @@ router.get('/payments', superadminAuth, async (req, res) => {
 // ============================================
 // BROADCAST NOTIFICATION (SUPERADMIN)
 // ============================================
-router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
+router.post('/notifications/broadcast', superadminAuth, upload.single('image'), async (req, res) => {
     try {
-        const { title, body, data } = req.body;
+        const { title, body, isPremiumUI, accentColor, isGradient, targetScreen, targetId } = req.body;
 
-        if (!title || !body) {
-            return res.status(400).json({ success: false, message: 'Title and body are required' });
+        // ✅ Relaxed validation: Allow image-only notifications
+        if ((!title || !body) && !req.file) {
+            return res.status(400).json({ success: false, message: 'Notification requires either text (title & body) or an image banner.' });
+        }
+
+        let imageUrl = null;
+
+        // 1. Upload image to S3 if provided
+        if (req.file) {
+            try {
+                const s3 = getS3Client();
+                const bucket = getS3Bucket();
+                const fileExt = req.file.originalname.split('.').pop();
+                const fileName = `notifications/broadcast-${Date.now()}.${fileExt}`;
+                
+                await s3.send(new PutObjectCommand({
+                    Bucket: bucket,
+                    Key: fileName,
+                    Body: req.file.buffer,
+                    ContentType: req.file.mimetype,
+                }));
+                
+                imageUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+                console.log("📸 Broadcast image uploaded to S3:", imageUrl);
+            } catch (s3Error) {
+                console.error("❌ S3 Upload failed for broadcast:", s3Error);
+                // Continue without image if upload fails
+            }
         }
 
         // Fetch user tokens (Filtered by whitelist in development for safety)
@@ -1265,29 +1292,52 @@ router.post('/notifications/broadcast', superadminAuth, async (req, res) => {
         for (const batchTokens of batches) {
             const multicastMessage = {
                 tokens: batchTokens,
-                notification: {
+                // 🛑 ONLY include top-level notification for iOS or standard Android notifications.
+                // For "Specific UI" on Android, we use a "Data-Only" message to force native interception.
+                notification: isPremiumUI === 'true' ? undefined : {
                     title,
                     body,
+                    image: imageUrl || undefined
                 },
-                data: data || {
-                    type: 'BROADCAST',
+                data: {
+                    type: isPremiumUI === 'true' ? 'ORDER_STATUS_UPDATE' : 'BROADCAST',
                     status: 'BROADCAST',
+                    title: title, 
+                    body: body,
+                    imageUrl: imageUrl || "",
+                    isPremiumUI: isPremiumUI || "false",
+                    accentColor: accentColor || "#9C27B0",
+                    isGradient: isGradient || "false",
+                    target_screen: targetScreen || "HOME",
+                    target_id: targetId || "",
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
                 },
                 android: {
                     priority: "high",
-                    notification: {
+                    // 🛑 Omit notification block for Premium UI to enable data-only handling
+                    notification: isPremiumUI === 'true' ? undefined : {
                         channelId: "high_importance_channel",
                         body: body,
-                        sound: "default"
+                        icon: "stock_ticker_update",
+                        color: accentColor || "#9C27B0",
+                        sound: "default",
+                        image: imageUrl || undefined
                     }
                 },
                 apns: {
                     payload: {
                         aps: {
                             sound: "default",
-                            badge: 1
+                            badge: 1,
+                            alert: {
+                                title,
+                                body
+                            },
+                            'mutable-content': imageUrl ? 1 : 0
                         }
+                    },
+                    fcm_options: {
+                        image: imageUrl || undefined
                     }
                 }
             };
@@ -1707,4 +1757,52 @@ router.put('/support-tickets/:id/toggle-media', superadminAuth, toggleMedia);
 // ============================================
 router.put('/support-tickets/:id/resolve', superadminAuth, resolveTicket);
 
+
+// ============================================
+// SYSTEM SETTINGS (SUPERADMIN)
+// ============================================
+
+// Get all system settings
+router.get('/settings', superadminAuth, async (req, res) => {
+    try {
+        const settings = await SystemSetting.findAll();
+        res.json({ success: true, data: settings });
+    } catch (error) {
+        console.error('Fetch settings error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch settings' });
+    }
+});
+
+// Update a specific setting
+router.put('/settings/:id', superadminAuth, async (req, res) => {
+    try {
+        const { value } = req.body;
+        const setting = await SystemSetting.findByPk(req.params.id);
+        if (!setting) {
+            return res.status(404).json({ success: false, message: 'Setting not found' });
+        }
+        await setting.update({ value });
+        res.json({ success: true, data: setting });
+    } catch (error) {
+        console.error('Update setting error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update setting' });
+    }
+});
+
+// findOrCreate a setting (helper for frontend to ensure keys exist)
+router.post('/settings/ensure', superadminAuth, async (req, res) => {
+    try {
+        const { key, value, type, description, isPublic, group } = req.body;
+        const [setting, created] = await SystemSetting.findOrCreate({
+            where: { key },
+            defaults: { value, type, description, isPublic, group }
+        });
+        res.json({ success: true, data: setting, created });
+    } catch (error) {
+        console.error('Ensure setting error:', error);
+        res.status(500).json({ success: false, message: 'Failed to ensure setting' });
+    }
+});
+
 export default router;
+

@@ -1,5 +1,7 @@
 import { Order, OrderItem, Cafeteria } from '../models/index.js'; // Ensure OrderItem is imported if needed
 import { Sequelize } from 'sequelize';
+import bcrypt from 'bcryptjs';
+
 const { Op } = Sequelize;
 
 // --------------------------------------------------
@@ -193,5 +195,40 @@ export const getTrendData = async (req, res) => {
   } catch (error) {
     console.error("❌ Trend Analytics Error:", error);
     return res.status(500).json({ message: "Failed to fetch trend data" });
+  }
+};
+
+// --------------------------------------------------
+// 6. VERIFY OWNER PIN (Sensitive Access)
+// --------------------------------------------------
+export const verifyOwnerPin = async (req, res) => {
+  try {
+    const cafeteriaId = req.user.cafeteriaId;
+    const { pin } = req.body;
+
+    if (!pin) {
+      return res.status(400).json({ message: "PIN is required" });
+    }
+
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (!cafeteria) {
+      return res.status(404).json({ message: "Cafeteria not found" });
+    }
+
+    if (!cafeteria.ownerPin) {
+      return res.status(400).json({ 
+        message: "Owner PIN not set. Please contact support or set it in systems." 
+      });
+    }
+
+    const isMatch = await bcrypt.compare(pin, cafeteria.ownerPin);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Invalid Owner PIN" });
+    }
+
+    res.json({ success: true, message: "Verification successful" });
+  } catch (err) {
+    console.error("VERIFY PIN ERROR:", err);
+    res.status(500).json({ message: "Verification failed" });
   }
 };

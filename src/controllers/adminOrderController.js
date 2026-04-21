@@ -432,7 +432,8 @@ export const createManualOrder = async (req, res) => {
       netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
       createdAt: order.createdAt,
       isParcel: order.isParcel,
-      items: orderItems, // These now match the format of other orders
+      readyReminderCount: 0,
+      items: orderItems,
     });
 
     // 7. Sync to Google Sheets (Async)
@@ -557,6 +558,7 @@ export const getAdminOrders = async (req, res) => {
               orders."commission_amount" AS "commissionAmount",
               orders."daily_order_number" AS "dailyOrderNumber",
               orders."total_order_number" AS "totalOrderNumber",
+              orders."ready_reminder_count" AS "readyReminderCount",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
               users.name AS "customerName"
        FROM orders
@@ -702,6 +704,7 @@ export const updateOrderStatus = async (req, res) => {
       dailyOrderNumber: order.dailyOrderNumber,
       items: parsedItems,
       customerName: userName,
+      readyReminderCount: order.readyReminderCount,
       pickedUpAt: order.pickedUpAt,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
