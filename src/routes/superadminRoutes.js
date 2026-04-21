@@ -1789,6 +1789,21 @@ router.put('/settings/:id', superadminAuth, async (req, res) => {
     }
 });
 
+// Delete a specific setting
+router.delete('/settings/:id', superadminAuth, async (req, res) => {
+    try {
+        const setting = await SystemSetting.findByPk(req.params.id);
+        if (!setting) {
+            return res.status(404).json({ success: false, message: 'Setting not found' });
+        }
+        await setting.destroy();
+        res.json({ success: true, message: 'Setting deleted successfully' });
+    } catch (error) {
+        console.error('Delete setting error:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete setting' });
+    }
+});
+
 // findOrCreate a setting (helper for frontend to ensure keys exist)
 router.post('/settings/ensure', superadminAuth, async (req, res) => {
     try {
