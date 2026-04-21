@@ -3,6 +3,7 @@ import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
+import axios from "axios";
 
 const router = express.Router();
 
@@ -163,6 +164,75 @@ router.post("/upload-multiple", upload.array("images", 10), async (req, res) => 
       message: "Bulk upload failed",
       error: err.message,
     });
+  }
+});
+
+/** ===========================
+ *  📍 HEADER MEDIA UPLOAD (S3)
+ *  /api/upload/upload-header-media
+ * ===========================*/
+router.post("/upload-header-media", upload.single("media"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Media file required" });
+    }
+
+    const s3 = getS3Client();
+    const bucket = getS3Bucket();
+
+    // Preserve original extension
+    const originalName = req.file.originalname;
+    const ext = originalName.substring(originalName.lastIndexOf("."));
+    const safeName = slugify(originalName.split(".")[0], { lower: true });
+    const s3Key = `header/media/${safeName}-${Date.now()}${ext}`;
+
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: s3Key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+      })
+    );
+
+    const mediaUrl = `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    
+    // Detect media type: image, video, or lottie
+    let mediaType = "image";
+    if (req.file.mimetype.startsWith("video")) mediaType = "video";
+    else if (req.file.mimetype === "application/json" || req.file.originalname.endsWith(".json")) mediaType = "lottie";
+
+    res.json({
+      success: true,
+      mediaUrl,
+      mediaType
+    });
+  } catch (err) {
+    console.error("❌ Header media upload error:", err);
+    res.status(500).json({ success: false, message: "Upload failed", error: err.message });
+  }
+});
+
+/** ===========================
+ *  📍 IMAGE PROXY (FOR CORS)
+ *  /api/upload/proxy-image?url=...
+ * ===========================*/
+router.get("/proxy-image", async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) return res.status(400).send("URL is required");
+
+    // Fetch the image as a buffer
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    
+    // Set headers to allow the browser to read the pixels (CORS)
+    res.set('Content-Type', contentType);
+    res.set('Access-Control-Allow-Origin', '*');
+    res.send(response.data);
+  } catch (error) {
+    console.error("❌ Proxy error:", error);
+    res.status(500).send("Failed to proxy image");
   }
 });
 

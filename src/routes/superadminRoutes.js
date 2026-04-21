@@ -1797,6 +1797,12 @@ router.post('/settings/ensure', superadminAuth, async (req, res) => {
             where: { key },
             defaults: { value, type, description, isPublic, group }
         });
+
+        // Ensure isPublic is updated if it exists
+        if (!created && isPublic !== undefined && setting.isPublic !== isPublic) {
+            await setting.update({ isPublic });
+        }
+
         res.json({ success: true, data: setting, created });
     } catch (error) {
         console.error('Ensure setting error:', error);
