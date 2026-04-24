@@ -1,5 +1,4 @@
-import admin from "../config/firebaseAdmin.js";
-import { User, UserFcmToken, AdminFcmToken } from "../models/index.js";
+import { User, UserFcmToken, AdminFcmToken, PartnerFcmToken, DeliveryPartner } from "../models/index.js";
 
 /**
  * Centralized Notification Helper
@@ -9,13 +8,13 @@ import { User, UserFcmToken, AdminFcmToken } from "../models/index.js";
 /**
  * Send a notification to a single token and handle errors
  */
-export const sendNotification = async (message, userId, isAdmin = false) => {
+export const sendNotification = async (message, userId, isAdmin = false, isPartner = false) => {
     try {
         const response = await admin.messaging().send(message);
         return { success: true, response };
     } catch (error) {
         if (userId) {
-            await handleFcmError(error, message.token, userId, isAdmin);
+            await handleFcmError(error, message.token, userId, isAdmin, isPartner);
         }
         return { success: false, error };
     }
@@ -25,7 +24,7 @@ export const sendNotification = async (message, userId, isAdmin = false) => {
  * Robust notification helper for controllers
  * Handles token arrays, titles, bodies, and data payload
  */
-export const sendPushNotification = async (tokens, title, body, data = {}, userId = null, isAdmin = false, channelId = null) => {
+export const sendPushNotification = async (tokens, title, body, data = {}, userId = null, isAdmin = false, channelId = null, isPartner = false) => {
     try {
         if (!tokens || (Array.isArray(tokens) && tokens.length === 0)) return;
 
@@ -58,7 +57,7 @@ export const sendPushNotification = async (tokens, title, body, data = {}, userI
         const cleanupPromises = response.responses.map(async (res, idx) => {
             if (!res.success) {
                 const token = tokenList[idx];
-                await handleFcmError(res.error, token, userId, isAdmin);
+                await handleFcmError(res.error, token, userId, isAdmin, isPartner);
             }
         });
 
@@ -123,7 +122,7 @@ export const sendMulticastNotification = async (multicastMessage, userTokenMap, 
 /**
  * Handle FCM specific errors like uninstalls or invalid tokens
  */
-const handleFcmError = async (error, token, userId, isAdmin = false) => {
+const handleFcmError = async (error, token, userId, isAdmin = false, isPartner = false) => {
     const errorCode = error?.code || error?.errorInfo?.code;
     
     const isUninstallError = 
@@ -132,9 +131,11 @@ const handleFcmError = async (error, token, userId, isAdmin = false) => {
         errorCode === 'messaging/third-party-auth-error';
 
     if (isUninstallError) {
-        console.log(`🗑️ Detected uninstall/invalid token for ${isAdmin ? 'Admin' : 'User'} ${userId}. Cleaning up...`);
+        console.log(`🗑️ Detected uninstall/invalid token for ${isPartner ? 'Partner' : (isAdmin ? 'Admin' : 'User')} ${userId}. Cleaning up...`);
         
-        if (isAdmin) {
+        if (isPartner) {
+            await PartnerFcmToken.destroy({ where: { fcmToken: token } });
+        } else if (isAdmin) {
             // Cleanup Admin tokens (Admins don't have isUninstalled flag currently, just delete token)
             await AdminFcmToken.destroy({ where: { fcmToken: token } });
         } else {
@@ -156,6 +157,6 @@ const handleFcmError = async (error, token, userId, isAdmin = false) => {
             }
         }
     } else {
-        console.error(`❌ FCM error for ${isAdmin ? 'Admin' : 'User'} ${userId}:`, errorCode);
+        console.error(`❌ FCM error for ${isPartner ? 'Partner' : (isAdmin ? 'Admin' : 'User')} ${userId}:`, errorCode);
     }
 };

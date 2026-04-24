@@ -24,6 +24,7 @@ import supportTicketRoutes from "./routes/supportTicketRoutes.js";
 import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js"; // 📦 RAW MATERIALS
 import promotionalPosterRoutes from "./routes/promotionalPosterRoutes.js";
+import deliveryRoutes from "./routes/delivery.routes.js";
 
 
 
@@ -140,6 +141,7 @@ app.use("/api/user/notify", userNotificationRoutes);
 app.use("/api/cafeterias", cafeteriaRoutes); // ✅ ADD THIS LINE
 app.use("/api/vendors", vendorRoutes); // ✅ VENDOR MANAGEMENT
 // app.use("/api/upi", upiRoutes); // ✅ AUTO COLLECT + UPI INTENT
+app.use("/api/delivery", deliveryRoutes); // 🛵 DELIVERY PARTNER APP
 
 
 logger.info("🔔 Notification routes mounted");

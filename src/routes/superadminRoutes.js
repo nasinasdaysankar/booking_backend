@@ -23,6 +23,7 @@ import {
     resolveTicket, 
     toggleMedia 
 } from "../controllers/supportTicketController.js";
+import { getDeliveryPartners, createDeliveryPartner, updatePartnerStatus } from "../controllers/deliveryController.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
@@ -1824,6 +1825,27 @@ router.post('/settings/ensure', superadminAuth, async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to ensure setting' });
     }
 });
+
+// ============================================
+// 🛵 DELIVERY PARTNER MANAGEMENT (SUPERADMIN)
+// ============================================
+/**
+ * GET /api/superadmin/delivery-partners
+ * List all delivery partners across all cafeterias
+ */
+router.get("/delivery-partners", superadminAuth, getDeliveryPartners);
+
+/**
+ * POST /api/superadmin/delivery-partners
+ * Create a new delivery partner (global authority)
+ */
+router.post("/delivery-partners", superadminAuth, createDeliveryPartner);
+
+/**
+ * PATCH /api/superadmin/delivery-partners/:id
+ * Update status/online status of a partner
+ */
+router.patch("/delivery-partners/:id", superadminAuth, updatePartnerStatus);
 
 export default router;
 

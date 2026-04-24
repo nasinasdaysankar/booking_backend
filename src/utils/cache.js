@@ -28,8 +28,7 @@ export const CACHE_KEYS = {
   POSTERS_ALL: "posters:all",
   POSTERS_ACTIVE: "posters:active",
   AUTH: (userId) => `auth:${userId}`,
-
-  AUTH: (userId) => `auth:${userId}`,
+  AUTH_DELIVERY: (userId) => `auth:delivery:${userId}`,
   OTP: (email) => `otp:${email}`,
   MOST_LOVED: (cafeteriaId) => `menu:loved:${cafeteriaId || "all"}`,
   TODAY_SPECIAL: (cafeteriaId) => `menu:special:${cafeteriaId}`,

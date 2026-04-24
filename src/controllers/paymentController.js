@@ -221,7 +221,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
   try {
-    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount } = req.body;
+    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount, orderType: snapOrderType, deliveryAddress: snapAddress, latitude: snapLat, longitude: snapLng } = req.body;
 
     // 🔍 STOCK CHECK (IF ITEMS PROVIDED)
     if (items && Array.isArray(items) && items.length > 0) {
@@ -318,6 +318,10 @@ export const createCashfreeOrder = async (req, res) => {
               gst_amount          DECIMAL(10,2) NOT NULL DEFAULT 0,
               is_parcel           BOOLEAN NOT NULL DEFAULT false,
               parcel_amount       DECIMAL(10,2) NOT NULL DEFAULT 0,
+              order_type          VARCHAR(20) DEFAULT 'DINE_IN',
+              delivery_address    TEXT,
+              latitude            DECIMAL(10,7),
+              longitude           DECIMAL(10,7),
               created_at          TIMESTAMP DEFAULT NOW(),
               expires_at          TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
             )`,
@@ -325,9 +329,14 @@ export const createCashfreeOrder = async (req, res) => {
           ).catch(() => {});
 
           // 2. Safe Column Migrations
-          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount"];
+          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount", "order_type", "delivery_address", "latitude", "longitude"];
           for (const col of columns) {
-            const type = col === "is_parcel" ? "BOOLEAN NOT NULL DEFAULT false" : "DECIMAL(10,2) NOT NULL DEFAULT 0";
+            let type = "DECIMAL(10,2) NOT NULL DEFAULT 0";
+            if (col === "is_parcel") type = "BOOLEAN NOT NULL DEFAULT false";
+            if (col === "order_type") type = "VARCHAR(20) DEFAULT 'DINE_IN'";
+            if (col === "delivery_address") type = "TEXT";
+            if (col === "latitude" || col === "longitude") type = "DECIMAL(10,7)";
+            
             await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS ${col} ${type}`, { type: QueryTypes.RAW }).catch(() => {});
           }
 
@@ -337,8 +346,8 @@ export const createCashfreeOrder = async (req, res) => {
           // 4. Save Snapshot
           await sequelize.query(
             `INSERT INTO order_snapshots
-               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount)
-             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount)
+               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount, order_type, delivery_address, latitude, longitude)
+             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount, :orderType, :deliveryAddress, :latitude, :longitude)
              ON CONFLICT (cashfree_order_id) 
              DO UPDATE SET 
                amount = EXCLUDED.amount,
@@ -356,6 +365,10 @@ export const createCashfreeOrder = async (req, res) => {
                 gstAmount: Number(snapGst) || 0,
                 isParcel: Boolean(snapIsParcel),
                 parcelAmount: Number(snapParcelAmount) || 0,
+                orderType: snapOrderType || 'DINE_IN',
+                deliveryAddress: snapAddress || null,
+                latitude: snapLat || null,
+                longitude: snapLng || null,
               },
               type: QueryTypes.INSERT,
             }
@@ -404,6 +417,10 @@ export const confirmPayment = async (req, res) => {
       platformFee,
       commissionAmount,
       gstAmount,
+      orderType,
+      deliveryAddress,
+      latitude,
+      longitude,
     } = req.body;
 
     const authenticatedStudentId = req.user?.id;
@@ -565,6 +582,10 @@ export const confirmPayment = async (req, res) => {
             platformFee: Number(platformFee) || 0,
             commissionAmount: Number(commissionAmount) || 0,
             gstAmount: Number(gstAmount) || 0,
+            orderType: orderType === 'DELIVERY' ? 'DELIVERY' : 'DINE_IN',
+            deliveryAddress: deliveryAddress || null,
+            latitude: latitude || null,
+            longitude: longitude || null,
           },
           { transaction: t }
         );
@@ -605,6 +626,10 @@ export const confirmPayment = async (req, res) => {
         platformFee: Number(platformFee) || 0,
         commissionAmount: Number(commissionAmount) || 0,
         gstAmount: Number(gstAmount) || 0,
+        orderType: orderType === 'DELIVERY' ? 'DELIVERY' : 'DINE_IN',
+        deliveryAddress: deliveryAddress || order.deliveryAddress,
+        latitude: latitude || order.latitude,
+        longitude: longitude || order.longitude,
       };
 
       if (!order.dailyOrderNumber) {
@@ -771,6 +796,7 @@ export const confirmPayment = async (req, res) => {
           status: order.status,
           createdAt: order.createdAt,
           isParcel: order.isParcel,
+          orderType: order.orderType,
           parcelAmount: order.parcelAmount,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
           dailyOrderNumber: order.dailyOrderNumber,
@@ -874,6 +900,11 @@ export const confirmPayment = async (req, res) => {
           commissionAmount: order.commissionAmount,
           isParcel: order.isParcel,
           parcelAmount: order.parcelAmount,
+          phone: order.phone,
+          orderType: order.orderType,
+          deliveryAddress: order.deliveryAddress,
+          latitude: order.latitude,
+          longitude: order.longitude,
           items: items,
           status: order.status,
           paymentStatus: order.paymentStatus,

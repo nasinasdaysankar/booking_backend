@@ -18,6 +18,16 @@ export const emitNewOrder = (cafeteriaId, payload) => {
   ioInstance.to(room).emit("NEW_ORDER", payload);
 };
 
+// ================= PARTNER: NEW ASSIGNMENT =================
+export const emitDeliveryAssignment = (partnerId, payload) => {
+  if (!ioInstance) return;
+
+  const room = `partner_${partnerId}`;
+  console.log("📢 Emitting NEW_ASSIGNMENT to:", room);
+
+  ioInstance.to(room).emit("NEW_ASSIGNMENT", payload);
+};
+
 // ================= USER: ORDER STATUS UPDATE =================
 // ================= USER: ORDER STATUS UPDATE =================
 export const emitOrderStatusToUser = (studentId, payload) => {
@@ -30,6 +40,16 @@ export const emitOrderStatusToUser = (studentId, payload) => {
   console.log("📢 Emitting ORDER_STATUS_UPDATE to:", room);
 
   ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
+};
+
+// ================= USER: DELIVERY OTP =================
+export const emitDeliveryOtp = (studentId, payload) => {
+  if (!ioInstance) return;
+
+  const room = `user_${studentId}`;
+  console.log("📢 Emitting DELIVERY_OTP to:", room);
+
+  ioInstance.to(room).emit("DELIVERY_OTP", payload);
 };
 
 // ================= ADMIN: ORDER STATUS UPDATE =================

@@ -26,6 +26,8 @@ import InventoryBatchModel from "./InventoryBatch.js";
 import InventoryTransactionModel from "./InventoryTransaction.js";
 import SupportMessageModel from "./SupportMessage.js";
 import PromotionalPosterModel from "./PromotionalPoster.js";
+import DeliveryPartnerModel from "./DeliveryPartner.js";
+import PartnerFcmTokenModel from "./PartnerFcmToken.js";
 
 
 
@@ -67,6 +69,8 @@ const InventoryBatch = InventoryBatchModel(sequelize);
 const InventoryTransaction = InventoryTransactionModel(sequelize);
 const SupportMessage = SupportMessageModel(sequelize);
 const PromotionalPoster = PromotionalPosterModel(sequelize);
+const DeliveryPartner = DeliveryPartnerModel(sequelize);
+const PartnerFcmToken = PartnerFcmTokenModel(sequelize);
 
 
 
@@ -153,6 +157,16 @@ SupportTicket.belongsTo(Admin, { foreignKey: { name: "userId", field: "userid" }
 SupportTicket.hasMany(SupportMessage, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "messages" });
 SupportMessage.belongsTo(SupportTicket, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "ticket" });
 
+// ================= DELIVERY RELATIONS =================
+Cafeteria.hasMany(DeliveryPartner, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+DeliveryPartner.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+
+DeliveryPartner.hasMany(Order, { foreignKey: { name: "deliveryPartnerId", field: "delivery_partner_id" } });
+Order.belongsTo(DeliveryPartner, { foreignKey: { name: "deliveryPartnerId", field: "delivery_partner_id" } });
+
+DeliveryPartner.hasMany(PartnerFcmToken, { foreignKey: { name: "partnerId", field: "partner_id" } });
+PartnerFcmToken.belongsTo(DeliveryPartner, { foreignKey: { name: "partnerId", field: "partner_id" } });
+
 
 // ================= SYSTEM RELATIONS =================
 AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
@@ -203,6 +217,8 @@ export {
   InventoryTransaction,
   SupportMessage,
   PromotionalPoster,
+  DeliveryPartner,
+  PartnerFcmToken,
 };
 
 

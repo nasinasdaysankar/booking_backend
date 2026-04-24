@@ -39,6 +39,25 @@ export default (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    deliveryRating: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "delivery_rating",
+      validate: {
+        min: 1,
+        max: 5,
+      },
+    },
+    deliveryComment: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "delivery_comment",
+    },
+    deliveryPartnerId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "delivery_partner_id",
+    },
   }, {
     tableName: 'order_feedbacks',
     timestamps: true,

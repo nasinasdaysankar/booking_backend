@@ -18,8 +18,10 @@ import {
   checkWebhookStatus
 } from '../controllers/adminRefundController.js';
 import { deleteAdminAccount } from '../controllers/adminAuth.controller.js';  // ✅ ADD THIS
-import { getRecentStockOuts } from '../controllers/menuController.js';
 import { verifyOwnerPin } from '../controllers/adminController.js';
+import { getDeliveryPartners, createDeliveryPartner, updatePartnerStatus } from '../controllers/deliveryController.js';
+import { assignPartner } from '../controllers/deliveryWorkflowController.js';
+import { getRecentStockOuts } from '../controllers/menuController.js';
 
 
 const router = express.Router();
@@ -48,6 +50,13 @@ router.get("/orders", auth, requireRole(['admin']), getAdminOrders);
  */
 router.patch("/orders/:id/status", auth, requireRole(['admin']), updateOrderStatus);
 router.post("/orders/:id/ready-reminder", auth, requireRole(['admin']), sendReadyReminder);
+
+/**
+ * POST /api/admin/orders/assign
+ * Assign a delivery partner to an order
+ * Body: { orderId, partnerId }
+ */
+router.post("/orders/assign", auth, requireRole(['admin']), assignPartner);
 
 
 // ============================================
@@ -166,6 +175,27 @@ router.get(
 
 
 router.put("/cafeteria/:id", auth, requireRole(['admin']), updateCafeteria);
+
+// ============================================
+// DELIVERY STAFF MANAGEMENT
+// ============================================
+/**
+ * GET /api/admin/delivery-partners
+ * List all delivery partners for this cafeteria
+ */
+router.get("/delivery-partners", auth, requireRole(['admin']), getDeliveryPartners);
+
+/**
+ * POST /api/admin/delivery-partners
+ * Create a new delivery partner for this cafeteria
+ */
+router.post("/delivery-partners", auth, requireRole(['admin']), createDeliveryPartner);
+
+/**
+ * PATCH /api/admin/delivery-partners/:id
+ * Update status (Active/Online) of a delivery partner
+ */
+router.patch("/delivery-partners/:id", auth, requireRole(['admin']), updatePartnerStatus);
 
 
 

@@ -188,6 +188,11 @@ export default (sequelize) => {
         allowNull: true, // Optional initially
         field: "owner_pin",
       },
+      deliveryFee: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 20.00,
+        field: "delivery_fee",
+      },
     },
 
     {

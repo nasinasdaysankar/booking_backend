@@ -18,7 +18,7 @@ import { emitAdminOrderUpdate } from "../socket.js";
 // ================= SUBMIT FEEDBACK =================
 export const submitOrderFeedback = async (req, res) => {
   try {
-    const { orderId, rating, comment } = req.body;
+    const { orderId, rating, comment, deliveryRating, deliveryComment } = req.body;
     const studentId = req.user.id;
 
     console.log("📝 FEEDBACK REQUEST RECEIVED:");
@@ -44,6 +44,7 @@ export const submitOrderFeedback = async (req, res) => {
         "isRated",
         "cafeteriaId",
         "totalAmount",
+        "deliveryPartnerId",
       ],
     });
 
@@ -76,10 +77,10 @@ export const submitOrderFeedback = async (req, res) => {
       });
     }
 
-    // ✅ 3. VERIFY STATUS (must be PICKED_UP)
-    if (order.status !== "PICKED_UP") {
+    // ✅ 3. VERIFY STATUS (must be PICKED_UP or DELIVERED)
+    if (order.status !== "PICKED_UP" && order.status !== "DELIVERED") {
       console.log(
-        "❌ Order status not PICKED_UP, actual status:",
+        "❌ Order status not allowed for feedback, actual status:",
         order.status
       );
       return res.status(400).json({
@@ -122,6 +123,9 @@ export const submitOrderFeedback = async (req, res) => {
       cafeteriaId: order.cafeteriaId,
       rating,
       comment: comment || "",
+      deliveryRating: deliveryRating || null,
+      deliveryComment: deliveryComment || "",
+      deliveryPartnerId: order.deliveryPartnerId || null,
     });
 
     if (!feedback) {

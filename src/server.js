@@ -59,6 +59,13 @@ io.on("connection", (socket) => {
     logger.info(`👤 User joined room: ${room}`);
   });
 
+  // ===== PARTNER joins personal room =====
+  socket.on("JOIN_PARTNER_ROOM", (partnerId) => {
+    const room = `partner_${partnerId}`;
+    socket.join(room);
+    logger.info(`🛵 Partner joined room: ${room}`);
+  });
+
   // ===== SUPPORT TICKET rooms =====
   socket.on("JOIN_TICKET", (ticketId) => {
     const room = `ticket_${ticketId}`;
@@ -120,9 +127,36 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_reminder_count INTEGER NOT NULL DEFAULT 0`
       );
-      logger.info("✅ orders.ready_reminder_count column ensured");
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_partner_id INTEGER`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp VARCHAR(6)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_expires_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT`
+      );
+      await sequelize.query(
+        `ALTER TYPE "enum_orders_status" ADD VALUE IF NOT EXISTS 'ASSIGNED'`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS support_status VARCHAR(20) DEFAULT 'NONE'`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS support_reported_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS support_notes TEXT`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS picked_up_at TIMESTAMP WITH TIME ZONE`
+      );
+      logger.info("✅ orders delivery, support, and status ENUM ensured");
     } catch (colErr) {
-      logger.warn("⚠️ Could not ensure orders ready_reminder_count column: " + colErr.message);
+      logger.warn("⚠️ Could not ensure orders delivery/support columns: " + colErr.message);
     }
 
     // ✅ Ensure uninstalled columns exist on users table
@@ -162,9 +196,55 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS radius_request_feedback TEXT`
       );
-      logger.info("✅ cafeterias.visibility_radius and request columns ensured");
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10, 2) DEFAULT 20.00`
+      );
+      logger.info("✅ cafeterias.visibility_radius and delivery_fee columns ensured");
     } catch (colErr) {
-      logger.warn("⚠️ Could not ensure cafeterias visibility radius columns: " + colErr.message);
+      logger.warn("⚠️ Could not ensure cafeterias visibility radius/delivery columns: " + colErr.message);
+    }
+
+    // ✅ Ensure delivery rating columns exist on order_feedbacks table
+    try {
+      await sequelize.query(
+        `ALTER TABLE order_feedbacks ADD COLUMN IF NOT EXISTS delivery_partner_id INTEGER REFERENCES delivery_partners(id)`
+      );
+      await sequelize.query(
+        `ALTER TABLE order_feedbacks ADD COLUMN IF NOT EXISTS delivery_rating INTEGER`
+      );
+      await sequelize.query(
+        `ALTER TABLE order_feedbacks ADD COLUMN IF NOT EXISTS delivery_comment TEXT`
+      );
+      logger.info("✅ order_feedbacks delivery columns ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure order_feedbacks columns: " + colErr.message);
+    }
+
+    // ✅ Ensure 'ACCEPTED' exists in enum_orders_status
+    try {
+      await sequelize.query(
+        `ALTER TYPE "enum_orders_status" ADD VALUE IF NOT EXISTS 'ACCEPTED' AFTER 'ASSIGNED'`
+      );
+      logger.info("✅ enum_orders_status.ACCEPTED ensured");
+    } catch (enumErr) {
+      // Ignore if already exists
+    }
+
+    // ✅ Ensure order_type column and enum exist
+    try {
+      await sequelize.query(
+        `DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_orders_order_type') THEN
+            CREATE TYPE "enum_orders_order_type" AS ENUM ('DINE_IN', 'DELIVERY');
+          END IF;
+        END $$;`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type "enum_orders_order_type" NOT NULL DEFAULT 'DINE_IN'`
+      );
+      logger.info("✅ orders.order_type column ensured");
+    } catch (orderTypeErr) {
+      logger.warn("⚠️ Could not ensure orders.order_type: " + orderTypeErr.message);
     }
 
     // ✅ Ensure is_busy, is_offline, open_time, close_time columns exist on cafeterias table

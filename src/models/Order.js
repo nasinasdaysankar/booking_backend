@@ -95,6 +95,16 @@ export default (sequelize) => {
       },
 
       // ========================================
+      // ORDER TYPE: DINE_IN or DELIVERY
+      // ========================================
+      orderType: {
+        type: DataTypes.ENUM("DINE_IN", "DELIVERY"),
+        allowNull: false,
+        defaultValue: "DINE_IN",
+        field: "order_type",
+      },
+
+      // ========================================
       // ORDER STATUS
       // ========================================
       status: {
@@ -103,7 +113,11 @@ export default (sequelize) => {
           "PAID",
           "PREPARING",
           "READY",
+          "ASSIGNED",
+          "ACCEPTED",
           "PICKED_UP",
+          "OUT_FOR_DELIVERY",
+          "DELIVERED",
           "COMPLETED",
           "CANCELLED",
           "EXPIRED",
@@ -118,6 +132,47 @@ export default (sequelize) => {
         type: DataTypes.ENUM("PENDING", "SUCCESS", "FAILED"),
         defaultValue: "PENDING",
         field: "paymentstatus",
+      },
+
+      // ========================================
+      // DELIVERY INFORMATION
+      // ========================================
+      deliveryPartnerId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "delivery_partner_id",
+        references: {
+          model: "delivery_partners",
+          key: "id",
+        },
+      },
+
+      deliveryOtp: {
+        type: DataTypes.STRING(6),
+        allowNull: true,
+        field: "delivery_otp",
+      },
+
+      deliveryOtpExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "delivery_otp_expires_at",
+      },
+
+      deliveryAddress: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: "delivery_address",
+      },
+
+      latitude: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: true,
+      },
+
+      longitude: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: true,
       },
 
       // ========================================
@@ -182,6 +237,27 @@ export default (sequelize) => {
         allowNull: false,
         defaultValue: 0,
         field: "ready_reminder_count",
+      },
+
+      // ========================================
+      // SUPPORT & EXCEPTIONS
+      // ========================================
+      supportStatus: {
+        type: DataTypes.ENUM("NONE", "UNREACHABLE", "DAMAGED", "ADDRESS_ERROR"),
+        defaultValue: "NONE",
+        field: "support_status",
+      },
+
+      supportReportedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "support_reported_at",
+      },
+
+      supportNotes: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: "support_notes",
       },
 
       // ========================================

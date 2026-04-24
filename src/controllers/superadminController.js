@@ -429,6 +429,63 @@ export const getAdvancedAnalytics = async (req, res) => {
         `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
         metrics.recentActivities = recentActivitiesQuery;
 
+        // ============================================
+        // 🛵 DELIVERY METRICS (NEW)
+        // ============================================
+        
+        // ============================================
+        // 🛵 DELIVERY METRICS (ADVANCED)
+        // ============================================
+        
+        // 14. Active Delivery Partners
+        const activePartnersQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(*) as active_count
+            FROM delivery_partners
+            WHERE is_active = true AND is_online = true
+            ${cafeteriaId ? `AND cafeteriaid = ${parseInt(cafeteriaId)}` : ''}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.activeDeliveryPartners = parseInt(activePartnersQuery[0]?.active_count || 0);
+
+        // 15. Average Time Analytics (Assigned -> Delivered)
+        // avg_pickup_time: ASSIGNED to PICKED_UP
+        // avg_delivery_time: PICKED_UP to DELIVERED
+        const timingQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                ROUND(AVG(EXTRACT(EPOCH FROM (o."picked_up_at" - o."updated_at"))/60)::numeric, 1) as avg_pickup_time,
+                ROUND(AVG(EXTRACT(EPOCH FROM (o."updated_at" - o."picked_up_at"))/60)::numeric, 1) as avg_dropoff_time
+            FROM orders o
+            WHERE o.status = 'DELIVERED' 
+            AND o."picked_up_at" IS NOT NULL
+            ${applyFilters(dateFilter, 'o')}
+            ${applyFilters(cafeteriaFilter, 'o')}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        
+        metrics.avgPickupTime = parseFloat(timingQuery[0]?.avg_pickup_time || 0);
+        metrics.avgDeliveryTime = parseFloat(timingQuery[0]?.avg_dropoff_time || 0);
+
+        // 16. Late Orders (Dynamic threshold: 25 minutes)
+        const lateOrdersQuery = await Cafeteria.sequelize.query(`
+            SELECT COUNT(*) as late_count
+            FROM orders o
+            WHERE o.status IN ('ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY')
+            AND o."updated_at" <= NOW() - INTERVAL '25 minutes'
+            ${cafeteriaId ? `AND o.cafeteriaid = ${parseInt(cafeteriaId)}` : ''}
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.lateOrdersCount = parseInt(lateOrdersQuery[0]?.late_count || 0);
+
+        // 17. Delivery Density (Heatmap data)
+        const densityQuery = await Cafeteria.sequelize.query(`
+            SELECT 
+                c.id, c.name, c.latitude, c.longitude,
+                COUNT(o.id) as order_count
+            FROM cafeterias c
+            JOIN orders o ON c.id = o.cafeteriaid
+            WHERE o.status IN ('ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED')
+            ${applyFilters(dateFilter, 'o')}
+            GROUP BY c.id, c.name, c.latitude, c.longitude
+        `, { type: Cafeteria.sequelize.QueryTypes.SELECT });
+        metrics.deliveryDensity = densityQuery;
+
         return res.json({
             success: true,
             data: metrics

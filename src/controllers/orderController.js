@@ -299,7 +299,7 @@ export const getMyOrders = async (req, res) => {
         {
           model: Cafeteria,
           as: "Cafeteria",
-          attributes: ["id", "name", "bufferTime"],
+          attributes: ["id", "name", "bufferTime", "latitude", "longitude"],
         },
       ],
     });
@@ -334,7 +334,7 @@ export const getOrderById = async (req, res) => {
         {
           model: Cafeteria,
           as: "Cafeteria",
-          attributes: ["id", "name", "bufferTime"],
+          attributes: ["id", "name", "bufferTime", "latitude", "longitude"],
         },
       ],
     });
@@ -372,7 +372,7 @@ export const getOrderByBillId = async (req, res) => {
         {
           model: Cafeteria,
           as: "Cafeteria",
-          attributes: ["bufferTime", "name"],
+          attributes: ["bufferTime", "name", "latitude", "longitude"],
         },
       ],
     });

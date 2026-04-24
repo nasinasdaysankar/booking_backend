@@ -352,6 +352,7 @@ export const createManualOrder = async (req, res) => {
         gstAmount: Number(gstAmount) || 0,
         platformFee: Number(platformFee) || 0,
         commissionAmount: Number(commissionAmount) || 0,
+        orderType: 'DINE_IN', // POS orders are always Dine-in by default
       },
       { transaction: t }
     );
@@ -432,6 +433,7 @@ export const createManualOrder = async (req, res) => {
       netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
       createdAt: order.createdAt,
       isParcel: order.isParcel,
+      orderType: order.orderType,
       readyReminderCount: 0,
       items: orderItems,
     });
@@ -559,6 +561,7 @@ export const getAdminOrders = async (req, res) => {
               orders."daily_order_number" AS "dailyOrderNumber",
               orders."total_order_number" AS "totalOrderNumber",
               orders."ready_reminder_count" AS "readyReminderCount",
+              orders."order_type" AS "orderType",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
               users.name AS "customerName"
        FROM orders
@@ -706,6 +709,7 @@ export const updateOrderStatus = async (req, res) => {
       customerName: userName,
       readyReminderCount: order.readyReminderCount,
       pickedUpAt: order.pickedUpAt,
+      orderType: order.orderType,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
