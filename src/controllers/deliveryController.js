@@ -2,6 +2,7 @@ import { DeliveryPartner, Cafeteria, Order, OrderItem, User, PartnerFcmToken, Or
 import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { emitPartnerLocationToUser } from "../socket.js";
 
 // ==========================================
 // 1. DELIVERY PARTNER AUTH
@@ -380,6 +381,24 @@ export const updateLocation = async (req, res) => {
       },
       { where: { id: partnerId } }
     );
+
+    // 🔥 Real-time Tracking: Emit to all users who have an active order with this partner
+    const activeOrders = await Order.findAll({
+      where: {
+        deliveryPartnerId: partnerId,
+        status: ['ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY']
+      },
+      attributes: ['studentId']
+    });
+
+    activeOrders.forEach(order => {
+      emitPartnerLocationToUser(order.studentId, {
+        partnerId,
+        lat,
+        lng,
+        lastUpdate: new Date()
+      });
+    });
 
     res.json({ success: true, message: "Location updated" });
   } catch (err) {

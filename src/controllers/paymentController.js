@@ -120,6 +120,13 @@ export const generateBillId = async (cafeteriaId, transaction) => {
   return `${prefix}-${randomStr}${sequence}`;
 };
 
+export const generateDeliveryOrderId = async (cafeteriaId, transaction) => {
+  const prefix = getCafeteriaPrefix(cafeteriaId);
+  const randomStr = generateRandomString(4);
+  const sequence = String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+  return `DEL-${prefix}-${randomStr}-${sequence}`;
+};
+
 export const generateDailyOrderNumber = async (cafeteriaId, transaction) => {
   // ✅ FORCE IST DATE (Asia/Kolkata) to ensure daily reset at midnight IST
   const today = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000) + (new Date().getTimezoneOffset() * 60000))
@@ -586,6 +593,7 @@ export const confirmPayment = async (req, res) => {
             deliveryAddress: deliveryAddress || null,
             latitude: latitude || null,
             longitude: longitude || null,
+            deliveryOrderId: orderType === 'DELIVERY' ? await generateDeliveryOrderId(cafeteriaId, t) : null,
           },
           { transaction: t }
         );
@@ -630,6 +638,9 @@ export const confirmPayment = async (req, res) => {
         deliveryAddress: deliveryAddress || order.deliveryAddress,
         latitude: latitude || order.latitude,
         longitude: longitude || order.longitude,
+        deliveryOrderId: (orderType === 'DELIVERY' || order.orderType === 'DELIVERY') && !order.deliveryOrderId 
+          ? await generateDeliveryOrderId(cafeteriaId, t) 
+          : order.deliveryOrderId,
       };
 
       if (!order.dailyOrderNumber) {
@@ -798,6 +809,7 @@ export const confirmPayment = async (req, res) => {
           isParcel: order.isParcel,
           orderType: order.orderType,
           parcelAmount: order.parcelAmount,
+          deliveryOrderId: order.deliveryOrderId,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
           dailyOrderNumber: order.dailyOrderNumber,
           totalOrderNumber: totalOrderNumber || order.totalOrderNumber,
@@ -1322,6 +1334,11 @@ export const syncFromWebhook = async (req, res) => {
             gstAmount:        Number(snap.gst_amount) || 0,
             isParcel:         Boolean(snap.is_parcel),
             parcelAmount:     Number(snap.parcel_amount) || 0,
+            orderType:        snap.order_type || 'DINE_IN',
+            deliveryAddress:  snap.delivery_address || null,
+            latitude:         snap.latitude || null,
+            longitude:        snap.longitude || null,
+            deliveryOrderId:  snap.order_type === 'DELIVERY' ? await generateDeliveryOrderId(snapCafeteriaId, t) : null,
           },
           { transaction: t }
         );
@@ -1402,6 +1419,7 @@ export const syncFromWebhook = async (req, res) => {
             createdAt:        recoveredOrder.createdAt,
             isParcel:         recoveredOrder.isParcel,
             dailyOrderNumber: recoveredOrder.dailyOrderNumber,
+            deliveryOrderId:  recoveredOrder.deliveryOrderId,
             items:            itemsForSocket, // ✅ Added items with categories
           });
 

@@ -42,6 +42,16 @@ export const emitOrderStatusToUser = (studentId, payload) => {
   ioInstance.to(room).emit("ORDER_STATUS_UPDATE", payload);
 };
 
+// ================= USER: PARTNER LOCATION UPDATE =================
+export const emitPartnerLocationToUser = (studentId, payload) => {
+  if (!ioInstance) return;
+
+  const room = `user_${studentId}`;
+  console.log("📢 Emitting PARTNER_LOCATION_UPDATE to:", room);
+
+  ioInstance.to(room).emit("PARTNER_LOCATION_UPDATE", payload);
+};
+
 // ================= USER: DELIVERY OTP =================
 export const emitDeliveryOtp = (studentId, payload) => {
   if (!ioInstance) return;

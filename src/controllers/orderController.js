@@ -126,7 +126,7 @@
 //   }
 // };
 
-import { Order, OrderItem, MenuItem, OrderFeedback, Cafeteria, sequelize } from '../models/index.js';
+import { Order, OrderItem, MenuItem, OrderFeedback, Cafeteria, DeliveryPartner, sequelize } from '../models/index.js';
 import { clearAnalyticsCache } from '../utils/cache.js';
 import { generateBillId, generateDailyOrderNumber } from './paymentController.js';
 import { Op } from 'sequelize';
@@ -373,6 +373,10 @@ export const getOrderByBillId = async (req, res) => {
           model: Cafeteria,
           as: "Cafeteria",
           attributes: ["bufferTime", "name", "latitude", "longitude"],
+        },
+        {
+          model: DeliveryPartner,
+          attributes: ["name", "phone", "lastLat", "lastLong"],
         },
       ],
     });

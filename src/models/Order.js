@@ -175,6 +175,13 @@ export default (sequelize) => {
         allowNull: true,
       },
 
+      deliveryOrderId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+        field: "delivery_order_id",
+      },
+
       // ========================================
       // KOT & TRACKING
       // ========================================

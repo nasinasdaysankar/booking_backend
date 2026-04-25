@@ -43,6 +43,7 @@ export const assignPartner = async (req, res) => {
       cafeteriaName: partner.Cafeteria?.name,
       cafeteriaLat: partner.Cafeteria?.latitude,
       cafeteriaLng: partner.Cafeteria?.longitude,
+      deliveryOrderId: order.deliveryOrderId,
     });
 
     // 2. Emit Socket to User & Admin
@@ -125,7 +126,8 @@ export const acceptOrder = async (req, res) => {
       cafeteriaLat: parseFloat(plainOrder.Cafeteria?.latitude || 0),
       cafeteriaLng: parseFloat(plainOrder.Cafeteria?.longitude || 0),
       customerLat: parseFloat(plainOrder.latitude || 0),
-      customerLng: parseFloat(plainOrder.longitude || 0)
+      customerLng: parseFloat(plainOrder.longitude || 0),
+      deliveryOrderId: plainOrder.deliveryOrderId
     };
 
     // Notify others
@@ -133,6 +135,11 @@ export const acceptOrder = async (req, res) => {
       orderId: order.id, 
       status: "ACCEPTED",
       partnerName: fullOrder.DeliveryPartner?.name ?? null,
+      partnerPhone: fullOrder.DeliveryPartner?.phone ?? null,
+      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
+      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
+      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
+      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
     });
     emitAdminOrderUpdate(order.cafeteriaId, { 
       orderId: order.id, 
@@ -210,12 +217,23 @@ export const updateToPickedUp = async (req, res) => {
     order.pickedUpAt = new Date();
     await order.save();
 
-    const partner = await DeliveryPartner.findByPk(partnerId, { attributes: ['name'] });
+    const fullOrder = await Order.findByPk(orderId, {
+      include: [
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['latitude', 'longitude'] },
+        { model: DeliveryPartner, attributes: ['name', 'lastLat', 'lastLong'] }
+      ]
+    });
 
     emitOrderStatusToUser(order.studentId, { 
       orderId: order.id, 
       status: "PICKED_UP",
-      partnerName: partner?.name ?? null,
+      partnerName: fullOrder.DeliveryPartner?.name ?? null,
+      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
+      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
+      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
+      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
+      customerLat: fullOrder.latitude ?? null,
+      customerLng: fullOrder.longitude ?? null,
     });
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "PICKED_UP" });
 
@@ -237,7 +255,24 @@ export const updateToOutForDelivery = async (req, res) => {
     order.status = "OUT_FOR_DELIVERY";
     await order.save();
 
-    emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "OUT_FOR_DELIVERY" });
+    const fullOrder = await Order.findByPk(orderId, {
+      include: [
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['latitude', 'longitude'] },
+        { model: DeliveryPartner, attributes: ['name', 'lastLat', 'lastLong'] }
+      ]
+    });
+
+    emitOrderStatusToUser(order.studentId, { 
+      orderId: order.id, 
+      status: "OUT_FOR_DELIVERY",
+      partnerName: fullOrder.DeliveryPartner?.name ?? null,
+      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
+      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
+      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
+      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
+      customerLat: fullOrder.latitude ?? null,
+      customerLng: fullOrder.longitude ?? null,
+    });
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "OUT_FOR_DELIVERY" });
 
     res.json({ message: "Order is OUT_FOR_DELIVERY", order });
