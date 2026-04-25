@@ -49,6 +49,7 @@ const allowedOrigins = [
   'http://localhost:5173',      // Local development (Vite)
   'http://localhost:3000',      // Local development (Alternative)
   'https://api.velish.in',      // Production API/Web domain
+  'https://test.velish.in',     // Testing domain
 ];
 
 app.use(cors({
