@@ -7,6 +7,7 @@ const router = express.Router();
 // 🔐 ADMIN LOGIN ONLY
 router.post("/login", adminLogin);
 router.post("/refresh-token", refreshToken);
+// router.post("register,")
 
 //edited code
 export default router;
