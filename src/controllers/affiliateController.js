@@ -7,10 +7,13 @@ export const getRandomAffiliateProduct = async (req, res) => {
     // Future enhancement: Accept user's gender and filter by gender.
     
     const product = await AffiliateProduct.findOne({
-      order: sequelize.random()
+      order: [sequelize.random()]
     });
 
+    console.log('Random affiliate product fetched:', product ? product.title : 'NULL');
+
     if (!product) {
+      console.log('Total affiliate products in DB:', await AffiliateProduct.count());
       return res.status(404).json({ success: false, message: 'No affiliate products available' });
     }
 
@@ -21,6 +24,7 @@ export const getRandomAffiliateProduct = async (req, res) => {
         title: product.title,
         category: product.category,
         subcategory: product.subcategory,
+        imageUrl: product.imageUrl,
         affiliateLink: product.affiliateLink
       }
     });

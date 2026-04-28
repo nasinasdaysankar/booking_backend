@@ -7,6 +7,7 @@ export default (sequelize) => {
     category: { type: DataTypes.STRING, allowNull: false },
     subcategory: { type: DataTypes.STRING, allowNull: false },
     gender: { type: DataTypes.STRING, allowNull: true, defaultValue: 'unisex' }, // 'male', 'female', 'unisex'
+    imageUrl: { type: DataTypes.STRING, allowNull: true, field: 'image_url' },
     affiliateLink: { type: DataTypes.STRING, allowNull: false, field: 'affiliate_link' },
     createdAt: {
       type: DataTypes.DATE,
