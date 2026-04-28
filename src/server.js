@@ -20,7 +20,7 @@ import { initNotificationScheduler } from "./cron/notificationScheduler.js";
 import { initCafeteriaScheduler } from "./cron/cafeteriaScheduler.js";
 import { initStockScheduler } from "./cron/stockScheduler.js";
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 8080;
 const SHOULD_SYNC = process.env.DB_SYNC === "true";
 
 // Debug: Check if env vars are loaded

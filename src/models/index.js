@@ -28,6 +28,7 @@ import SupportMessageModel from "./SupportMessage.js";
 import PromotionalPosterModel from "./PromotionalPoster.js";
 import DeliveryPartnerModel from "./DeliveryPartner.js";
 import PartnerFcmTokenModel from "./PartnerFcmToken.js";
+import AffiliateProductModel from "./AffiliateProduct.js";
 
 
 
@@ -71,6 +72,7 @@ const SupportMessage = SupportMessageModel(sequelize);
 const PromotionalPoster = PromotionalPosterModel(sequelize);
 const DeliveryPartner = DeliveryPartnerModel(sequelize);
 const PartnerFcmToken = PartnerFcmTokenModel(sequelize);
+const AffiliateProduct = AffiliateProductModel(sequelize);
 
 
 
@@ -219,6 +221,7 @@ export {
   PromotionalPoster,
   DeliveryPartner,
   PartnerFcmToken,
+  AffiliateProduct,
 };
 
 

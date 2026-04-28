@@ -25,6 +25,7 @@ import campusBoundaryRoutes from "./routes/campusBoundaryRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js"; // 📦 RAW MATERIALS
 import promotionalPosterRoutes from "./routes/promotionalPosterRoutes.js";
 import deliveryRoutes from "./routes/delivery.routes.js";
+import affiliateRoutes from "./routes/affiliateRoutes.js";
 
 
 
@@ -166,6 +167,9 @@ logger.info("✅ Inventory routes mounted");
 
 app.use("/api/promotional-posters", promotionalPosterRoutes);
 logger.info("✅ Promotional poster routes mounted");
+
+app.use("/api/affiliate", affiliateRoutes);
+logger.info("✅ Affiliate routes mounted");
 
 
 

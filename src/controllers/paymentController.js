@@ -593,7 +593,7 @@ export const confirmPayment = async (req, res) => {
             deliveryAddress: deliveryAddress || null,
             latitude: latitude || null,
             longitude: longitude || null,
-            deliveryOrderId: orderType === 'DELIVERY' ? await generateDeliveryOrderId(cafeteriaId, t) : null,
+            deliveryOrderId: null,
           },
           { transaction: t }
         );
@@ -638,9 +638,7 @@ export const confirmPayment = async (req, res) => {
         deliveryAddress: deliveryAddress || order.deliveryAddress,
         latitude: latitude || order.latitude,
         longitude: longitude || order.longitude,
-        deliveryOrderId: (orderType === 'DELIVERY' || order.orderType === 'DELIVERY') && !order.deliveryOrderId 
-          ? await generateDeliveryOrderId(cafeteriaId, t) 
-          : order.deliveryOrderId,
+        deliveryOrderId: order.deliveryOrderId,
       };
 
       if (!order.dailyOrderNumber) {
@@ -1338,7 +1336,7 @@ export const syncFromWebhook = async (req, res) => {
             deliveryAddress:  snap.delivery_address || null,
             latitude:         snap.latitude || null,
             longitude:        snap.longitude || null,
-            deliveryOrderId:  snap.order_type === 'DELIVERY' ? await generateDeliveryOrderId(snapCafeteriaId, t) : null,
+            deliveryOrderId: null,
           },
           { transaction: t }
         );

@@ -293,7 +293,7 @@ import { sendBatchNotifications } from "../utils/notificationUtils.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
 import { updateOrderStatusInSheet } from "../utils/googleSheets.js";
 
-import { generateBillId, generateDailyOrderNumber, generateKotNumber, generateTotalOrderNumber } from "./paymentController.js";
+import { generateBillId, generateDailyOrderNumber, generateKotNumber, generateTotalOrderNumber, generateDeliveryOrderId } from "./paymentController.js";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 
 console.log("--------------------------------------------------");
@@ -562,6 +562,7 @@ export const getAdminOrders = async (req, res) => {
               orders."total_order_number" AS "totalOrderNumber",
               orders."ready_reminder_count" AS "readyReminderCount",
               orders."order_type" AS "orderType",
+              orders."delivery_order_id" AS "deliveryOrderId",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
               users.name AS "customerName"
        FROM orders
@@ -640,6 +641,12 @@ export const updateOrderStatus = async (req, res) => {
       etaMinutes,
     };
 
+    // ✅ Generate deliveryOrderId if accepted (PREPARING) and not yet generated
+    if ((status === "PREPARING" || status === "ACCEPTED") && order.orderType === "DELIVERY" && !order.deliveryOrderId) {
+      updateData.deliveryOrderId = await generateDeliveryOrderId(order.cafeteriaId, null);
+      console.log(`📦 Generated Delivery Order ID: ${updateData.deliveryOrderId}`);
+    }
+
     // ✅ Reset notification flags when order becomes READY
     // This ensures notifications work correctly for the new READY timestamp
     if (status === "READY") {
@@ -710,6 +717,7 @@ export const updateOrderStatus = async (req, res) => {
       readyReminderCount: order.readyReminderCount,
       pickedUpAt: order.pickedUpAt,
       orderType: order.orderType,
+      deliveryOrderId: order.deliveryOrderId,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
