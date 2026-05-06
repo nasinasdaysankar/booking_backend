@@ -807,7 +807,8 @@ export const validateCartItems = async (req, res) => {
       return res.status(400).json({ success: false, message: "Items array required" });
     }
 
-    const ids = items.map((i) => i.menuItemId).filter(Boolean);
+    const validCartItems = items.filter(i => i.menuItemId && !isNaN(i.menuItemId));
+    const ids = validCartItems.map((i) => i.menuItemId);
 
     const dbItems = await MenuItem.findAll({
       where: { id: ids },
@@ -819,7 +820,7 @@ export const validateCartItems = async (req, res) => {
 
     const issues = [];
 
-    for (const cartItem of items) {
+    for (const cartItem of validCartItems) {
       const db = dbMap[cartItem.menuItemId];
 
       if (!db || db.isDeleted) {

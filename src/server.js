@@ -348,6 +348,16 @@ const start = async () => {
       logger.warn("⚠️ Could not ensure support system tables/columns: " + colErr.message);
     }
 
+    // ✅ Ensure affiliate_products columns are TEXT to support long URLs
+    try {
+      await sequelize.query(`ALTER TABLE affiliate_products ALTER COLUMN title TYPE TEXT`);
+      await sequelize.query(`ALTER TABLE affiliate_products ALTER COLUMN image_url TYPE TEXT`);
+      await sequelize.query(`ALTER TABLE affiliate_products ALTER COLUMN affiliate_link TYPE TEXT`);
+      logger.info("✅ affiliate_products columns updated to TEXT");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not update affiliate_products columns: " + colErr.message);
+    }
+
     //Redis
     // ============================================
     // 🔥 REDIS CONNECTION

@@ -234,7 +234,7 @@ export const createCashfreeOrder = async (req, res) => {
     if (items && Array.isArray(items) && items.length > 0) {
       for (const item of items) {
         const id = item.id || item.menuItemId;
-        if (!id) continue;
+        if (!id || isNaN(id)) continue;
         const menuItem = await MenuItem.findByPk(id);
         if (menuItem && menuItem.trackStock) {
           const qty = item.qty || item.quantity || 0;
@@ -250,6 +250,7 @@ export const createCashfreeOrder = async (req, res) => {
     }
 
     console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
+    console.log(`📦 [PROXY] orderType received: ${req.body.orderType || 'DINE_IN'}`);
     const payload = req.body;
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
 
@@ -330,19 +331,21 @@ export const createCashfreeOrder = async (req, res) => {
               latitude            DECIMAL(10,7),
               longitude           DECIMAL(10,7),
               created_at          TIMESTAMP DEFAULT NOW(),
+              updated_at          TIMESTAMP DEFAULT NOW(),
               expires_at          TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
             )`,
             { type: QueryTypes.RAW }
           ).catch(() => {});
 
           // 2. Safe Column Migrations
-          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount", "order_type", "delivery_address", "latitude", "longitude"];
+          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount", "order_type", "delivery_address", "latitude", "longitude", "updated_at"];
           for (const col of columns) {
             let type = "DECIMAL(10,2) NOT NULL DEFAULT 0";
             if (col === "is_parcel") type = "BOOLEAN NOT NULL DEFAULT false";
             if (col === "order_type") type = "VARCHAR(20) DEFAULT 'DINE_IN'";
             if (col === "delivery_address") type = "TEXT";
             if (col === "latitude" || col === "longitude") type = "DECIMAL(10,7)";
+            if (col === "updated_at") type = "TIMESTAMP DEFAULT NOW()";
             
             await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS ${col} ${type}`, { type: QueryTypes.RAW }).catch(() => {});
           }
@@ -359,6 +362,10 @@ export const createCashfreeOrder = async (req, res) => {
              DO UPDATE SET 
                amount = EXCLUDED.amount,
                items = EXCLUDED.items,
+               order_type = EXCLUDED.order_type,
+               delivery_address = EXCLUDED.delivery_address,
+               latitude = EXCLUDED.latitude,
+               longitude = EXCLUDED.longitude,
                updated_at = NOW()`,
             {
               replacements: {
@@ -441,6 +448,36 @@ export const confirmPayment = async (req, res) => {
     console.log(`  - amount: ${amount}`);
     console.log(`  - authenticatedStudentId: ${authenticatedStudentId}`);
     console.log(`  - transactionId: ${transactionId}`);
+
+    // ========================================
+    // 💾 ATTEMPT TO HEAL FROM SNAPSHOT
+    // ========================================
+    let snapshot = null;
+    try {
+      const snapshots = await sequelize.query(
+        `SELECT * FROM order_snapshots WHERE cashfree_order_id = :cashfreeOrderId`,
+        {
+          replacements: { cashfreeOrderId },
+          type: QueryTypes.SELECT
+        }
+      );
+      if (snapshots && snapshots.length > 0) {
+        snapshot = snapshots[0];
+        console.log(`🔍 [SNAPSHOT] Found healing snapshot. Type: ${snapshot.order_type}`);
+      }
+    } catch (snapErr) {
+      console.warn("⚠️ [SNAPSHOT] Healing check failed:", snapErr.message);
+    }
+
+    // Use snapshot as source of truth for critical delivery data
+    console.log(`🔍 [DEBUG TYPE] Body orderType: ${orderType}, Snapshot order_type: ${snapshot?.order_type}`);
+    const finalOrderType = (snapshot?.order_type === 'DELIVERY' || orderType === 'DELIVERY') ? 'DELIVERY' : 'DINE_IN';
+    console.log(`🎯 [DEBUG TYPE] finalOrderType determined: ${finalOrderType}`);
+    const finalAddress = deliveryAddress || snapshot?.delivery_address || null;
+    const finalLat = latitude || snapshot?.latitude || null;
+    const finalLng = longitude || snapshot?.longitude || null;
+    const finalIsParcel = Boolean(isParcel) || Boolean(snapshot?.is_parcel);
+    const finalParcelAmount = Number(parcelAmount) || Number(snapshot?.parcel_amount) || 0;
 
     if (!cashfreeOrderId || !cafeteriaId || !amount || !transactionId) {
       console.error("❌ [VALIDATE] Missing required fields!");
@@ -584,21 +621,21 @@ export const confirmPayment = async (req, res) => {
             kotNumber,
             dailyOrderNumber,
             totalOrderNumber,
-            isParcel: Boolean(isParcel),
-            parcelAmount: Number(parcelAmount) || 0,
+            isParcel: finalIsParcel,
+            parcelAmount: finalParcelAmount,
             platformFee: Number(platformFee) || 0,
             commissionAmount: Number(commissionAmount) || 0,
             gstAmount: Number(gstAmount) || 0,
-            orderType: orderType === 'DELIVERY' ? 'DELIVERY' : 'DINE_IN',
-            deliveryAddress: deliveryAddress || null,
-            latitude: latitude || null,
-            longitude: longitude || null,
+            orderType: finalOrderType,
+            deliveryAddress: finalAddress,
+            latitude: finalLat,
+            longitude: finalLng,
             deliveryOrderId: null,
           },
           { transaction: t }
         );
 
-        console.log(`✅ [DATABASE] Order created with ID: ${order.id}`);
+        console.log(`✅ [DATABASE] Order #${order.id} created. Full Data:`, JSON.stringify(order, null, 2));
       } catch (createErr) {
         console.error("❌ [DATABASE CREATE ERROR]:", {
           name: createErr.name,
@@ -621,7 +658,7 @@ export const confirmPayment = async (req, res) => {
         });
       }
     } else {
-      console.log("📝 [DATABASE] Order already exists, updating it");
+      console.log("📝 [DATABASE] Order already exists, updating status");
       kotNumber = order.kotNumber;
       billId = order.billId;
       dailyOrderNumber = order.dailyOrderNumber;
@@ -629,15 +666,15 @@ export const confirmPayment = async (req, res) => {
       const updateData = {
         status: "PAID",
         paymentStatus: "SUCCESS",
-        isParcel: Boolean(isParcel),
-        parcelAmount: Number(parcelAmount) || 0,
+        isParcel: finalIsParcel,
+        parcelAmount: finalParcelAmount,
         platformFee: Number(platformFee) || 0,
         commissionAmount: Number(commissionAmount) || 0,
         gstAmount: Number(gstAmount) || 0,
-        orderType: orderType === 'DELIVERY' ? 'DELIVERY' : 'DINE_IN',
-        deliveryAddress: deliveryAddress || order.deliveryAddress,
-        latitude: latitude || order.latitude,
-        longitude: longitude || order.longitude,
+        orderType: finalOrderType,
+        deliveryAddress: finalAddress || order.deliveryAddress,
+        latitude: finalLat || order.latitude,
+        longitude: finalLng || order.longitude,
         deliveryOrderId: order.deliveryOrderId,
       };
 
@@ -696,10 +733,13 @@ export const confirmPayment = async (req, res) => {
     if (Array.isArray(items) && items.length > 0) {
       // 📂 FETCH CATEGORIES: For Printer Splitting
       formattedItems = await Promise.all(items.map(async (item) => {
-        const miId = item.menuItemId || item.id || item.menu_item_id || null;
+        let miId = item.menuItemId || item.id || item.menu_item_id || null;
+        if (miId && isNaN(miId)) {
+          miId = null; // Prevent integer conversion errors in DB
+        }
         let category = item.category || null;
 
-        if (miId && !category) {
+        if (miId && !category && !isNaN(miId)) {
           const mi = await MenuItem.findByPk(miId, { transaction: t });
           category = mi?.category || null;
         }
@@ -730,7 +770,7 @@ export const confirmPayment = async (req, res) => {
 
         // 📦 [STOCK] Update stock for all items — collect zero-stock items, emit AFTER commit
         for (const item of formattedItems) {
-          if (!item.menuItemId) continue; // skip items with no menu item reference
+          if (!item.menuItemId || isNaN(item.menuItemId)) continue; // skip items with no numeric menu item reference
 
           const menuItem = await MenuItem.findByPk(item.menuItemId, {
             transaction: t,
@@ -806,6 +846,9 @@ export const confirmPayment = async (req, res) => {
           createdAt: order.createdAt,
           isParcel: order.isParcel,
           orderType: order.orderType,
+          deliveryAddress: order.deliveryAddress,
+          latitude: order.latitude,
+          longitude: order.longitude,
           parcelAmount: order.parcelAmount,
           deliveryOrderId: order.deliveryOrderId,
           netAmount: Number(order.totalAmount) - Number(order.platformFee || 0) - Number(order.commissionAmount || 0),
@@ -912,6 +955,7 @@ export const confirmPayment = async (req, res) => {
           parcelAmount: order.parcelAmount,
           phone: order.phone,
           orderType: order.orderType,
+          deliveryOrderId: order.deliveryOrderId,
           deliveryAddress: order.deliveryAddress,
           latitude: order.latitude,
           longitude: order.longitude,
@@ -1416,9 +1460,13 @@ export const syncFromWebhook = async (req, res) => {
             status:           recoveredOrder.status,
             createdAt:        recoveredOrder.createdAt,
             isParcel:         recoveredOrder.isParcel,
+            orderType:        recoveredOrder.orderType,
+            deliveryAddress:  recoveredOrder.deliveryAddress,
+            latitude:         recoveredOrder.latitude,
+            longitude:        recoveredOrder.longitude,
             dailyOrderNumber: recoveredOrder.dailyOrderNumber,
             deliveryOrderId:  recoveredOrder.deliveryOrderId,
-            items:            itemsForSocket, // ✅ Added items with categories
+            items:            itemsForSocket,
           });
 
           const adminTokens = await AdminFcmToken.findAll({ where: { cafeteriaId: recoveredOrder.cafeteriaId } });

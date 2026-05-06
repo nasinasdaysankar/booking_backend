@@ -352,7 +352,7 @@ export const createManualOrder = async (req, res) => {
         gstAmount: Number(gstAmount) || 0,
         platformFee: Number(platformFee) || 0,
         commissionAmount: Number(commissionAmount) || 0,
-        orderType: 'DINE_IN', // POS orders are always Dine-in by default
+        orderType: req.body.orderType || 'DINE_IN',
       },
       { transaction: t }
     );
@@ -434,6 +434,9 @@ export const createManualOrder = async (req, res) => {
       createdAt: order.createdAt,
       isParcel: order.isParcel,
       orderType: order.orderType,
+      deliveryAddress: order.deliveryAddress,
+      latitude: order.latitude,
+      longitude: order.longitude,
       readyReminderCount: 0,
       items: orderItems,
     });
@@ -563,6 +566,9 @@ export const getAdminOrders = async (req, res) => {
               orders."ready_reminder_count" AS "readyReminderCount",
               orders."order_type" AS "orderType",
               orders."delivery_order_id" AS "deliveryOrderId",
+              orders."delivery_address" AS "deliveryAddress",
+              orders."latitude" AS "latitude",
+              orders."longitude" AS "longitude",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
               users.name AS "customerName"
        FROM orders
@@ -578,6 +584,11 @@ export const getAdminOrders = async (req, res) => {
         type: QueryTypes.SELECT,
       }
     );
+
+    if (orders.length > 0) {
+      console.log(`📡 [FETCH] Order #${orders[0].id} keys:`, Object.keys(orders[0]));
+      console.log(`📡 [FETCH] Returned ${orders.length} orders. First order type: ${orders[0].orderType}, address: ${orders[0].deliveryAddress}`);
+    }
 
 
     if (orders.length === 0) return res.json([]);
@@ -718,6 +729,9 @@ export const updateOrderStatus = async (req, res) => {
       pickedUpAt: order.pickedUpAt,
       orderType: order.orderType,
       deliveryOrderId: order.deliveryOrderId,
+      deliveryAddress: order.deliveryAddress,
+      latitude: order.latitude,
+      longitude: order.longitude,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
