@@ -65,7 +65,8 @@ export const getActiveOrders = async (req, res) => {
       id: order.id,
       dailyOrderNumber: order.dailyOrderNumber,
       billId: order.billId,
-      status: order.status,
+      // 🔥 Never expose PICKED_UP to students — it's an internal logistics status
+      status: order.status === 'PICKED_UP' ? 'OUT_FOR_DELIVERY' : order.status,
       totalAmount: order.totalAmount,
       isRated: order.isRated,
       cafeteriaId: order.cafeteriaId,
