@@ -246,7 +246,7 @@ export const getAssignedOrders = async (req, res) => {
       };
     });
 
-    console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}. Example Type: ${sanitizedOrders[0]?.orderType}`);
+    console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}.${sanitizedOrders.length > 0 ? ` Example Type: ${sanitizedOrders[0].orderType}` : ''}`);
     res.json(sanitizedOrders);
   } catch (err) {
     console.error("❌ [DELIVERY] GET ASSIGNED ORDERS ERROR:", err.message);
