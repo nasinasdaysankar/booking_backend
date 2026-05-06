@@ -221,21 +221,32 @@ export const getAssignedOrders = async (req, res) => {
     // Explicitly map to ensure camelCase and correct types
     const sanitizedOrders = orders.map(order => {
       const plain = order.get({ plain: true });
+      
+      // Calculate orderType fallback if missing
+      const hasDeliveryData = plain.deliveryAddress || (plain.latitude && plain.longitude);
+      const finalOrderType = plain.orderType || (hasDeliveryData ? 'DELIVERY' : 'DINE_IN');
+
       return {
         ...plain,
+        orderType: finalOrderType,
         totalAmount: parseFloat(plain.totalAmount || 0),
-        customerName: plain.User?.name || 'Guest User',
-        customerPhone: plain.User?.phone || '',
+        customerName: plain.User?.name || plain.customer_name || 'Guest User',
+        customerPhone: plain.User?.phone || plain.customer_phone || '',
+        deliveryAddress: plain.deliveryAddress || plain.delivery_address || 'No Address Provided',
         cafeteriaName: plain.Cafeteria?.name || 'Cafeteria',
         cafeteriaPhone: plain.Cafeteria?.phone || '',
         cafeteriaLat: parseFloat(plain.Cafeteria?.latitude || 0),
         cafeteriaLng: parseFloat(plain.Cafeteria?.longitude || 0),
         customerLat: parseFloat(plain.latitude || 0),
-        customerLng: parseFloat(plain.longitude || 0)
+        customerLng: parseFloat(plain.longitude || 0),
+        items: (plain.items || []).map(item => ({
+          ...item,
+          name: item.menuItem?.name || item.name || 'Unknown Item'
+        }))
       };
     });
 
-    console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}`);
+    console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}. Example Type: ${sanitizedOrders[0]?.orderType}`);
     res.json(sanitizedOrders);
   } catch (err) {
     console.error("❌ [DELIVERY] GET ASSIGNED ORDERS ERROR:", err.message);
