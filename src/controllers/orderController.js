@@ -303,8 +303,13 @@ export const getMyOrders = async (req, res) => {
         },
       ],
     });
-
-    return res.json(orders);
+    // 🔥 Never expose internal PICKED_UP status to students
+    const mapped = orders.map(o => {
+      const plain = o.toJSON ? o.toJSON() : { ...o };
+      if (plain.status === 'PICKED_UP') plain.status = 'OUT_FOR_DELIVERY';
+      return plain;
+    });
+    return res.json(mapped);
   } catch (err) {
     console.error("🔥 GET MY ORDERS ERROR:", err);
     return res.status(500).json({ message: err.message });
