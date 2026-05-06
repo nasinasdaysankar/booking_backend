@@ -200,11 +200,13 @@ export const updatePartnerStatus = async (req, res) => {
 
 export const getAssignedOrders = async (req, res) => {
   try {
-    const partnerId = req.user.id;
+    const partnerId = parseInt(req.user.id);
+    console.log(`🔍 [DB DEBUG] Fetching orders for Partner ID: ${partnerId} (Type: ${typeof partnerId})`);
+    
     const orders = await Order.findAll({
       where: { 
         deliveryPartnerId: partnerId,
-        status: ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY']
+        status: ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY']
       },
       include: [
         { 
@@ -218,7 +220,7 @@ export const getAssignedOrders = async (req, res) => {
       order: [['updatedAt', 'DESC']]
     });
 
-    console.log(`🔍 [DB DEBUG] Partner ${partnerId} found ${orders.length} orders in DB. IDs: ${orders.map(o => o.id).join(', ')}`);
+    console.log(`🔍 [DB DEBUG] Partner ${partnerId} query result: found ${orders.length} orders. IDs: ${orders.map(o => o.id).join(', ')}`);
 
     // Explicitly map to ensure camelCase and correct types
     const sanitizedOrders = orders.map(order => {
