@@ -341,27 +341,17 @@ export const verifyDeliveryOtp = async (req, res) => {
     order.status = "DELIVERED";
     await order.save();
 
-    // Notify User and Admin
+    // Notify User and Admin about DELIVERED
     emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "DELIVERED" });
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "DELIVERED" });
 
-    // Schedule OTP deletion in 3 minutes
-    setTimeout(async () => {
-      try {
-        const o = await Order.findByPk(orderId);
-        if (o) {
-          o.deliveryOtp = null;
-          await o.save();
-          console.log(`🧹 Cleared OTP for Delivered Order ${orderId}`);
-        }
-      } catch (e) {
-        console.error("OTP CLEANUP ERROR:", e);
-      }
-    }, 3 * 60 * 1000);
-
-    // Finalize order (optional: set to COMPLETED after delivery verified)
+    // Also mark as COMPLETED and emit that too
     order.status = "COMPLETED";
+    order.deliveryOtp = null; // clear OTP immediately
     await order.save();
+
+    emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "COMPLETED" });
+    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "COMPLETED" });
 
     res.json({ message: "Delivery verified successfully" });
   } catch (err) {
