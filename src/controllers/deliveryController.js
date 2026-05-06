@@ -301,13 +301,13 @@ export const getPartnerPerformance = async (req, res) => {
     const todayOrders = await Order.findAll({
       where: {
         deliveryPartnerId: partnerId,
-        status: 'DELIVERED',
+        status: ['DELIVERED', 'COMPLETED'],
         updatedAt: { [Op.gte]: startOfToday }
       }
     });
 
     const totalOrders = await Order.count({
-      where: { deliveryPartnerId: partnerId, status: 'DELIVERED' }
+      where: { deliveryPartnerId: partnerId, status: ['DELIVERED', 'COMPLETED'] }
     });
 
     const deliveryFee = parseFloat(partner.Cafeterium?.deliveryFee || 20.0);
@@ -327,11 +327,12 @@ export const getPartnerPerformance = async (req, res) => {
       todayOrders: todayOrders.length,
       todayEarnings,
       totalOrders,
+      totalDeliveries: totalOrders, // alias for Profile screen
       totalEarnings,
       rejectionCount: partner.rejectionCount,
       isOnline: partner.isOnline,
       averageRating: parseFloat(feedbackStats?.dataValues?.avgRating || 0).toFixed(1),
-      totalReviews: feedbackStats?.dataValues?.reviewCount || 0
+      totalReviews: parseInt(feedbackStats?.dataValues?.reviewCount || 0)
     });
   } catch (err) {
     console.error("GET PERFORMANCE ERROR:", err);
@@ -348,7 +349,7 @@ export const getPartnerHistory = async (req, res) => {
     const { count, rows } = await Order.findAndCountAll({
       where: {
         deliveryPartnerId: partnerId,
-        status: 'DELIVERED'
+        status: ['DELIVERED', 'COMPLETED']
       },
       include: [
         { 
