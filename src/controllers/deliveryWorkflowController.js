@@ -230,6 +230,14 @@ export const updateToPickedUp = async (req, res) => {
       ]
     });
 
+    emitOrderStatusToUser(order.studentId, { 
+      orderId: order.id, 
+      status: "PICKED_UP",
+      partnerName: fullOrder.DeliveryPartner?.name ?? null,
+      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
+      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
+      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
+      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
       customerLat: fullOrder.latitude ?? null,
       customerLng: fullOrder.longitude ?? null,
       deliveryOtp: order.deliveryOtp, // 🔥 Include OTP here
