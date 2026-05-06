@@ -325,7 +325,7 @@ export const getOrderById = async (req, res) => {
         {
           model: OrderItem,
           as: "items",
-          attributes: ["menuItemId", "name", "imageUrl", "quantity", "priceAtOrder", "isParcel", "specialInstructions"], // ✅ Include specialInstructions
+          attributes: ["menuItemId", "name", "imageUrl", "quantity", "priceAtOrder", "isParcel", "specialInstructions"],
         },
         {
           model: OrderFeedback,
@@ -335,6 +335,10 @@ export const getOrderById = async (req, res) => {
           model: Cafeteria,
           as: "Cafeteria",
           attributes: ["id", "name", "bufferTime", "latitude", "longitude"],
+        },
+        {
+          model: DeliveryPartner,
+          attributes: ["name", "phone", "lastLat", "lastLong"],
         },
       ],
     });

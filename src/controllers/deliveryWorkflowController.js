@@ -232,7 +232,7 @@ export const updateToPickedUp = async (req, res) => {
 
     emitOrderStatusToUser(order.studentId, { 
       orderId: order.id, 
-      status: "PICKED_UP",
+      status: "OUT_FOR_DELIVERY",
       partnerName: fullOrder.DeliveryPartner?.name ?? null,
       partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
       partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
