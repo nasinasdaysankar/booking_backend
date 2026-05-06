@@ -833,10 +833,23 @@ export const updateOrderStatus = async (req, res) => {
     // 🗑️ INVALIDATE ANALYTICS/STATS CACHE
     await clearAnalyticsCache(order.cafeteriaId);
 
+    // ✅ Re-fetch full order for response to ensure ALL metadata is included
+    const updatedOrder = await Order.findByPk(id, {
+      include: [
+        { 
+          model: OrderItem, 
+          as: 'items',
+          include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
+        },
+        { model: User, attributes: ['id', 'name', 'phone'] },
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'latitude', 'longitude'] }
+      ]
+    });
+
     return res.json({
       success: true,
       message: `Order status updated to ${status}`,
-      order,
+      order: updatedOrder,
     });
   } catch (err) {
     console.error("❌ updateOrderStatus Error:", err);

@@ -218,6 +218,8 @@ export const getAssignedOrders = async (req, res) => {
       order: [['updatedAt', 'DESC']]
     });
 
+    console.log(`🔍 [DB DEBUG] Partner ${partnerId} found ${orders.length} orders in DB. IDs: ${orders.map(o => o.id).join(', ')}`);
+
     // Explicitly map to ensure camelCase and correct types
     const sanitizedOrders = orders.map(order => {
       const plain = order.get({ plain: true });
