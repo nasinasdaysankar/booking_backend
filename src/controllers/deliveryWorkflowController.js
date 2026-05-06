@@ -215,6 +215,12 @@ export const updateToPickedUp = async (req, res) => {
 
     order.status = "PICKED_UP";
     order.pickedUpAt = new Date();
+    
+    // Automatically generate 6-digit OTP on pickup
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    order.deliveryOtp = otp;
+    order.deliveryOtpExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity for delivery
+    
     await order.save();
 
     const fullOrder = await Order.findByPk(orderId, {
@@ -224,17 +230,14 @@ export const updateToPickedUp = async (req, res) => {
       ]
     });
 
-    emitOrderStatusToUser(order.studentId, { 
-      orderId: order.id, 
-      status: "PICKED_UP",
-      partnerName: fullOrder.DeliveryPartner?.name ?? null,
-      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
-      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
-      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
-      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
       customerLat: fullOrder.latitude ?? null,
       customerLng: fullOrder.longitude ?? null,
+      deliveryOtp: order.deliveryOtp, // 🔥 Include OTP here
     });
+
+    // Also emit specifically to the OTP room
+    emitDeliveryOtp(order.studentId, { orderId: order.id, otp: order.deliveryOtp });
+
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "PICKED_UP" });
 
     res.json({ message: "Order marked as PICKED_UP", order });
