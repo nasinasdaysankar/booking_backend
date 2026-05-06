@@ -119,7 +119,10 @@
 //       return res.status(404).json({ message: "Order not found" });
 //     }
 
-//     return res.json(order);
+//     if (order && order.status === 'PICKED_UP') {
+      order.status = 'OUT_FOR_DELIVERY';
+    }
+    return res.json(order);
 //   } catch (err) {
 //     console.error("🔥 ORDER FETCH ERROR:", err);
 //     return res.status(500).json({ message: "Error fetching order" });
@@ -347,6 +350,9 @@ export const getOrderById = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    if (order && order.status === 'PICKED_UP') {
+      order.status = 'OUT_FOR_DELIVERY';
+    }
     return res.json(order);
   } catch (err) {
     console.error("🔥 ORDER FETCH ERROR:", err);
