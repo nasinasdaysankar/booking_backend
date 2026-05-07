@@ -43,6 +43,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "requestedVisibilityRadius",
         "radiusRequestStatus",
         "radiusRequestFeedback",
+        "isOnlineOrderEnabled",
       ],
     });
 
@@ -143,6 +144,7 @@ export const updateCafeteria = async (req, res) => {
       openTime,
       closeTime,
       visibilityRadius,
+      isOnlineOrderEnabled,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -179,6 +181,7 @@ export const updateCafeteria = async (req, res) => {
     if (isBusy !== undefined) cafeteria.isBusy = isBusy;
     if (openTime !== undefined) cafeteria.openTime = openTime;
     if (closeTime !== undefined) cafeteria.closeTime = closeTime;
+    if (isOnlineOrderEnabled !== undefined) cafeteria.isOnlineOrderEnabled = isOnlineOrderEnabled;
 
     if (visibilityRadius !== undefined) {
       // Only process radius changes if the new value is different from the currently active value.

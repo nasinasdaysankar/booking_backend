@@ -37,6 +37,11 @@ export default (sequelize) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
         field: "is_offline",
+      isOnlineOrderEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "is_online_order_enabled",
+      },
       },
 
       isUserVisible: {

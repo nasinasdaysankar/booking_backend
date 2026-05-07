@@ -107,7 +107,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showGst,
             showPlatformFee,
             showCommission,
-            ownerPin
+            ownerPin,
+            isOnlineOrderEnabled
         } = req.body;
 
 
@@ -136,7 +137,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showGst: showGst !== undefined ? showGst : true,
             showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
             showCommission: showCommission !== undefined ? showCommission : true,
-            ownerPin
+            ownerPin,
+            isOnlineOrderEnabled: isOnlineOrderEnabled !== undefined ? isOnlineOrderEnabled : true
         });
 
 
@@ -174,7 +176,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             showGst,
             showPlatformFee,
             showCommission,
-            ownerPin
+            ownerPin,
+            isOnlineOrderEnabled
         } = req.body;
 
 
@@ -199,6 +202,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(showPlatformFee !== undefined && { showPlatformFee }),
             ...(showCommission !== undefined && { showCommission }),
             ...(ownerPin !== undefined && { ownerPin }),
+            ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
         });
 
 
