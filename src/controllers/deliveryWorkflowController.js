@@ -38,11 +38,15 @@ export const assignPartner = async (req, res) => {
     emitDeliveryAssignment(partner.id, {
       orderId: order.id,
       billId: order.billId,
-      itemsCount: 1, // Simplified for now
+      itemsCount: order.itemCount || 1,
+      totalAmount: parseFloat(order.totalAmount || 0),
       status: order.status,
       cafeteriaName: partner.Cafeteria?.name,
-      cafeteriaLat: partner.Cafeteria?.latitude,
-      cafeteriaLng: partner.Cafeteria?.longitude,
+      cafeteriaLat: parseFloat(partner.Cafeteria?.latitude || 0),
+      cafeteriaLng: parseFloat(partner.Cafeteria?.longitude || 0),
+      customerLat: parseFloat(order.latitude || 0),
+      customerLng: parseFloat(order.longitude || 0),
+      deliveryAddress: order.deliveryAddress,
       deliveryOrderId: order.deliveryOrderId,
     });
 
