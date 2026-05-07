@@ -46,8 +46,13 @@ export const getCafeterias = async (req, res) => {
         'showCommission',
         'fssaiLicense',
         'isBusy',
-        'visibilityRadius'
+        'visibilityRadius',
+        'isOnlineOrderEnabled'
       ],
+      where: {
+        isOnlineOrderEnabled: true,
+        isUserVisible: true
+      },
       order: [['id', 'ASC']]
     });
 

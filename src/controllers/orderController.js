@@ -150,6 +150,20 @@ export const createOrder = async (req, res) => {
     const { cafeteriaId, items } = req.body;
     const userId = req.user.id;
 
+    // ✅ VALIDATE CAFETERIA STATUS
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (!cafeteria) {
+      return res.status(404).json({ success: false, message: "Cafeteria not found" });
+    }
+
+    if (!cafeteria.isOnlineOrderEnabled) {
+      return res.status(400).json({ success: false, message: "Online orders are currently disabled for this cafeteria." });
+    }
+
+    if (!cafeteria.isOpen || cafeteria.isOffline) {
+      return res.status(400).json({ success: false, message: "Cafeteria is currently closed or offline." });
+    }
+
     if (!items || items.length === 0) {
       return res.status(400).json({ message: "No items provided" });
     }

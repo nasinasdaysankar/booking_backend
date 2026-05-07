@@ -214,7 +214,8 @@ export const updateCafeteria = async (req, res) => {
     emitCafeteriaUpdate(cafeteriaId, {
       isOpen: cafeteria.isOpen,
       isOffline: cafeteria.isOffline,
-      isBusy: cafeteria.isBusy
+      isBusy: cafeteria.isBusy,
+      isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled
     });
 
     return res.json({
