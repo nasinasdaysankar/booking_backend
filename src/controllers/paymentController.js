@@ -299,15 +299,6 @@ export const createCashfreeOrder = async (req, res) => {
       timeout: 15000,
     });
 
-    // 🧹 CLEANUP: Some environments or proxies append "payment" to the session ID.
-    // This causes Cashfree SDK to fail with "request_failed".
-    if (response.data && response.data.paymentSessionId) {
-      response.data.paymentSessionId = response.data.paymentSessionId.replace(/payment/g, "");
-      if (response.data.payment_session_id) {
-        response.data.payment_session_id = response.data.payment_session_id.replace(/payment/g, "");
-      }
-    }
-
     console.log("✅ [PROXY] Order created successfully via Finance Backend");
     console.log("📄 [PROXY] Response Data:", JSON.stringify(response.data, null, 2));
 
