@@ -197,6 +197,8 @@ export const getMenuByCafeteria = async (req, res) => {
       cafeteriaOpen: cafeteria.isOpen,
       cafeteriaOffline: cafeteria.isOffline,
       cafeteriaBusy: cafeteria.isBusy,
+      isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
+      isUserVisible: cafeteria.isUserVisible,
       count: items.length,
       data: items,
     });
