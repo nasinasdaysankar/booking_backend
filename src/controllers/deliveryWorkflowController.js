@@ -163,11 +163,23 @@ export const rejectOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
     const partnerId = req.user.id;
+    console.log(`📦 [DEBUG] rejectOrder body:`, req.body);
+    console.log(`👤 [DEBUG] partnerId from auth:`, partnerId);
 
     const partner = await DeliveryPartner.findByPk(partnerId);
     const order = await Order.findByPk(orderId);
 
-    if (!order || !partner) return res.status(404).json({ message: "Not found" });
+    if (!order) {
+      console.warn(`❌ [DEBUG] Order ${orderId} NOT FOUND in database`);
+      return res.status(404).json({ message: "Order not found" });
+    }
+    if (!partner) {
+      console.warn(`❌ [DEBUG] Partner ${partnerId} NOT FOUND in database`);
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    console.log(`✅ [DEBUG] Order found: #${order.id}, Status: ${order.status}`);
+    console.log(`✅ [DEBUG] Partner found: ${partner.name}, Current Rejections: ${partner.rejectionCount}`);
 
     // Reset rejection count if it's a new day
     const today = new Date().toISOString().split('T')[0];
