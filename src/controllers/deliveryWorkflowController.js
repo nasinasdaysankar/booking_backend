@@ -159,6 +159,7 @@ export const acceptOrder = async (req, res) => {
 };
 
 export const rejectOrder = async (req, res) => {
+  console.log("🚀 [DEBUG] rejectOrder function ENTERED");
   try {
     const { orderId } = req.body;
     const partnerId = req.user.id;
