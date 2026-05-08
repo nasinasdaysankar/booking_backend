@@ -159,27 +159,16 @@ export const acceptOrder = async (req, res) => {
 };
 
 export const rejectOrder = async (req, res) => {
-  console.log("🚀 [DEBUG] rejectOrder function ENTERED");
   try {
     const { orderId } = req.body;
     const partnerId = req.user.id;
-    console.log(`📦 [DEBUG] rejectOrder body:`, req.body);
-    console.log(`👤 [DEBUG] partnerId from auth:`, partnerId);
 
     const partner = await DeliveryPartner.findByPk(partnerId);
     const order = await Order.findByPk(orderId);
 
-    if (!order) {
-      console.warn(`❌ [DEBUG] Order ${orderId} NOT FOUND in database`);
-      return res.status(404).json({ message: "Order not found" });
+    if (!order || !partner) {
+      return res.status(404).json({ message: "Order or Partner not found" });
     }
-    if (!partner) {
-      console.warn(`❌ [DEBUG] Partner ${partnerId} NOT FOUND in database`);
-      return res.status(404).json({ message: "Partner not found" });
-    }
-
-    console.log(`✅ [DEBUG] Order found: #${order.id}, Status: ${order.status}`);
-    console.log(`✅ [DEBUG] Partner found: ${partner.name}, Current Rejections: ${partner.rejectionCount}`);
 
     // Reset rejection count if it's a new day
     const today = new Date().toISOString().split('T')[0];
@@ -190,8 +179,8 @@ export const rejectOrder = async (req, res) => {
       partner.lastRejectionReset = new Date();
     }
 
-    if (partner.rejectionCount >= 100) {
-      return res.status(400).json({ message: "Daily rejection limit reached" });
+    if (partner.rejectionCount >= 3) {
+      return res.status(400).json({ message: "Daily rejection limit (3) reached" });
     }
 
     // Process rejection
@@ -206,8 +195,7 @@ export const rejectOrder = async (req, res) => {
     emitAdminOrderUpdate(order.cafeteriaId, { 
       orderId: order.id, 
       status: "READY", 
-      message: `Delivery partner ${partner.name} rejected assignment`,
-      partnerName: partner.name 
+      message: "Order returned for reassignment" 
     });
 
     // 📱 Send Push Notification to all admins of this cafeteria
@@ -244,7 +232,7 @@ export const rejectOrder = async (req, res) => {
       console.error("❌ [REJECT_PUSH] ERROR:", pushErr.message);
     }
 
-    res.json({ message: "Order rejected", rejectionCount: partner.rejectionCount });
+    res.json({ message: "Order rejected and reassigned" });
   } catch (err) {
     console.error("REJECT ORDER ERROR:", err);
     res.status(500).json({ message: "Error rejecting order" });
