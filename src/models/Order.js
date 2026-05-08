@@ -284,6 +284,11 @@ export default (sequelize) => {
         type: DataTypes.DATE,
         field: "updated_at",
       },
+      affiliateReward: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        field: "affiliate_reward",
+      },
     },
     {
       tableName: "orders",

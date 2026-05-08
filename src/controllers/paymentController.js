@@ -1,4 +1,4 @@
-import { Payment, Order, OrderItem, MenuItem, sequelize } from "../models/index.js";
+import { Payment, Order, OrderItem, MenuItem, sequelize, AffiliateProduct, SystemSetting } from "../models/index.js";
 import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder, emitStockUpdate } from "../socket.js";
@@ -608,6 +608,31 @@ export const confirmPayment = async (req, res) => {
       billId = await generateBillId(cafeteriaId, t);
       console.log(`✅ [KOT]: ${kotNumber}, [DAILY]: ${dailyOrderNumber}, [TOTAL]: ${totalOrderNumber}, [BILL]: ${billId}`);
 
+      // 🎯 Assign Affiliate Reward if enabled
+      let assignedReward = null;
+      try {
+        const setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' }, transaction: t });
+        if (setting && setting.value === 'true') {
+          const product = await AffiliateProduct.findOne({
+            order: [sequelize.random()],
+            transaction: t
+          });
+          if (product) {
+            assignedReward = {
+              id: product.id,
+              title: product.title,
+              category: product.category,
+              subcategory: product.subcategory,
+              imageUrl: product.imageUrl,
+              affiliateLink: product.affiliateLink
+            };
+            console.log(`🎁 [REWARD] Assigned reward: ${product.title}`);
+          }
+        }
+      } catch (rewardErr) {
+        console.error("⚠️ [REWARD] Error assigning reward (non-blocking):", rewardErr.message);
+      }
+
       try {
         order = await Order.create(
           {
@@ -631,6 +656,7 @@ export const confirmPayment = async (req, res) => {
             latitude: finalLat,
             longitude: finalLng,
             deliveryOrderId: null,
+            affiliateReward: assignedReward, // ✅ Store reward here
           },
           { transaction: t }
         );
@@ -982,6 +1008,7 @@ export const confirmPayment = async (req, res) => {
       totalOrderNumber: totalOrderNumber || order.totalOrderNumber,
       billId: billId || order.billId,
       kotNumber,
+      affiliateReward: order.affiliateReward,
       message: "Payment confirmed successfully. Order sent to cafeteria.",
     });
   } catch (err) {
