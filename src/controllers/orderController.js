@@ -156,19 +156,12 @@ export const createOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Cafeteria not found" });
     }
 
+    if (!cafeteria.isUserVisible) {
+      return res.status(400).json({ success: false, message: "Cafeteria is not currently accepting orders." });
+    }
+
     if (!cafeteria.isOnlineOrderEnabled) {
       return res.status(400).json({ success: false, message: "Online orders are currently disabled for this cafeteria." });
-    }
-
-    // 🛑 Hard Block: If manually set to Offline, no orders allowed.
-    if (cafeteria.isOffline === true || cafeteria.isOffline === "true" || cafeteria.isOffline === 1) {
-      return res.status(400).json({ success: false, message: "Cafeteria is currently offline." });
-    }
-
-    // ⏰ Schedule Check: If closed by schedule, only allow if NOT manually offline (as an override).
-    // Actually, let's keep it simple: If it's closed, it's closed, unless we want to be very permissive.
-    if (!cafeteria.isOpen && cafeteria.isOffline !== false) {
-       return res.status(400).json({ success: false, message: "Cafeteria is currently closed by schedule." });
     }
 
     if (!items || items.length === 0) {
