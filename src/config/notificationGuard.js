@@ -3,7 +3,7 @@
  * Prevents development environment from sending push notifications to real users.
  */
 
-import { User, UserFcmToken } from "../models/index.js";
+import { User, UserFcmToken, AdminFcmToken, PartnerFcmToken } from "../models/index.js";
 import { Op } from "sequelize";
 
 // Load whitelist from env or use defaults
@@ -21,27 +21,41 @@ const isSafeToMessage = async (token) => {
   if (process.env.NODE_ENV === "production") return true;
 
   try {
-    // 1. Find user owner of this token
+    // 1. Check User Tokens (Strict Email Whitelist)
     const tokenRecord = await UserFcmToken.findOne({
       where: { fcmToken: token },
       include: [{ model: User, attributes: ["email", "originalEmail"] }]
     });
 
-    if (!tokenRecord || !tokenRecord.User) {
-      console.warn(`🛑 [GUARD] Blocked unknown token: ${token.substring(0, 10)}... (No user associated)`);
-      return false;
+    if (tokenRecord && tokenRecord.User) {
+      const email = (tokenRecord.User.email || tokenRecord.User.originalEmail || "").toLowerCase();
+      const isWhitelisted = whitelistEmails.includes(email);
+
+      if (isWhitelisted) {
+        console.log(`✅ [GUARD] Allowing user notification to whitelisted dev: ${email}`);
+        return true;
+      } else {
+        console.warn(`🛑 [GUARD] BLOCKED notification to production user: ${email}`);
+        return false;
+      }
     }
 
-    const email = (tokenRecord.User.email || tokenRecord.User.originalEmail || "").toLowerCase();
-    const isWhitelisted = whitelistEmails.includes(email);
-
-    if (isWhitelisted) {
-      console.log(`✅ [GUARD] Allowing notification to whitelisted dev: ${email}`);
+    // 2. Check Admin Tokens (Allow in Development for testing)
+    const adminToken = await AdminFcmToken.findOne({ where: { fcmToken: token } });
+    if (adminToken) {
+      console.log(`✅ [GUARD] Allowing admin notification in development mode`);
       return true;
-    } else {
-      console.warn(`🛑 [GUARD] BLOCKED notification to production user: ${email}`);
-      return false;
     }
+
+    // 3. Check Partner Tokens (Allow in Development for testing)
+    const partnerToken = await PartnerFcmToken.findOne({ where: { fcmToken: token } });
+    if (partnerToken) {
+      console.log(`✅ [GUARD] Allowing partner notification in development mode`);
+      return true;
+    }
+
+    console.warn(`🛑 [GUARD] Blocked unknown token: ${token.substring(0, 10)}... (No associated record found)`);
+    return false;
   } catch (error) {
     console.error("❌ [GUARD] Error checking safety:", error.message);
     return false; // Error defaults to safe block

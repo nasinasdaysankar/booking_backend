@@ -1,4 +1,4 @@
-import { Order, DeliveryPartner, User, PartnerFcmToken, Cafeteria, MenuItem, OrderItem } from "../models/index.js";
+import { Order, DeliveryPartner, User, PartnerFcmToken, AdminFcmToken, Cafeteria, MenuItem, OrderItem } from "../models/index.js";
 import { emitOrderStatusToUser, emitAdminOrderUpdate, emitDeliveryOtp, emitDeliveryAssignment } from "../socket.js";
 import { sendPushNotification } from "../utils/notificationUtils.js";
 import { Sequelize } from "sequelize";
@@ -189,8 +189,40 @@ export const rejectOrder = async (req, res) => {
     order.status = "READY"; // Reset status back to READY
     await order.save();
 
-    // Notify Admin that it needs reassignment
-    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "READY", message: "Delivery partner rejected assignment" });
+    // 🔔 Notify Admin that it needs reassignment
+    emitAdminOrderUpdate(order.cafeteriaId, { 
+      orderId: order.id, 
+      status: "READY", 
+      message: `Delivery partner ${partner.name} rejected assignment`,
+      partnerName: partner.name 
+    });
+
+    // 📱 Send Push Notification to all admins of this cafeteria
+    try {
+      const adminTokens = await AdminFcmToken.findAll({ 
+        where: { cafeteriaId: order.cafeteriaId } 
+      });
+
+      if (adminTokens.length > 0) {
+        const tokenList = adminTokens.map(t => t.fcmToken);
+        await sendPushNotification(
+          tokenList,
+          "Delivery Rejected ❌",
+          `Order #${order.billId || order.id} has been rejected by ${partner.name}. Please reassign it.`,
+          { 
+            orderId: order.id.toString(), 
+            type: "DELIVERY_REJECTED",
+            partnerName: partner.name 
+          },
+          null, // No single admin ID needed for multicast
+          true, // isAdmin
+          "high_importance_channel_v2"
+        );
+        console.log(`📢 Rejection push sent to ${adminTokens.length} admins for cafeteria ${order.cafeteriaId}`);
+      }
+    } catch (pushErr) {
+      console.error("⚠️ Error sending rejection push to admins:", pushErr.message);
+    }
 
     res.json({ message: "Order rejected", rejectionCount: partner.rejectionCount });
   } catch (err) {
