@@ -5,7 +5,9 @@ import {
     createAffiliateProduct, 
     bulkCreateAffiliateProducts,
     deleteAffiliateProduct, 
-    extractAffiliateData 
+    extractAffiliateData,
+    getAffiliateStatus,
+    toggleAffiliateStatus
 } from '../controllers/affiliateController.js';
 import { superadminAuth } from '../middleware/auth.js';
 
@@ -20,5 +22,7 @@ router.post('/admin/create', superadminAuth, createAffiliateProduct);
 router.post('/admin/bulk-create', superadminAuth, bulkCreateAffiliateProducts);
 router.delete('/admin/:id', superadminAuth, deleteAffiliateProduct);
 router.post('/admin/extract', superadminAuth, extractAffiliateData);
+router.get('/admin/status', superadminAuth, getAffiliateStatus);
+router.post('/admin/toggle', superadminAuth, toggleAffiliateStatus);
 
 export default router;

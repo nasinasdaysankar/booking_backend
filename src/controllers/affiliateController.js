@@ -1,10 +1,16 @@
-import { AffiliateProduct } from '../models/index.js';
+import { AffiliateProduct, SystemSetting } from '../models/index.js';
 import { sequelize } from '../models/index.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 export async function getRandomAffiliateProduct(req, res) {
   try {
+    // Check if affiliate rewards are enabled
+    const setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' } });
+    if (setting && setting.value === 'false') {
+      return res.json({ success: true, message: 'Affiliate rewards are currently disabled', product: null });
+    }
+
     const product = await AffiliateProduct.findOne({
       order: [sequelize.random()]
     });
@@ -220,5 +226,52 @@ export async function extractAffiliateData(req, res) {
       message: 'Extraction failed or was blocked. Please enter details manually.',
       data: { title: '', imageUrl: '' }
     });
+  }
+}
+export async function getAffiliateStatus(req, res) {
+  try {
+    let setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' } });
+    
+    if (!setting) {
+      // Create default if not exists
+      setting = await SystemSetting.create({
+        key: 'is_affiliate_rewards_enabled',
+        value: 'true',
+        type: 'BOOLEAN',
+        description: 'Master toggle for Amazon affiliate scratch cards',
+        group: 'AFFILIATE',
+        isPublic: true
+      });
+    }
+
+    res.json({ success: true, enabled: setting.value === 'true' });
+  } catch (error) {
+    console.error('Error getting affiliate status:', error);
+    res.status(500).json({ success: false, message: 'Failed to get status' });
+  }
+}
+
+export async function toggleAffiliateStatus(req, res) {
+  try {
+    const { enabled } = req.body;
+    
+    let [setting] = await SystemSetting.findOrCreate({
+      where: { key: 'is_affiliate_rewards_enabled' },
+      defaults: {
+        value: 'true',
+        type: 'BOOLEAN',
+        description: 'Master toggle for Amazon affiliate scratch cards',
+        group: 'AFFILIATE',
+        isPublic: true
+      }
+    });
+
+    setting.value = enabled ? 'true' : 'false';
+    await setting.save();
+
+    res.json({ success: true, enabled: setting.value === 'true' });
+  } catch (error) {
+    console.error('Error toggling affiliate status:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle status' });
   }
 }
