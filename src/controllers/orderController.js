@@ -160,17 +160,15 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Online orders are currently disabled for this cafeteria." });
     }
 
-    if (cafeteria.isOffline) {
-      return res.status(400).json({ success: false, message: "Cafeteria is currently offline and not accepting orders." });
+    // 🛑 Hard Block: If manually set to Offline, no orders allowed.
+    if (cafeteria.isOffline === true || cafeteria.isOffline === "true" || cafeteria.isOffline === 1) {
+      return res.status(400).json({ success: false, message: "Cafeteria is currently offline." });
     }
 
-    if (!cafeteria.isOpen) {
-      // If it's closed by schedule but NOT manually offline, we can decide if we allow it.
-      // For now, let's keep it strict unless isOffline is false. 
-      // Actually, let's make it so isOffline: false (Online) is the override.
-      if (cafeteria.isOffline !== false) {
-         return res.status(400).json({ success: false, message: "Cafeteria is currently closed." });
-      }
+    // ⏰ Schedule Check: If closed by schedule, only allow if NOT manually offline (as an override).
+    // Actually, let's keep it simple: If it's closed, it's closed, unless we want to be very permissive.
+    if (!cafeteria.isOpen && cafeteria.isOffline !== false) {
+       return res.status(400).json({ success: false, message: "Cafeteria is currently closed by schedule." });
     }
 
     if (!items || items.length === 0) {
