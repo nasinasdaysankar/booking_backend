@@ -199,13 +199,18 @@ export const rejectOrder = async (req, res) => {
 
     // 📱 Send Push Notification to all admins of this cafeteria
     try {
+      console.log(`🔍 [REJECT_PUSH] Searching for admin tokens for cafeteriaId: ${order.cafeteriaId}`);
       const adminTokens = await AdminFcmToken.findAll({ 
         where: { cafeteriaId: order.cafeteriaId } 
       });
 
+      console.log(`🔍 [REJECT_PUSH] Found ${adminTokens.length} tokens for cafeteria ${order.cafeteriaId}`);
+
       if (adminTokens.length > 0) {
         const tokenList = adminTokens.map(t => t.fcmToken);
-        await sendPushNotification(
+        console.log(`🚀 [REJECT_PUSH] Sending multicast to tokens:`, tokenList.map(t => t.substring(0, 10) + "..."));
+        
+        const response = await sendPushNotification(
           tokenList,
           "Delivery Rejected ❌",
           `Order #${order.billId || order.id} has been rejected by ${partner.name}. Please reassign it.`,
@@ -218,10 +223,12 @@ export const rejectOrder = async (req, res) => {
           true, // isAdmin
           "high_importance_channel_v2"
         );
-        console.log(`📢 Rejection push sent to ${adminTokens.length} admins for cafeteria ${order.cafeteriaId}`);
+        console.log(`✅ [REJECT_PUSH] Multicast response:`, response);
+      } else {
+        console.warn(`⚠️ [REJECT_PUSH] NO ADMIN TOKENS found for cafeteria ${order.cafeteriaId}. No push sent.`);
       }
     } catch (pushErr) {
-      console.error("⚠️ Error sending rejection push to admins:", pushErr.message);
+      console.error("❌ [REJECT_PUSH] ERROR:", pushErr.message);
     }
 
     res.json({ message: "Order rejected", rejectionCount: partner.rejectionCount });
