@@ -852,7 +852,7 @@ export const updateOrderStatus = async (req, res) => {
           include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
         },
         { model: User, attributes: ['id', 'name', 'phone'] },
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'latitude', 'longitude'] }
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'phone', 'latitude', 'longitude'] }
       ]
     });
 

@@ -55,10 +55,10 @@ export const assignPartner = async (req, res) => {
     const adminCafeteriaId = req.user.cafeteriaId;
 
     const order = await Order.findByPk(orderId, {
-      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'phone', 'latitude', 'longitude'] }]
     });
     const partner = await DeliveryPartner.findByPk(partnerId, {
-      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'phone', 'latitude', 'longitude'] }]
     });
 
     if (!order || !partner) {

@@ -18,7 +18,7 @@ export const partnerLogin = async (req, res) => {
 
     const partner = await DeliveryPartner.findOne({ 
       where: { partnerId },
-      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'phone'] }]
     });
 
     if (!partner) {
@@ -118,7 +118,7 @@ export const getDeliveryPartners = async (req, res) => {
       where,
       attributes: { exclude: ['password'] },
       include: [
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'phone', 'latitude', 'longitude'] }
       ]
     });
 
@@ -214,7 +214,7 @@ export const getAssignedOrders = async (req, res) => {
           include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
         },
         { model: User, attributes: ['id', 'name', 'phone'] },
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'latitude', 'longitude'] }
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'phone', 'latitude', 'longitude'] }
       ],
       order: [['updatedAt', 'DESC']]
     });
