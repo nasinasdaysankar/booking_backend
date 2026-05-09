@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { User } from "../models/index.js";
-import jwt from "jsonwebtoken";
+import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { getCache, setCache, delCache } from "../config/redis.js";
 import { CACHE_KEYS } from "../utils/cache.js";
 
@@ -73,8 +73,9 @@ export const verifyOTP = async (req, res) => {
       user.otpExpiry = null;
       await user.save();
 
-      const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-      return res.json({ message: "Login success", token, user });
+      const token = generateToken({ id: user.id });
+      const refreshToken = generateRefreshToken({ id: user.id });
+      return res.json({ message: "Login success", token, refreshToken, user });
     }
 
     // ✅ FALLBACK: Check database (if Redis was down when OTP was sent)
@@ -90,8 +91,9 @@ export const verifyOTP = async (req, res) => {
     // Clean up Redis key if it exists
     await delCache(cacheKey);
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-    res.json({ message: "Login success", token, user });
+    const token = generateToken({ id: user.id });
+    const refreshToken = generateRefreshToken({ id: user.id });
+    res.json({ message: "Login success", token, refreshToken, user });
 
   } catch (err) {
     console.error("❌ OTP verification error:", err);

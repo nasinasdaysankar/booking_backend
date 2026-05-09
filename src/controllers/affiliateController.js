@@ -96,8 +96,23 @@ async function performExtraction(url) {
 
     let imageUrl = $('meta[property="og:image"]').attr('content') || 
                    $('#landingImage').attr('src') || 
+                   $('#landingImage').attr('data-old-hires') ||
                    $('#imgBlkFront').attr('src') ||
                    $('#main-image').attr('src');
+
+    // Handle Amazon's dynamic image JSON
+    if (!imageUrl || imageUrl.startsWith('data:image')) {
+      const dynamicImageJson = $('#landingImage').attr('data-a-dynamic-image') || 
+                               $('.a-dynamic-image').attr('data-a-dynamic-image');
+      if (dynamicImageJson) {
+        try {
+          const images = JSON.parse(dynamicImageJson);
+          imageUrl = Object.keys(images)[0]; // Pick the first high-res URL
+        } catch (e) {
+          console.error('Error parsing dynamic image JSON');
+        }
+      }
+    }
 
     if (title && title.includes('|')) title = title.split('|')[0].trim();
     if (title && title.includes(': Amazon')) title = title.split(': Amazon')[0].trim();

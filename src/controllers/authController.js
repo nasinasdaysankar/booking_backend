@@ -402,23 +402,15 @@
 
 
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { User } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 
 
 // Generate JWT Token
 const signToken = (user) => {
-  const accessToken = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
-  );
-  const refreshToken = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-secret-key',
-    { expiresIn: "7d" }
-  );
+  const accessToken = generateToken({ id: user.id, role: user.role });
+  const refreshToken = generateRefreshToken({ id: user.id, role: user.role });
   return { accessToken, refreshToken };
 };
 

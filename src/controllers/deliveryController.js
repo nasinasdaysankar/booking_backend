@@ -1,7 +1,7 @@
 import { DeliveryPartner, Cafeteria, Order, OrderItem, User, PartnerFcmToken, OrderFeedback, MenuItem, sequelize } from "../models/index.js";
 import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { emitPartnerLocationToUser } from "../socket.js";
 
 // ==========================================
@@ -34,11 +34,8 @@ export const partnerLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid ID or Password" });
     }
 
-    const token = jwt.sign(
-      { id: partner.id, role: "DELIVERY", cafeteriaId: partner.cafeteriaId },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateToken({ id: partner.id, role: "DELIVERY", cafeteriaId: partner.cafeteriaId });
+    const refreshToken = generateRefreshToken({ id: partner.id, role: "DELIVERY", cafeteriaId: partner.cafeteriaId });
 
     // 🧹 Clear Redis cache to ensure the new role is picked up immediately
     const { clearAuthCache } = await import("../middleware/auth.js");
@@ -49,6 +46,7 @@ export const partnerLogin = async (req, res) => {
     res.json({
       message: "Login successful",
       token,
+      refreshToken,
       partner: {
         id: partner.id,
         name: partner.name,

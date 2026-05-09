@@ -9,6 +9,7 @@ import {
   getPartnerLocation,
   updatePartnerStatus
 } from "../controllers/deliveryController.js";
+import { refreshToken } from "../controllers/refreshTokenController.js";
 import {
   acceptOrder,
   rejectOrder,
@@ -26,8 +27,9 @@ import { auth, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// 🔓 PUBLIC ROUTE
+// 🔓 PUBLIC ROUTES
 router.post("/login", partnerLogin);
+router.post("/refresh-token", refreshToken);
 router.patch("/status/:id", updatePartnerStatus);
 
 // 🔐 PROTECTED ROUTES (Delivery Partners only)

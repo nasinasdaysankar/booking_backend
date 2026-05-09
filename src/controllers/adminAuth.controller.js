@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { Admin } from "../models/index.js";
 
 export const adminLogin = async (req, res) => {
@@ -42,25 +42,17 @@ export const adminLogin = async (req, res) => {
       return res.status(401).json({ message: "Invalid Staff ID or Password" });
     }
 
-    const accessToken = jwt.sign(
-      {
-        id: admin.id,
-        role: admin.role,
-        cafeteriaId: admin.cafeteriaId,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
-    );
+    const accessToken = generateToken({
+      id: admin.id,
+      role: admin.role,
+      cafeteriaId: admin.cafeteriaId,
+    });
 
-    const refreshToken = jwt.sign(
-      {
-        id: admin.id,
-        role: admin.role,
-        cafeteriaId: admin.cafeteriaId,
-      },
-      process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-secret-key',
-      { expiresIn: "7d" }
-    );
+    const refreshToken = generateRefreshToken({
+      id: admin.id,
+      role: admin.role,
+      cafeteriaId: admin.cafeteriaId,
+    });
 
     console.log("✅ [ADMIN LOGIN] Login successful for Staff ID:", staffId);
 

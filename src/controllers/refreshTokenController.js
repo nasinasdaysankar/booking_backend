@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
+import { generateToken, generateRefreshToken } from '../utils/jwt.js';
 import { User, Admin } from '../models/index.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cafeteria-secret-key';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'cafeteria-refresh-secret-key';
 
 export const refreshToken = async (req, res) => {
@@ -14,14 +14,15 @@ export const refreshToken = async (req, res) => {
     try {
         const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
 
-        // Check if it's a user or admin based on role or other payload property
-        // For now, we'll just sign a new token with the same payload (minus iat/exp)
+        // For sliding session: generate BOTH new access and refresh tokens
         const { iat, exp, ...payload } = decoded;
 
-        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+        const accessToken = generateToken(payload);
+        const newRefreshToken = generateRefreshToken(payload);
 
         return res.json({
-            token: accessToken
+            token: accessToken,
+            refreshToken: newRefreshToken
         });
     } catch (err) {
         console.error('Refresh token verification failed:', err);
