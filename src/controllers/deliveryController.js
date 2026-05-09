@@ -18,7 +18,7 @@ export const partnerLogin = async (req, res) => {
 
     const partner = await DeliveryPartner.findOne({ 
       where: { partnerId },
-      include: [{ model: Cafeteria, attributes: ['name'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name'] }]
     });
 
     if (!partner) {
@@ -120,7 +120,7 @@ export const getDeliveryPartners = async (req, res) => {
       where,
       attributes: { exclude: ['password'] },
       include: [
-        { model: Cafeteria, attributes: ['name', 'latitude', 'longitude'] }
+        { model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }
       ]
     });
 
@@ -290,7 +290,7 @@ export const getPartnerPerformance = async (req, res) => {
   try {
     const partnerId = req.user.id;
     const partner = await DeliveryPartner.findByPk(partnerId, {
-      include: [{ model: Cafeteria, attributes: ['deliveryFee'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['deliveryFee'] }]
     });
 
     if (!partner) return res.status(404).json({ message: "Partner not found" });
