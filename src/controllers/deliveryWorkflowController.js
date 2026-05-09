@@ -1,4 +1,4 @@
-import { Order, DeliveryPartner, User, PartnerFcmToken, AdminFcmToken, Cafeteria, MenuItem, OrderItem } from "../models/index.js";
+import { Order, DeliveryPartner, User, PartnerFcmToken, AdminFcmToken, Cafeteria, MenuItem, OrderItem, UserFcmToken } from "../models/index.js";
 import { emitOrderStatusToUser, emitAdminOrderUpdate, emitDeliveryOtp, emitDeliveryAssignment } from "../socket.js";
 import { sendPushNotification } from "../utils/notificationUtils.js";
 import { Sequelize } from "sequelize";
@@ -293,6 +293,29 @@ export const updateToPickedUp = async (req, res) => {
     emitDeliveryOtp(order.studentId, { orderId: order.id, otp: order.deliveryOtp });
 
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "PICKED_UP" });
+    
+    // 📱 Send Push Notification to User with OTP
+    try {
+      const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      if (userTokens.length > 0) {
+        await sendPushNotification(
+          userTokens.map(t => t.fcmToken),
+          "Out for Delivery! 🛵",
+          `Your order #${order.billId || order.id} is on its way. Use OTP ${order.deliveryOtp} to verify.`,
+          { 
+            orderId: order.id.toString(), 
+            type: "OUT_FOR_DELIVERY",
+            target_screen: "ORDER_HISTORY",
+            otp: order.deliveryOtp 
+          },
+          order.studentId,
+          false, // isAdmin: false (Sending to User App)
+          "delivery_updates_channel"
+        );
+      }
+    } catch (pushErr) {
+      console.error("❌ [DELIVERY_OTP_PUSH] ERROR:", pushErr.message);
+    }
 
     res.json({ message: "Order marked as PICKED_UP", order });
   } catch (err) {
@@ -363,6 +386,29 @@ export const generateDeliveryOtp = async (req, res) => {
 
     // Emit to User
     emitDeliveryOtp(order.studentId, { orderId: order.id, otp });
+
+    // 📱 Send Push Notification to User with New OTP
+    try {
+      const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      if (userTokens.length > 0) {
+        await sendPushNotification(
+          userTokens.map(t => t.fcmToken),
+          "New Delivery OTP 🔑",
+          `A new OTP for order #${order.billId || order.id} has been generated: ${otp}.`,
+          { 
+            orderId: order.id.toString(), 
+            type: "DELIVERY_OTP_REGENERATED",
+            target_screen: "ORDER_HISTORY",
+            otp: otp 
+          },
+          order.studentId,
+          false, // isAdmin: false (Sending to User App)
+          "delivery_updates_channel"
+        );
+      }
+    } catch (pushErr) {
+      console.error("❌ [REGEN_OTP_PUSH] ERROR:", pushErr.message);
+    }
 
     res.json({ message: "OTP generated", expiresAt: order.deliveryOtpExpiresAt });
   } catch (err) {
