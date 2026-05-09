@@ -294,15 +294,22 @@ export const getPartnerPerformance = async (req, res) => {
 
     if (!partner) return res.status(404).json({ message: "Partner not found" });
 
-    // Today's metrics
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    // Today's metrics (Adjusted for IST - UTC+5:30)
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(now.getTime() + istOffset);
+    
+    const startOfTodayIST = new Date(nowIST);
+    startOfTodayIST.setHours(0, 0, 0, 0);
+    
+    // Convert back to UTC for the database query
+    const startOfTodayUTC = new Date(startOfTodayIST.getTime() - istOffset);
 
     const todayOrders = await Order.findAll({
       where: {
         deliveryPartnerId: partnerId,
         status: ['DELIVERED', 'COMPLETED'],
-        updatedAt: { [Op.gte]: startOfToday }
+        updatedAt: { [Op.gte]: startOfTodayUTC }
       }
     });
 
