@@ -44,6 +44,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "radiusRequestStatus",
         "radiusRequestFeedback",
         "isOnlineOrderEnabled",
+        "isPureVeg",
       ],
     });
 
@@ -100,6 +101,7 @@ export const getMyCafeterias = async (req, res) => {
         "requestedVisibilityRadius",
         "radiusRequestStatus",
         "radiusRequestFeedback",
+        "isPureVeg",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -145,6 +147,7 @@ export const updateCafeteria = async (req, res) => {
       closeTime,
       visibilityRadius,
       isOnlineOrderEnabled,
+      isPureVeg,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -182,6 +185,7 @@ export const updateCafeteria = async (req, res) => {
     if (openTime !== undefined) cafeteria.openTime = openTime;
     if (closeTime !== undefined) cafeteria.closeTime = closeTime;
     if (isOnlineOrderEnabled !== undefined) cafeteria.isOnlineOrderEnabled = isOnlineOrderEnabled;
+    if (isPureVeg !== undefined) cafeteria.isPureVeg = isPureVeg;
 
     if (visibilityRadius !== undefined) {
       // Only process radius changes if the new value is different from the currently active value.
@@ -244,6 +248,7 @@ export const updateCafeteria = async (req, res) => {
         requestedVisibilityRadius: cafeteria.requestedVisibilityRadius,
         radiusRequestStatus: cafeteria.radiusRequestStatus,
         radiusRequestFeedback: cafeteria.radiusRequestFeedback,
+        isPureVeg: cafeteria.isPureVeg,
       },
     });
   } catch (err) {
