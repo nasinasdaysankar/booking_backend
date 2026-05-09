@@ -2,7 +2,48 @@ import { Order, DeliveryPartner, User, PartnerFcmToken, AdminFcmToken, Cafeteria
 import { emitOrderStatusToUser, emitAdminOrderUpdate, emitDeliveryOtp, emitDeliveryAssignment } from "../socket.js";
 import { sendPushNotification } from "../utils/notificationUtils.js";
 import { Sequelize } from "sequelize";
+import admin from "../config/firebaseAdmin.js";
 import { generateDeliveryOrderId } from "./paymentController.js";
+
+// ==========================================
+// 🛠️ HELPER: FETCH & SANITIZE ORDER FOR NOTIFICATIONS
+// ==========================================
+const getSanitizedOrderForNotify = async (orderId) => {
+  const fullOrder = await Order.findByPk(orderId, {
+    include: [
+      { 
+        model: OrderItem, 
+        as: 'items',
+        include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
+      },
+      { model: User, attributes: ['id', 'name', 'phone'] },
+      { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'phone', 'latitude', 'longitude'] },
+      { model: DeliveryPartner, attributes: ['id', 'name', 'phone', 'lastLat', 'lastLong'] }
+    ]
+  });
+
+  if (!fullOrder) return null;
+
+  const plainOrder = fullOrder.get({ plain: true });
+  return {
+    ...plainOrder,
+    totalAmount: parseFloat(plainOrder.totalAmount || 0),
+    customerName: plainOrder.User?.name || 'Guest User',
+    customerPhone: plainOrder.User?.phone || '',
+    cafeteriaName: plainOrder.Cafeteria?.name || 'Cafeteria',
+    cafeteriaPhone: plainOrder.Cafeteria?.phone || '',
+    cafeteriaLat: parseFloat(plainOrder.Cafeteria?.latitude || 0),
+    cafeteriaLng: parseFloat(plainOrder.Cafeteria?.longitude || 0),
+    customerLat: parseFloat(plainOrder.latitude || 0),
+    customerLng: parseFloat(plainOrder.longitude || 0),
+    deliveryPartnerName: plainOrder.DeliveryPartner?.name || null,
+    deliveryPartnerPhone: plainOrder.DeliveryPartner?.phone || null,
+    partnerLat: plainOrder.DeliveryPartner?.lastLat || null,
+    partnerLng: plainOrder.DeliveryPartner?.lastLong || null,
+    deliveryOrderId: plainOrder.deliveryOrderId,
+    readyReminderCount: plainOrder.readyReminderCount
+  };
+};
 
 // ==========================================
 // 0. ASSIGN ORDER (Admin Action)
@@ -115,53 +156,22 @@ export const acceptOrder = async (req, res) => {
     order.status = "ACCEPTED";
     await order.save();
 
-    // Fetch full order with associations for the response
-    const fullOrder = await Order.findByPk(orderId, {
-      include: [
-        { 
-          model: OrderItem, 
-          as: 'items',
-          include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
-        },
-        { model: User, attributes: ['id', 'name', 'phone'] },
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'latitude', 'longitude'] },
-        { model: DeliveryPartner, attributes: ['name', 'phone'] }
-      ]
-    });
-
-    // Sanitize for response
-    const plainOrder = fullOrder.get({ plain: true });
-    const sanitizedOrder = {
-      ...plainOrder,
-      totalAmount: parseFloat(plainOrder.totalAmount || 0),
-      customerName: plainOrder.User?.name || 'Guest User',
-      customerPhone: plainOrder.User?.phone || '',
-      cafeteriaName: plainOrder.Cafeteria?.name || 'Cafeteria',
-      cafeteriaPhone: plainOrder.Cafeteria?.phone || '',
-      cafeteriaLat: parseFloat(plainOrder.Cafeteria?.latitude || 0),
-      cafeteriaLng: parseFloat(plainOrder.Cafeteria?.longitude || 0),
-      customerLat: parseFloat(plainOrder.latitude || 0),
-      customerLng: parseFloat(plainOrder.longitude || 0),
-      deliveryOrderId: plainOrder.deliveryOrderId,
-      readyReminderCount: plainOrder.readyReminderCount
-    };
+    // Fetch full order for consistent notifications
+    const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
 
     // Notify others
     emitOrderStatusToUser(order.studentId, { 
       orderId: order.id, 
       status: "ACCEPTED",
-      partnerName: fullOrder.DeliveryPartner?.name ?? null,
-      partnerPhone: fullOrder.DeliveryPartner?.phone ?? null,
-      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
-      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
-      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
-      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
+      partnerName: sanitizedOrder.deliveryPartnerName,
+      partnerPhone: sanitizedOrder.deliveryPartnerPhone,
+      partnerLat: sanitizedOrder.partnerLat,
+      partnerLng: sanitizedOrder.partnerLng,
+      cafeteriaLat: sanitizedOrder.cafeteriaLat,
+      cafeteriaLng: sanitizedOrder.cafeteriaLng,
     });
-    emitAdminOrderUpdate(order.cafeteriaId, { 
-      orderId: order.id, 
-      status: "ACCEPTED",
-      orderType: order.orderType,
-    });
+    
+    emitAdminOrderUpdate(order.cafeteriaId, sanitizedOrder);
 
     res.json({ message: "Order accepted", order: sanitizedOrder });
   } catch (err) {
@@ -203,11 +213,13 @@ export const rejectOrder = async (req, res) => {
     order.status = "READY"; // Reset status back to READY
     await order.save();
 
+    // 🔔 Fetch full order for consistent notifications
+    const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
+
     // 🔔 Notify Admin that it needs reassignment
-    emitAdminOrderUpdate(order.cafeteriaId, { 
-      orderId: order.id, 
-      status: "READY", 
-      message: "Order returned for reassignment" 
+    emitAdminOrderUpdate(order.cafeteriaId, {
+      ...sanitizedOrder,
+      socketMessage: "Order returned for reassignment" 
     });
 
     // 📱 Send Push Notification to all admins of this cafeteria
@@ -221,22 +233,64 @@ export const rejectOrder = async (req, res) => {
 
       if (adminTokens.length > 0) {
         const tokenList = adminTokens.map(t => t.fcmToken);
-        console.log(`🚀 [REJECT_PUSH] Sending multicast to tokens:`, tokenList.map(t => t.substring(0, 10) + "..."));
         
-        const response = await sendPushNotification(
-          tokenList,
-          "Delivery Rejected ❌",
-          `Order #${order.billId || order.id} has been rejected by ${partner.name}. Please reassign it.`,
-          { 
-            orderId: order.id.toString(), 
-            type: "DELIVERY_REJECTED",
-            partnerName: partner.name 
+        console.log(`🔔 Sending REJECT_NOTIFICATION to ${tokenList.length} admins...`);
+        
+        // Use multicast for multiple tokens
+        const response = await admin.messaging().sendEachForMulticast({
+          tokens: tokenList,
+          notification: {
+            title: "Delivery Rejected ❌",
+            body: `Order #${order.billId || order.id} has been rejected by ${partner.name}. Please reassign it.`,
           },
-          null, // No single admin ID needed for multicast
-          true, // isAdmin
-          "high_importance_channel_v2"
-        );
-        console.log(`✅ [REJECT_PUSH] Multicast response:`, response);
+          data: {
+            orderId: String(order.id),
+            type: "DELIVERY_REJECTED",
+            partnerName: String(partner.name),
+            cafeteriaId: String(order.cafeteriaId)
+          },
+          android: {
+            priority: "high",
+            notification: {
+              channelId: "high_importance_channel_v2",
+              sound: "new_order", // Use new_order sound for urgent reassignment
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                alert: {
+                  title: "Delivery Rejected ❌",
+                  body: `Order #${order.billId || order.id} has been rejected by ${partner.name}. Please reassign it.`,
+                },
+                sound: "new_order.caf",
+                badge: 1,
+              },
+            },
+          },
+        });
+
+        console.log(`✅ [REJECT_PUSH] Success: ${response.successCount}, Failure: ${response.failureCount}`);
+        
+        // Cleanup stale tokens
+        const tokensToDelete = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const errorCode = resp.error?.code;
+            if (
+              errorCode === "messaging/registration-token-not-registered" ||
+              errorCode === "messaging/invalid-registration" ||
+              errorCode === "messaging/third-party-auth-error"
+            ) {
+              tokensToDelete.push(tokenList[idx]);
+            }
+          }
+        });
+
+        if (tokensToDelete.length > 0) {
+          await AdminFcmToken.destroy({ where: { fcmToken: tokensToDelete } });
+          console.log(`🧹 [REJECT_PUSH] Cleaned up ${tokensToDelete.length} stale tokens`);
+        }
       } else {
         console.warn(`⚠️ [REJECT_PUSH] NO ADMIN TOKENS found for cafeteria ${order.cafeteriaId}. No push sent.`);
       }
@@ -273,27 +327,22 @@ export const updateToPickedUp = async (req, res) => {
     order.pickedUpAt = new Date();
     await order.save();
 
-    const fullOrder = await Order.findByPk(orderId, {
-      include: [
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['latitude', 'longitude'] },
-        { model: DeliveryPartner, attributes: ['name', 'lastLat', 'lastLong'] }
-      ]
-    });
+    const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
 
     emitOrderStatusToUser(order.studentId, { 
       orderId: order.id, 
-      status: "OUT_FOR_DELIVERY",
-      partnerName: fullOrder.DeliveryPartner?.name ?? null,
-      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
-      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
-      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
-      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
-      customerLat: order.latitude ?? null,
-      customerLng: order.longitude ?? null,
-      readyReminderCount: order.readyReminderCount,
+      status: "PICKED_UP",
+      partnerName: sanitizedOrder.deliveryPartnerName,
+      partnerLat: sanitizedOrder.partnerLat,
+      partnerLng: sanitizedOrder.partnerLng,
+      cafeteriaLat: sanitizedOrder.cafeteriaLat,
+      cafeteriaLng: sanitizedOrder.cafeteriaLng,
+      customerLat: sanitizedOrder.customerLat,
+      customerLng: sanitizedOrder.customerLng,
+      readyReminderCount: sanitizedOrder.readyReminderCount,
     });
 
-    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "PICKED_UP" });
+    emitAdminOrderUpdate(order.cafeteriaId, sanitizedOrder);
     
     // 📱 Send Push Notification to User
     try {
@@ -335,26 +384,21 @@ export const updateToOutForDelivery = async (req, res) => {
     order.status = "OUT_FOR_DELIVERY";
     await order.save();
 
-    const fullOrder = await Order.findByPk(orderId, {
-      include: [
-        { model: Cafeteria, as: 'Cafeteria', attributes: ['latitude', 'longitude'] },
-        { model: DeliveryPartner, attributes: ['name', 'lastLat', 'lastLong'] }
-      ]
-    });
+    const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
 
     emitOrderStatusToUser(order.studentId, { 
       orderId: order.id, 
       status: "OUT_FOR_DELIVERY",
-      partnerName: fullOrder.DeliveryPartner?.name ?? null,
-      partnerLat: fullOrder.DeliveryPartner?.lastLat ?? null,
-      partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
-      cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
-      cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
-      customerLat: order.latitude ?? null,
-      customerLng: order.longitude || null,
-      readyReminderCount: order.readyReminderCount,
+      partnerName: sanitizedOrder.deliveryPartnerName,
+      partnerLat: sanitizedOrder.partnerLat,
+      partnerLng: sanitizedOrder.partnerLng,
+      cafeteriaLat: sanitizedOrder.cafeteriaLat,
+      cafeteriaLng: sanitizedOrder.cafeteriaLng,
+      customerLat: sanitizedOrder.customerLat,
+      customerLng: sanitizedOrder.customerLng,
+      readyReminderCount: sanitizedOrder.readyReminderCount,
     });
-    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "OUT_FOR_DELIVERY" });
+    emitAdminOrderUpdate(order.cafeteriaId, sanitizedOrder);
 
     res.json({ message: "Order is OUT_FOR_DELIVERY", order });
   } catch (err) {
@@ -434,17 +478,23 @@ export const verifyDeliveryOtp = async (req, res) => {
     order.status = "DELIVERED";
     await order.save();
 
+    // Fetch full order for consistent notifications
+    const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
+
     // Notify User and Admin about DELIVERED
     emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "DELIVERED" });
-    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "DELIVERED" });
+    emitAdminOrderUpdate(order.cafeteriaId, sanitizedOrder);
 
     // Also mark as COMPLETED and emit that too
     order.status = "COMPLETED";
     order.deliveryOtp = null; // clear OTP immediately
     await order.save();
 
+    // Fetch again for COMPLETED status
+    const finalOrder = await getSanitizedOrderForNotify(orderId);
+
     emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "COMPLETED" });
-    emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "COMPLETED" });
+    emitAdminOrderUpdate(order.cafeteriaId, finalOrder);
 
     res.json({ message: "Delivery verified successfully" });
   } catch (err) {
