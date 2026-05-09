@@ -282,12 +282,9 @@
 //       avgOrderValue: 0,
 //     });
 //   }
-// };
-
-
 import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria, OrderFeedback } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
-import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitStockUpdate } from "../socket.js";
+import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitOrderStatusToPartner, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
 import { sendBatchNotifications } from "../utils/notificationUtils.js";
 import { statsCacheGet, statsCacheSet, clearAnalyticsCache, CACHE_KEYS } from "../utils/cache.js";
@@ -744,6 +741,16 @@ export const updateOrderStatus = async (req, res) => {
       updatedAt: new Date(),
     });
     console.log("✅ User socket notification sent");
+
+    // 🔔 REALTIME → PARTNER (SOCKET)
+    if (order.deliveryPartnerId) {
+      emitOrderStatusToPartner(order.deliveryPartnerId, {
+        orderId: order.id,
+        status: order.status,
+        updatedAt: new Date(),
+      });
+      console.log("✅ Partner socket notification sent");
+    }
 
     // 🔔 FCM → USER (BACKGROUND - ONLY FOR PREPARING AND READY)
     if (status === "PREPARING" || status === "READY") {
