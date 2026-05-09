@@ -5,8 +5,6 @@ export default (sequelize) => {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     title: { type: DataTypes.TEXT, allowNull: false },
     category: { type: DataTypes.STRING, allowNull: false },
-    subcategory: { type: DataTypes.STRING, allowNull: false },
-    gender: { type: DataTypes.STRING, allowNull: true, defaultValue: 'unisex' }, // 'male', 'female', 'unisex'
     imageUrl: { type: DataTypes.TEXT, allowNull: true, field: 'image_url' },
     affiliateLink: { type: DataTypes.TEXT, allowNull: false, field: 'affiliate_link' },
     createdAt: {

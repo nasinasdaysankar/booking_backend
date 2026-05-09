@@ -1,4 +1,4 @@
-import { AffiliateProduct, SystemSetting } from '../models/index.js';
+import { AffiliateProduct, SystemSetting, Order } from '../models/index.js';
 import { sequelize } from '../models/index.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -54,17 +54,15 @@ export async function getAllAffiliateProducts(req, res) {
 
 export async function createAffiliateProduct(req, res) {
   try {
-    const { title, category, subcategory, gender, imageUrl, affiliateLink } = req.body;
+    const { title, category, imageUrl, affiliateLink } = req.body;
     
-    if (!title || !category || !subcategory || !affiliateLink) {
+    if (!title || !category || !affiliateLink) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     const product = await AffiliateProduct.create({
       title,
       category,
-      subcategory,
-      gender: gender || 'unisex',
       imageUrl,
       affiliateLink
     });
@@ -130,20 +128,16 @@ export async function bulkCreateAffiliateProducts(req, res) {
 
       const affiliateLink = item.affiliateLink || item.affiliate_link || item.url || item.link || item['link/url'] || normalizedItem['link/url'];
       const category = (item.category || normalizedItem['category'] || '').toString().trim();
-      const subcategory = (item.subcategory || normalizedItem['subcategory'] || '').toString().trim();
-      const gender = (item.gender || normalizedItem['gender'] || 'unisex').toString().trim().toLowerCase();
       const title = (item.title || normalizedItem['title'] || '').toString().trim();
       const imageUrl = item.imageUrl || item.image_url || item.image || normalizedItem['imageurl'] || normalizedItem['image_url'];
 
-      if (!affiliateLink || !category || !subcategory) {
+      if (!affiliateLink || !category) {
         continue;
       }
 
       productsToProcess.push({
         title,
         category,
-        subcategory,
-        gender,
         imageUrl: imageUrl || '',
         affiliateLink
       });
@@ -169,9 +163,7 @@ export async function bulkCreateAffiliateProducts(req, res) {
 
         // Final fallback for title if extraction also failed
         if (!p.title) {
-          const capitalizedGender = p.gender.charAt(0).toUpperCase() + p.gender.slice(1);
-          const capitalizedSub = p.subcategory.charAt(0).toUpperCase() + p.subcategory.slice(1);
-          p.title = `${capitalizedGender} ${capitalizedSub}`;
+          p.title = `${p.category}`;
         }
 
         finalProducts.push(p);
@@ -273,5 +265,83 @@ export async function toggleAffiliateStatus(req, res) {
   } catch (error) {
     console.error('Error toggling affiliate status:', error);
     res.status(500).json({ success: false, message: 'Failed to toggle status' });
+  }
+}
+
+export async function claimAffiliateReward(req, res) {
+  try {
+    const { billId, category } = req.body;
+
+    if (!billId || !category) {
+      return res.status(400).json({ success: false, message: 'billId and category are required' });
+    }
+
+    // 1. Check if rewards are enabled
+    const setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' } });
+    if (setting && setting.value === 'false') {
+      return res.json({ success: false, message: 'Affiliate rewards are currently disabled' });
+    }
+
+    // 2. Find the order
+    const order = await Order.findOne({ where: { billId } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // 3. Pick a random product matching the category
+    // Note: We use the display name from the mobile app (e.g. "Tech & Gadgets")
+    const product = await AffiliateProduct.findOne({
+      where: { category: category },
+      order: [sequelize.random()]
+    });
+
+    if (!product) {
+      // Fallback: If no product in this category, pick ANY random product
+      const fallbackProduct = await AffiliateProduct.findOne({
+        order: [sequelize.random()]
+      });
+      
+      if (!fallbackProduct) {
+        return res.status(404).json({ success: false, message: 'No affiliate products available' });
+      }
+      
+      // Update order with fallback
+      await order.update({
+        affiliateReward: {
+          id: fallbackProduct.id,
+          title: fallbackProduct.title,
+          category: fallbackProduct.category,
+          subcategory: fallbackProduct.subcategory,
+          imageUrl: fallbackProduct.imageUrl,
+          affiliateLink: fallbackProduct.affiliateLink
+        }
+      });
+
+      return res.json({
+        success: true,
+        product: order.affiliateReward
+      });
+    }
+
+    // 4. Update order with the specific category product
+    await order.update({
+      affiliateReward: {
+        id: product.id,
+        title: product.title,
+        category: product.category,
+        subcategory: product.subcategory,
+        imageUrl: product.imageUrl,
+        affiliateLink: product.affiliateLink
+      }
+    });
+
+    res.json({
+      success: true,
+      product: order.affiliateReward
+    });
+
+  } catch (error) {
+    console.error('Error claiming affiliate reward:', error);
+    res.status(500).json({ success: false, message: 'Failed to claim reward' });
   }
 }

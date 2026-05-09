@@ -7,7 +7,8 @@ import {
     deleteAffiliateProduct, 
     extractAffiliateData,
     getAffiliateStatus,
-    toggleAffiliateStatus
+    toggleAffiliateStatus,
+    claimAffiliateReward
 } from '../controllers/affiliateController.js';
 import { superadminAuth } from '../middleware/auth.js';
 
@@ -15,6 +16,7 @@ const router = express.Router();
 
 // Public / User Endpoints
 router.get('/random', getRandomAffiliateProduct);
+router.post('/claim', claimAffiliateReward);
 
 // Admin Endpoints
 router.get('/admin/all', superadminAuth, getAllAffiliateProducts);
