@@ -301,7 +301,7 @@ export const updateToPickedUp = async (req, res) => {
         await sendPushNotification(
           userTokens.map(t => t.fcmToken),
           "Out for Delivery! 🛵",
-          `Your order #${order.billId || order.id} is on its way. Use OTP ${order.deliveryOtp} to verify.`,
+          `Use OTP ${order.deliveryOtp} to verify.`,
           { 
             orderId: order.id.toString(), 
             type: "OUT_FOR_DELIVERY",

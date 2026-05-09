@@ -107,6 +107,9 @@ export const updateOrderStatus = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     order.status = status;
+    if (status === "READY") {
+      order.readyReminderCount = 1; // 🚩 Mark as ready persistently
+    }
     if (status === "PICKED_UP") {
       order.pickedUpAt = new Date();
     }

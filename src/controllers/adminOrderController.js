@@ -663,7 +663,8 @@ export const updateOrderStatus = async (req, res) => {
     if (status === "READY") {
       updateData.tenMinReminderSent = false;
       updateData.expirationNotificationSent = false;
-      console.log(`🔔 Resetting notification flags for Order #${id} (status: READY)`);
+      updateData.readyReminderCount = 1; // 🚩 Mark as ready persistently
+      console.log(`🔔 Resetting notification flags and marking READY persistently for Order #${id}`);
     }
 
     // ✅ Set pickedUpAt timestamp
