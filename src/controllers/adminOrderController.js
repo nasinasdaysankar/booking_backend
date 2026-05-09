@@ -747,6 +747,7 @@ export const updateOrderStatus = async (req, res) => {
       emitOrderStatusToPartner(order.deliveryPartnerId, {
         orderId: order.id,
         status: order.status,
+        readyReminderCount: order.readyReminderCount,
         updatedAt: new Date(),
       });
       console.log("✅ Partner socket notification sent");

@@ -50,6 +50,7 @@ export const assignPartner = async (req, res) => {
       customerLng: parseFloat(order.longitude || 0),
       deliveryAddress: order.deliveryAddress,
       deliveryOrderId: order.deliveryOrderId,
+      readyReminderCount: order.readyReminderCount,
     });
 
     // 2. Emit Socket to User & Admin
@@ -133,7 +134,8 @@ export const acceptOrder = async (req, res) => {
       cafeteriaLng: parseFloat(plainOrder.Cafeteria?.longitude || 0),
       customerLat: parseFloat(plainOrder.latitude || 0),
       customerLng: parseFloat(plainOrder.longitude || 0),
-      deliveryOrderId: plainOrder.deliveryOrderId
+      deliveryOrderId: plainOrder.deliveryOrderId,
+      readyReminderCount: plainOrder.readyReminderCount
     };
 
     // Notify others
@@ -284,9 +286,10 @@ export const updateToPickedUp = async (req, res) => {
       partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
       cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
       cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
-      customerLat: fullOrder.latitude ?? null,
-      customerLng: fullOrder.longitude ?? null,
+      customerLat: order.latitude ?? null,
+      customerLng: order.longitude ?? null,
       deliveryOtp: order.deliveryOtp, // 🔥 Include OTP here
+      readyReminderCount: order.readyReminderCount,
     });
 
     // Also emit specifically to the OTP room
@@ -350,8 +353,9 @@ export const updateToOutForDelivery = async (req, res) => {
       partnerLng: fullOrder.DeliveryPartner?.lastLong ?? null,
       cafeteriaLat: fullOrder.Cafeteria?.latitude ?? null,
       cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
-      customerLat: fullOrder.latitude ?? null,
-      customerLng: fullOrder.longitude ?? null,
+      customerLat: order.latitude ?? null,
+      customerLng: order.longitude || null,
+      readyReminderCount: order.readyReminderCount,
     });
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "OUT_FOR_DELIVERY" });
 
