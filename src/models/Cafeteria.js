@@ -16,6 +16,10 @@ export default (sequelize) => {
         type: DataTypes.STRING(100),
         allowNull: false,
       },
+      phone: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+      },
 
       // ✅ FIXED LOCATION (Anantha Aahara)
       latitude: {

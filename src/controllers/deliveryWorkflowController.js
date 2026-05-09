@@ -17,7 +17,7 @@ const getSanitizedOrderForNotify = async (orderId) => {
         include: [{ model: MenuItem, as: 'menuItem', attributes: ['name'] }]
       },
       { model: User, attributes: ['id', 'name', 'phone'] },
-      { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'latitude', 'longitude'] },
+      { model: Cafeteria, as: 'Cafeteria', attributes: ['id', 'name', 'phone', 'latitude', 'longitude'] },
       { model: DeliveryPartner, attributes: ['id', 'name', 'phone', 'lastLat', 'lastLong'] }
     ]
   });
