@@ -271,12 +271,6 @@ export const updateToPickedUp = async (req, res) => {
 
     order.status = "PICKED_UP";
     order.pickedUpAt = new Date();
-    
-    // Automatically generate 6-digit OTP on pickup
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    order.deliveryOtp = otp;
-    order.deliveryOtpExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity for delivery
-    
     await order.save();
 
     const fullOrder = await Order.findByPk(orderId, {
@@ -296,28 +290,23 @@ export const updateToPickedUp = async (req, res) => {
       cafeteriaLng: fullOrder.Cafeteria?.longitude ?? null,
       customerLat: order.latitude ?? null,
       customerLng: order.longitude ?? null,
-      deliveryOtp: order.deliveryOtp, // 🔥 Include OTP here
       readyReminderCount: order.readyReminderCount,
     });
 
-    // Also emit specifically to the OTP room
-    emitDeliveryOtp(order.studentId, { orderId: order.id, otp: order.deliveryOtp });
-
     emitAdminOrderUpdate(order.cafeteriaId, { orderId: order.id, status: "PICKED_UP" });
     
-    // 📱 Send Push Notification to User with OTP
+    // 📱 Send Push Notification to User
     try {
       const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
       if (userTokens.length > 0) {
         await sendPushNotification(
           userTokens.map(t => t.fcmToken),
           "Out for Delivery! 🛵",
-          `Use OTP ${order.deliveryOtp} to verify.`,
+          `Your order #${fullOrder.billId || order.id} is on the way.`,
           { 
             orderId: order.id.toString(), 
             type: "OUT_FOR_DELIVERY",
             target_screen: "ORDER_HISTORY",
-            otp: order.deliveryOtp 
           },
           order.studentId,
           false, // isAdmin: false (Sending to User App)
