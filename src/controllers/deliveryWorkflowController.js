@@ -394,8 +394,8 @@ export const generateDeliveryOtp = async (req, res) => {
       if (userTokens.length > 0) {
         await sendPushNotification(
           userTokens.map(t => t.fcmToken),
-          "New Delivery OTP 🔑",
-          `A new OTP for order #${order.billId || order.id} has been generated: ${otp}.`,
+          "Out for Delivery! 🛵",
+          `OTP for order #${order.billId || order.id} is ${otp}.`,
           { 
             orderId: order.id.toString(), 
             type: "DELIVERY_OTP_REGENERATED",
