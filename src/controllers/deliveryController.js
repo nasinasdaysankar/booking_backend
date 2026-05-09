@@ -118,6 +118,7 @@ export const getDeliveryPartners = async (req, res) => {
 
     const partners = await DeliveryPartner.findAll({ 
       where,
+      attributes: { exclude: ['password'] },
       include: [
         { model: Cafeteria, attributes: ['name', 'latitude', 'longitude'] }
       ]
@@ -144,13 +145,13 @@ export const getDeliveryPartners = async (req, res) => {
 
     const partnersWithDistance = partners.map(partner => {
       // Proximity Calculation (Haversine)
-      partner.dataValues.distanceToCafeteria = (partner.lastLat && partner.lastLong && partner.Cafeterium?.latitude && partner.Cafeterium?.longitude) 
+      partner.dataValues.distanceToCafeteria = (partner.lastLat && partner.lastLong && partner.Cafeteria?.latitude && partner.Cafeteria?.longitude) 
         ? (function() {
             const R = 6371;
-            const dLat = (partner.lastLat - partner.Cafeterium.latitude) * Math.PI / 180;
-            const dLon = (partner.lastLong - partner.Cafeterium.longitude) * Math.PI / 180;
+            const dLat = (partner.lastLat - partner.Cafeteria.latitude) * Math.PI / 180;
+            const dLon = (partner.lastLong - partner.Cafeteria.longitude) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(partner.Cafeterium.latitude * Math.PI / 180) * Math.cos(partner.lastLat * Math.PI / 180) * 
+                      Math.cos(partner.Cafeteria.latitude * Math.PI / 180) * Math.cos(partner.lastLat * Math.PI / 180) * 
                       Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
           })()
@@ -310,7 +311,7 @@ export const getPartnerPerformance = async (req, res) => {
       where: { deliveryPartnerId: partnerId, status: ['DELIVERED', 'COMPLETED'] }
     });
 
-    const deliveryFee = parseFloat(partner.Cafeterium?.deliveryFee || 20.0);
+    const deliveryFee = parseFloat(partner.Cafeteria?.deliveryFee || 20.0);
     const todayEarnings = todayOrders.length * deliveryFee;
     const totalEarnings = totalOrders * deliveryFee;
 

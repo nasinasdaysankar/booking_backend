@@ -12,9 +12,11 @@ export const assignPartner = async (req, res) => {
     const { orderId, partnerId } = req.body;
     const adminCafeteriaId = req.user.cafeteriaId;
 
-    const order = await Order.findByPk(orderId);
+    const order = await Order.findByPk(orderId, {
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }]
+    });
     const partner = await DeliveryPartner.findByPk(partnerId, {
-      include: [{ model: Cafeteria, attributes: ['name', 'latitude', 'longitude'] }]
+      include: [{ model: Cafeteria, as: 'Cafeteria', attributes: ['name', 'latitude', 'longitude'] }]
     });
 
     if (!order || !partner) {
@@ -41,9 +43,9 @@ export const assignPartner = async (req, res) => {
       itemsCount: order.itemCount || 1,
       totalAmount: parseFloat(order.totalAmount || 0),
       status: order.status,
-      cafeteriaName: partner.Cafeteria?.name,
-      cafeteriaLat: parseFloat(partner.Cafeteria?.latitude || 0),
-      cafeteriaLng: parseFloat(partner.Cafeteria?.longitude || 0),
+      cafeteriaName: order.Cafeteria?.name || partner.Cafeteria?.name,
+      cafeteriaLat: parseFloat(order.Cafeteria?.latitude || partner.Cafeteria?.latitude || 0),
+      cafeteriaLng: parseFloat(order.Cafeteria?.longitude || partner.Cafeteria?.longitude || 0),
       customerLat: parseFloat(order.latitude || 0),
       customerLng: parseFloat(order.longitude || 0),
       deliveryAddress: order.deliveryAddress,

@@ -160,8 +160,8 @@ SupportTicket.hasMany(SupportMessage, { foreignKey: { name: "ticketId", field: "
 SupportMessage.belongsTo(SupportTicket, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "ticket" });
 
 // ================= DELIVERY RELATIONS =================
-Cafeteria.hasMany(DeliveryPartner, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
-DeliveryPartner.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+Cafeteria.hasMany(DeliveryPartner, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "partners" });
+DeliveryPartner.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" }, as: "Cafeteria" });
 
 DeliveryPartner.hasMany(Order, { foreignKey: { name: "deliveryPartnerId", field: "delivery_partner_id" } });
 Order.belongsTo(DeliveryPartner, { foreignKey: { name: "deliveryPartnerId", field: "delivery_partner_id" } });
