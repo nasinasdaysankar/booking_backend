@@ -181,38 +181,52 @@ export const acceptOrder = async (req, res) => {
 };
 
 export const rejectOrder = async (req, res) => {
-  console.log(`📥 [REJECT_ORDER] Hit with body: ${JSON.stringify(req.body)} by user: ${req.user?.id}`);
-  try {
-    const { orderId } = req.body;
-    const partnerId = req.user.id;
+  const { orderId } = req.body;
+  const partnerId = req.user?.id;
+  console.log(`📥 [REJECT_START] Order: ${orderId}, Partner: ${partnerId}`);
 
+  try {
     const partner = await DeliveryPartner.findByPk(partnerId);
     const order = await Order.findByPk(orderId);
 
-    if (!order || !partner) {
-      return res.status(404).json({ message: "Order or Partner not found" });
+    if (!order) {
+      console.log(`❌ [REJECT_FAIL] Order ${orderId} not found`);
+      return res.status(404).json({ message: "Order not found" });
     }
+    if (!partner) {
+      console.log(`❌ [REJECT_FAIL] Partner ${partnerId} not found`);
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    console.log(`✅ [REJECT_FLOW] Found Order #${order.id} (Status: ${order.status}) and Partner ${partner.name}`);
 
     // Reset rejection count if it's a new day
     const today = new Date().toISOString().split('T')[0];
     const lastReset = partner.lastRejectionReset ? partner.lastRejectionReset.toISOString().split('T')[0] : null;
 
     if (lastReset !== today) {
+      console.log(`♻️ [REJECT_FLOW] Resetting rejection count for ${partner.name}`);
       partner.rejectionCount = 0;
       partner.lastRejectionReset = new Date();
     }
 
+    console.log(`📊 [REJECT_FLOW] Current rejection count: ${partner.rejectionCount}/3`);
     if (partner.rejectionCount >= 3) {
+      console.log(`🚫 [REJECT_FAIL] Rejection limit reached for ${partner.name}`);
       return res.status(400).json({ message: "Daily rejection limit (3) reached" });
     }
 
     // Process rejection
     partner.rejectionCount += 1;
+    console.log(`💾 [REJECT_FLOW] Saving partner rejectionCount=${partner.rejectionCount}...`);
     await partner.save();
+    console.log(`✅ [REJECT_FLOW] Partner saved successfully`);
 
+    console.log(`💾 [REJECT_FLOW] Updating order ${orderId}: partnerId=null, status=READY...`);
     order.deliveryPartnerId = null;
     order.status = "READY"; // Reset status back to READY
     await order.save();
+    console.log(`✅ [REJECT_FLOW] Order saved successfully. New status: ${order.status}`);
 
     // 🔔 Fetch full order for consistent notifications
     const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
@@ -300,9 +314,10 @@ export const rejectOrder = async (req, res) => {
       console.error("❌ [REJECT_PUSH] ERROR:", pushErr.message);
     }
 
+    console.log(`🏁 [REJECT_DONE] Rejection process completed for Order ${orderId}`);
     res.json({ message: "Order rejected and reassigned" });
   } catch (err) {
-    console.error("REJECT ORDER ERROR:", err);
+    console.error(`🔥 [REJECT_CRIT] FATAL ERROR:`, err);
     res.status(500).json({ message: "Error rejecting order" });
   }
 };
