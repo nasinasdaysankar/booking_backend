@@ -650,7 +650,7 @@ export const updateOrderStatus = async (req, res) => {
     };
 
     // ✅ Generate deliveryOrderId if accepted (PREPARING) and not yet generated
-    if ((status === "PREPARING" || status === "ACCEPTED") && order.orderType === "DELIVERY" && !order.deliveryOrderId) {
+    if (["PREPARING", "ACCEPTED", "READY"].includes(status) && order.orderType === "DELIVERY" && !order.deliveryOrderId) {
       updateData.deliveryOrderId = await generateDeliveryOrderId(order.cafeteriaId, null);
       console.log(`📦 Generated Delivery Order ID: ${updateData.deliveryOrderId}`);
     }

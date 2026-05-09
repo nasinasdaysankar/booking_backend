@@ -2,6 +2,7 @@ import { Order, DeliveryPartner, User, PartnerFcmToken, AdminFcmToken, Cafeteria
 import { emitOrderStatusToUser, emitAdminOrderUpdate, emitDeliveryOtp, emitDeliveryAssignment } from "../socket.js";
 import { sendPushNotification } from "../utils/notificationUtils.js";
 import { Sequelize } from "sequelize";
+import { generateDeliveryOrderId } from "./paymentController.js";
 
 // ==========================================
 // 0. ASSIGN ORDER (Admin Action)
@@ -34,6 +35,13 @@ export const assignPartner = async (req, res) => {
 
     order.deliveryPartnerId = partner.id;
     order.status = "ASSIGNED"; 
+
+    // ✅ Ensure deliveryOrderId exists when assigned
+    if (!order.deliveryOrderId && order.orderType === 'DELIVERY') {
+      order.deliveryOrderId = await generateDeliveryOrderId(order.cafeteriaId, null);
+      console.log(`📦 [ASSIGN] Generated missing Delivery ID: ${order.deliveryOrderId}`);
+    }
+
     await order.save();
 
     // 1. Emit Socket to Partner
