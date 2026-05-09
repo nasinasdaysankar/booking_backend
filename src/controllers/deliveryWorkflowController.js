@@ -181,6 +181,7 @@ export const acceptOrder = async (req, res) => {
 };
 
 export const rejectOrder = async (req, res) => {
+  console.log(`📥 [REJECT_ORDER] Hit with body: ${JSON.stringify(req.body)} by user: ${req.user?.id}`);
   try {
     const { orderId } = req.body;
     const partnerId = req.user.id;
@@ -217,6 +218,7 @@ export const rejectOrder = async (req, res) => {
     const sanitizedOrder = await getSanitizedOrderForNotify(orderId);
 
     // 🔔 Notify Admin that it needs reassignment
+    console.log(`📡 [REJECT_SOCKET] Emitting update for Order ${orderId} to cafeteria_${order.cafeteriaId}`);
     emitAdminOrderUpdate(order.cafeteriaId, {
       ...sanitizedOrder,
       socketMessage: "Order returned for reassignment" 
