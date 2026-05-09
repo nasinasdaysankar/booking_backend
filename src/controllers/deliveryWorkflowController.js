@@ -210,10 +210,10 @@ export const rejectOrder = async (req, res) => {
       partner.lastRejectionReset = new Date();
     }
 
-    console.log(`📊 [REJECT_FLOW] Current rejection count: ${partner.rejectionCount}/3`);
-    if (partner.rejectionCount >= 3) {
+    console.log(`📊 [REJECT_FLOW] Current rejection count: ${partner.rejectionCount}/100`);
+    if (partner.rejectionCount >= 100) {
       console.log(`🚫 [REJECT_FAIL] Rejection limit reached for ${partner.name}`);
-      return res.status(400).json({ message: "Daily rejection limit (3) reached" });
+      return res.status(400).json({ message: "Daily rejection limit (100) reached" });
     }
 
     // Process rejection
