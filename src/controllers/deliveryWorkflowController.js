@@ -264,7 +264,7 @@ export const updateToPickedUp = async (req, res) => {
       where: { 
         id: orderId, 
         deliveryPartnerId: partnerId,
-        status: ["ASSIGNED", "ACCEPTED"] // Allow pickup if assigned or explicitly accepted
+        status: ["ASSIGNED", "ACCEPTED", "READY"] // Allow pickup if assigned, accepted, or marked READY by kitchen
       } 
     });
     if (!order) return res.status(404).json({ message: "Order not found, not assigned to you, or not in a pickable state" });
