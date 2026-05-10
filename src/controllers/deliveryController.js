@@ -295,16 +295,23 @@ export const getPartnerPerformance = async (req, res) => {
 
     if (!partner) return res.status(404).json({ message: "Partner not found" });
 
-    // Today's metrics (Adjusted for IST - UTC+5:30)
+    // Today's metrics (Robust IST calculation - UTC+5:30)
     const now = new Date();
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const nowIST = new Date(now.getTime() + istOffset);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric', month: 'numeric', day: 'numeric'
+    });
+    const parts = formatter.formatToParts(now).reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+    // Create a UTC date representing 00:00:00 of the current day in IST
+    // Note: parts.month is 1-indexed
+    const istMidnightUTC = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0));
     
-    const startOfTodayIST = new Date(nowIST);
-    startOfTodayIST.setHours(0, 0, 0, 0);
-    
-    // Convert back to UTC for the database query
-    const startOfTodayUTC = new Date(startOfTodayIST.getTime() - istOffset);
+    // Subtract 5.5 hours to get the actual UTC start time for today in IST
+    const startOfTodayUTC = new Date(istMidnightUTC.getTime() - (5.5 * 60 * 60 * 1000));
 
     const todayOrders = await Order.findAll({
       where: {
