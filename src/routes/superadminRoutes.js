@@ -15,6 +15,7 @@ import { replaceMenuImage } from "../controllers/menuController.js";
 import { uploadCafeteriaMedia, deleteCafeteriaMedia, getAdvancedAnalytics, getAllRadiusRequests, approveRadiusRequest, rejectRadiusRequest } from "../controllers/superadminController.js";
 import { sendNotification, sendBatchNotifications, sendMulticastNotification } from "../utils/notificationUtils.js";
 import { clearCafeteriaCache } from "../utils/cache.js";
+import { emitCafeteriaUpdate } from "../socket.js";
 import { 
     getAllTickets, 
     getAdminSupportTickets, 
@@ -108,7 +109,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showPlatformFee,
             showCommission,
             ownerPin,
-            isOnlineOrderEnabled
+            isOnlineOrderEnabled,
+            isDeliveryEnabled
         } = req.body;
 
 
@@ -138,7 +140,15 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
             showCommission: showCommission !== undefined ? showCommission : true,
             ownerPin,
-            isOnlineOrderEnabled: isOnlineOrderEnabled !== undefined ? isOnlineOrderEnabled : true
+            isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true
+        });
+
+
+        // ✅ Emit real-time update
+        emitCafeteriaUpdate(cafeteria.id, {
+            isOpen: cafeteria.isOpen,
+            isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled
         });
 
 
@@ -177,7 +187,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             showPlatformFee,
             showCommission,
             ownerPin,
-            isOnlineOrderEnabled
+            isOnlineOrderEnabled,
+            isDeliveryEnabled
         } = req.body;
 
 
@@ -203,6 +214,15 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(showCommission !== undefined && { showCommission }),
             ...(ownerPin !== undefined && { ownerPin }),
             ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
+            ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
+        });
+
+
+        // ✅ Emit real-time update
+        emitCafeteriaUpdate(cafeteria.id, {
+            isOpen: cafeteria.isOpen,
+            isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled
         });
 
 
