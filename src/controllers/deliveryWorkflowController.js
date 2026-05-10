@@ -493,6 +493,7 @@ export const verifyDeliveryOtp = async (req, res) => {
 
     // Success flow
     order.status = "DELIVERED";
+    order.deliveredAt = new Date();
     await order.save();
 
     // Fetch full order for consistent notifications
