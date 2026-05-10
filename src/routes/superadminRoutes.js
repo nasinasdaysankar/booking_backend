@@ -1236,7 +1236,7 @@ router.get('/payments', superadminAuth, async (req, res) => {
 // ============================================
 router.post('/notifications/broadcast', superadminAuth, upload.single('image'), async (req, res) => {
     try {
-        const { title, body, isPremiumUI, accentColor, isGradient, targetScreen, targetId } = req.body;
+        const { title, body, isPremiumUI, accentColor, isGradient, targetScreen, targetId, layoutConfig } = req.body;
 
         // ✅ Relaxed validation: Allow image-only notifications
         if ((!title || !body) && !req.file) {
@@ -1343,6 +1343,7 @@ router.post('/notifications/broadcast', superadminAuth, upload.single('image'), 
                     isGradient: isGradient || "false",
                     target_screen: targetScreen || "HOME",
                     target_id: targetId || "",
+                    layoutConfig: layoutConfig || "{}",
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
                 },
                 android: {
