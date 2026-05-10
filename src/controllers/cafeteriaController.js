@@ -47,7 +47,8 @@ export const getCafeterias = async (req, res) => {
         'fssaiLicense',
         'isBusy',
         'visibilityRadius',
-        'isOnlineOrderEnabled'
+        'isOnlineOrderEnabled',
+        'isDeliveryEnabled'
       ],
       where: {
         isOnlineOrderEnabled: true,

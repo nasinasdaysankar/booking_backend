@@ -202,6 +202,11 @@ export default (sequelize) => {
         defaultValue: 20.00,
         field: "delivery_fee",
       },
+      isDeliveryEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "is_delivery_enabled",
+      },
     },
 
     {

@@ -1,4 +1,4 @@
-import { Payment, Order, OrderItem, MenuItem, sequelize, AffiliateProduct, SystemSetting } from "../models/index.js";
+import { Payment, Order, OrderItem, MenuItem, Cafeteria, sequelize, AffiliateProduct, SystemSetting } from "../models/index.js";
 import { Op, QueryTypes } from "sequelize";
 import { appendOrderToSheet } from "../utils/googleSheets.js";
 import { emitNewOrder, emitStockUpdate } from "../socket.js";
@@ -247,6 +247,15 @@ export const createCashfreeOrder = async (req, res) => {
           }
         }
       }
+    }
+
+    // 🔍 DELIVERY ENABLED CHECK
+    const cafeteria = await Cafeteria.findByPk(cafeteriaId);
+    if (cafeteria && !cafeteria.isDeliveryEnabled && snapOrderType === 'DELIVERY') {
+      return res.status(400).json({
+        success: false,
+        message: "Sorry, delivery is currently disabled for this cafeteria.",
+      });
     }
 
     console.log("🚀 [PROXY] Forwarding order creation to Finance Backend...");
