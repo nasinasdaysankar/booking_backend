@@ -317,12 +317,8 @@ export const getMyOrders = async (req, res) => {
         },
       ],
     });
-    // 🔥 Never expose internal PICKED_UP status to students
-    const mapped = orders.map(o => {
-      const plain = o.toJSON ? o.toJSON() : { ...o };
-      if (plain.status === 'PICKED_UP') plain.status = 'OUT_FOR_DELIVERY';
-      return plain;
-    });
+    // 🔥 Return status as is to allow frontend to handle labels
+    const mapped = orders.map(o => o.toJSON ? o.toJSON() : { ...o });
     return res.json(mapped);
   } catch (err) {
     console.error("🔥 GET MY ORDERS ERROR:", err);
@@ -366,9 +362,6 @@ export const getOrderById = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    if (order && order.status === 'PICKED_UP') {
-      order.status = 'OUT_FOR_DELIVERY';
-    }
     return res.json(order);
   } catch (err) {
     console.error("🔥 ORDER FETCH ERROR:", err);
