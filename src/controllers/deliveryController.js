@@ -243,6 +243,7 @@ export const getAssignedOrders = async (req, res) => {
         customerLat: parseFloat(plain.latitude || 0),
         customerLng: parseFloat(plain.longitude || 0),
         readyReminderCount: plain.readyReminderCount,
+        assignedAt: plain.assignedAt,
         items: (plain.items || []).map(item => ({
           ...item,
           name: item.menuItem?.name || item.name || 'Unknown Item'

@@ -76,6 +76,7 @@ export const assignPartner = async (req, res) => {
 
     order.deliveryPartnerId = partner.id;
     order.status = "ASSIGNED"; 
+    order.assignedAt = new Date();
 
     // ✅ Ensure deliveryOrderId exists when assigned
     if (!order.deliveryOrderId && order.orderType === 'DELIVERY') {
@@ -92,6 +93,7 @@ export const assignPartner = async (req, res) => {
       itemsCount: order.itemCount || 1,
       totalAmount: parseFloat(order.totalAmount || 0),
       status: order.status,
+      assignedAt: order.assignedAt,
       cafeteriaName: order.Cafeteria?.name || partner.Cafeteria?.name,
       cafeteriaLat: parseFloat(order.Cafeteria?.latitude || partner.Cafeteria?.latitude || 0),
       cafeteriaLng: parseFloat(order.Cafeteria?.longitude || partner.Cafeteria?.longitude || 0),

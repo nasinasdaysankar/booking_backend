@@ -279,6 +279,11 @@ export default (sequelize) => {
         type: DataTypes.DATE,
         field: "picked_up_at",
       },
+      
+      assignedAt: {
+        type: DataTypes.DATE,
+        field: "assigned_at",
+      },
 
       deliveredAt: {
         type: DataTypes.DATE,
