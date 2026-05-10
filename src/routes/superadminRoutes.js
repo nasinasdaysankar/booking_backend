@@ -629,7 +629,11 @@ router.get('/menu', superadminAuth, async (req, res) => {
 // ============================================
 router.post('/menu', superadminAuth, async (req, res) => {
     try {
-        const { cafeteriaId, name, price, estPrepTimeMinutes, category, isAvailable, isParcelAvailable, isTodaySpecial, description, imageUrl } = req.body;
+        const { 
+            cafeteriaId, name, price, estPrepTimeMinutes, category, 
+            isAvailable, isParcelAvailable, isTodaySpecial, description, 
+            imageUrl, stock, trackStock, autoStockUpdate, defaultStockQuantity 
+        } = req.body;
 
         if (!cafeteriaId || !name || !price) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -644,7 +648,11 @@ router.post('/menu', superadminAuth, async (req, res) => {
             isAvailable: isAvailable !== undefined ? isAvailable : true,
             isParcelAvailable: isParcelAvailable !== undefined ? isParcelAvailable : true,
             isTodaySpecial: isTodaySpecial || false,
-            imageUrl
+            imageUrl,
+            stock: stock || 0,
+            trackStock: trackStock || false,
+            autoStockUpdate: autoStockUpdate || false,
+            defaultStockQuantity: defaultStockQuantity || 0
         });
 
         res.status(201).json({ success: true, data: menuItem });
