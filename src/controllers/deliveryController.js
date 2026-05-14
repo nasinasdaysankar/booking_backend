@@ -358,14 +358,34 @@ export const getPartnerPerformance = async (req, res) => {
 export const getPartnerHistory = async (req, res) => {
   try {
     const partnerId = req.user.id;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, date } = req.query;
     const offset = (page - 1) * limit;
 
+    const where = {
+      deliveryPartnerId: partnerId,
+      status: ['DELIVERED', 'COMPLETED']
+    };
+
+    if (date) {
+      // 🇮🇳 IST Support: Convert the selected date to 00:00 IST and 23:59 IST in UTC
+      // 00:00 IST is 18:30 UTC of the previous day
+      const istStart = new Date(date);
+      istStart.setHours(0, 0, 0, 0); 
+      const startUtc = new Date(istStart.getTime() - (5.5 * 60 * 60 * 1000));
+
+      // 23:59 IST is 18:29 UTC of the same day
+      const istEnd = new Date(date);
+      istEnd.setHours(23, 59, 59, 999);
+      const endUtc = new Date(istEnd.getTime() - (5.5 * 60 * 60 * 1000));
+
+      where.updatedAt = {
+        [Op.gte]: startUtc,
+        [Op.lte]: endUtc
+      };
+    }
+
     const { count, rows } = await Order.findAndCountAll({
-      where: {
-        deliveryPartnerId: partnerId,
-        status: ['DELIVERED', 'COMPLETED']
-      },
+      where,
       include: [
         { 
           model: OrderItem, 
