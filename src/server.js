@@ -387,15 +387,30 @@ const start = async () => {
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS delivery_charge_configs (
           id SERIAL PRIMARY KEY,
-          cafeteriaid INTEGER NOT NULL REFERENCES cafeterias(id) ON DELETE CASCADE,
-          ranges JSONB NOT NULL DEFAULT '{"ranges": []}',
+          cafeteria_id INTEGER NOT NULL REFERENCES cafeterias(id) ON DELETE CASCADE,
+          ranges JSONB NOT NULL DEFAULT '[]',
           status VARCHAR(20) DEFAULT 'PENDING',
+          admin_id INTEGER,
+          approver_id INTEGER,
           is_active BOOLEAN DEFAULT false,
           feedback TEXT,
           created_at TIMESTAMP WITH TIME ZONE NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE NOT NULL
         )
       `);
+
+      // Safe migrations for existing table
+      await sequelize.query(`ALTER TABLE delivery_charge_configs ADD COLUMN IF NOT EXISTS cafeteria_id INTEGER REFERENCES cafeterias(id) ON DELETE CASCADE`).catch(() => {});
+      await sequelize.query(`ALTER TABLE delivery_charge_configs ADD COLUMN IF NOT EXISTS admin_id INTEGER`).catch(() => {});
+      await sequelize.query(`ALTER TABLE delivery_charge_configs ADD COLUMN IF NOT EXISTS approver_id INTEGER`).catch(() => {});
+      await sequelize.query(`ALTER TABLE delivery_charge_configs ADD COLUMN IF NOT EXISTS rejection_reason TEXT`).catch(() => {});
+      await sequelize.query(`ALTER TABLE delivery_charge_configs ADD COLUMN IF NOT EXISTS ranges JSONB NOT NULL DEFAULT '[]'`).catch(() => {});
+      
+      // Cleanup if old column exists
+      try {
+        await sequelize.query(`ALTER TABLE delivery_charge_configs RENAME COLUMN cafeteriaid TO cafeteria_id`);
+      } catch (e) {}
+
       logger.info("✅ delivery_charge_configs table ensured");
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure delivery_charge_configs table: " + colErr.message);
