@@ -208,6 +208,12 @@ export const getAssignedOrders = async (req, res) => {
         status: ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'],
         updatedAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) }
       },
+      attributes: [
+        'id', 'billId', 'status', 'totalAmount', 'orderType', 
+        'deliveryAddress', 'roomNumber', 'blockName', 'receiverPhone',
+        'latitude', 'longitude', 'deliveryOtp', 'readyReminderCount', 
+        'pickedUpAt', 'assignedAt', 'createdAt', 'updatedAt'
+      ],
       include: [
         { 
           model: OrderItem, 
@@ -220,32 +226,30 @@ export const getAssignedOrders = async (req, res) => {
       order: [['updatedAt', 'DESC']]
     });
 
-    console.log(`🔍 [DB DEBUG] Partner ${partnerId} query result: found ${orders.length} orders. IDs: ${orders.map(o => o.id).join(', ')}`);
+    console.log(`🔍 [DB DEBUG] Partner ${partnerId} query result: found ${orders.length} orders.`);
 
     // Explicitly map to ensure camelCase and correct types
     const sanitizedOrders = orders.map(order => {
       const plain = order.get({ plain: true });
-      
-      // Calculate orderType fallback if missing
       const hasDeliveryData = plain.deliveryAddress || (plain.latitude && plain.longitude);
       const finalOrderType = plain.orderType || (hasDeliveryData ? 'DELIVERY' : 'DINE_IN');
 
-      return {
+      const result = {
         ...plain,
         orderType: finalOrderType,
         totalAmount: parseFloat(plain.totalAmount || 0),
-        customerName: plain.User?.name || plain.customer_name || 'Guest User',
-        customerPhone: plain.User?.phone || plain.customer_phone || '',
-        deliveryAddress: plain.deliveryAddress || plain.delivery_address || 'No Address Provided',
+        customerName: plain.User?.name || 'Guest User',
+        customerPhone: plain.User?.phone || '',
+        deliveryAddress: plain.deliveryAddress || 'No Address Provided',
         cafeteriaName: plain.Cafeteria?.name || 'Cafeteria',
         cafeteriaPhone: plain.Cafeteria?.phone || '',
         cafeteriaLat: parseFloat(plain.Cafeteria?.latitude || 0),
         cafeteriaLng: parseFloat(plain.Cafeteria?.longitude || 0),
         customerLat: parseFloat(plain.latitude || 0),
         customerLng: parseFloat(plain.longitude || 0),
-        roomNumber: plain.roomNumber || plain.room_number,
-        blockName: plain.blockName || plain.block_name,
-        receiverPhone: plain.receiverPhone || plain.receiver_phone,
+        roomNumber: plain.roomNumber,
+        blockName: plain.blockName,
+        receiverPhone: plain.receiverPhone,
         readyReminderCount: plain.readyReminderCount,
         assignedAt: plain.assignedAt,
         items: (plain.items || []).map(item => ({
@@ -253,6 +257,14 @@ export const getAssignedOrders = async (req, res) => {
           name: item.menuItem?.name || item.name || 'Unknown Item'
         }))
       };
+
+      console.log(`📦 [DEBUG] Order #${result.id} Sanitized:`, {
+        room: result.roomNumber,
+        block: result.blockName,
+        phone: result.receiverPhone
+      });
+
+      return result;
     });
 
     console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}.${sanitizedOrders.length > 0 ? ` Example Type: ${sanitizedOrders[0].orderType}` : ''}`);
