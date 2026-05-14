@@ -7,6 +7,11 @@ export default (sequelize) => {
     category: { type: DataTypes.STRING, allowNull: false },
     imageUrl: { type: DataTypes.TEXT, allowNull: true, field: 'image_url' },
     affiliateLink: { type: DataTypes.TEXT, allowNull: false, field: 'affiliate_link' },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      field: "is_active",
+    },
     createdAt: {
       type: DataTypes.DATE,
       field: "created_at",

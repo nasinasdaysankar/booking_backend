@@ -8,15 +8,18 @@ import {
     extractAffiliateData,
     getAffiliateStatus,
     toggleAffiliateStatus,
-    claimAffiliateReward
+    claimAffiliateReward,
+    getUserRewards,
+    toggleProductStatus
 } from '../controllers/affiliateController.js';
-import { superadminAuth } from '../middleware/auth.js';
+import { superadminAuth, userAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Public / User Endpoints
 router.get('/random', getRandomAffiliateProduct);
 router.post('/claim', claimAffiliateReward);
+router.get('/my-rewards', userAuth, getUserRewards);
 
 // Admin Endpoints
 router.get('/admin/all', superadminAuth, getAllAffiliateProducts);
@@ -26,5 +29,6 @@ router.delete('/admin/:id', superadminAuth, deleteAffiliateProduct);
 router.post('/admin/extract', superadminAuth, extractAffiliateData);
 router.get('/admin/status', superadminAuth, getAffiliateStatus);
 router.post('/admin/toggle', superadminAuth, toggleAffiliateStatus);
+router.post('/admin/toggle-product', superadminAuth, toggleProductStatus);
 
 export default router;

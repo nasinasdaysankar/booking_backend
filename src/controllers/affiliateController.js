@@ -1,5 +1,6 @@
 import { AffiliateProduct, SystemSetting, Order } from '../models/index.js';
 import { sequelize } from '../models/index.js';
+import { Op } from 'sequelize';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -12,6 +13,7 @@ export async function getRandomAffiliateProduct(req, res) {
     }
 
     const product = await AffiliateProduct.findOne({
+      where: { isActive: true },
       order: [sequelize.random()]
     });
 
@@ -283,6 +285,68 @@ export async function toggleAffiliateStatus(req, res) {
   }
 }
 
+export async function toggleProductStatus(req, res) {
+  try {
+    const { id, isActive } = req.body;
+    
+    const product = await AffiliateProduct.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    product.isActive = isActive;
+    await product.save();
+
+    res.json({ success: true, message: `Product ${isActive ? 'enabled' : 'disabled'} successfully`, product });
+  } catch (error) {
+    console.error('Error toggling product status:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle product status' });
+  }
+}
+
+export async function getUserRewards(req, res) {
+  try {
+    const studentId = req.user.id;
+
+    // Find all orders for this user that have an affiliate reward
+    const orders = await Order.findAll({
+      where: {
+        studentId: studentId,
+        affiliateReward: { [Op.ne]: null }
+      },
+      attributes: ['id', 'billId', 'affiliateReward', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // We want to check if the reward product is still active
+    // The reward object in order has an 'id' field
+    const rewards = await Promise.all(orders.map(async (order) => {
+      const reward = order.affiliateReward;
+      let isAvailable = false;
+
+      if (reward && reward.id) {
+        const product = await AffiliateProduct.findByPk(reward.id);
+        if (product && product.isActive) {
+          isAvailable = true;
+        }
+      }
+
+      return {
+        orderId: order.id,
+        billId: order.billId,
+        claimedAt: order.createdAt,
+        product: reward,
+        isAvailable: isAvailable
+      };
+    }));
+
+    res.json({ success: true, rewards });
+  } catch (error) {
+    console.error('Error fetching user rewards:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch rewards' });
+  }
+}
+
 export async function claimAffiliateReward(req, res) {
   try {
     const { billId, category } = req.body;
@@ -306,13 +370,14 @@ export async function claimAffiliateReward(req, res) {
     // 3. Pick a random product matching the category
     // Note: We use the display name from the mobile app (e.g. "Tech & Gadgets")
     const product = await AffiliateProduct.findOne({
-      where: { category: category },
+      where: { category: category, isActive: true },
       order: [sequelize.random()]
     });
 
     if (!product) {
       // Fallback: If no product in this category, pick ANY random product
       const fallbackProduct = await AffiliateProduct.findOne({
+        where: { isActive: true },
         order: [sequelize.random()]
       });
       
