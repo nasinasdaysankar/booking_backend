@@ -205,7 +205,8 @@ export const getAssignedOrders = async (req, res) => {
     const orders = await Order.findAll({
       where: { 
         deliveryPartnerId: partnerId,
-        status: ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY']
+        status: ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'],
+        updatedAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) }
       },
       include: [
         { 
