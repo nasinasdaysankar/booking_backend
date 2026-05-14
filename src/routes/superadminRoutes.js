@@ -25,6 +25,8 @@ import {
     toggleMedia 
 } from "../controllers/supportTicketController.js";
 import { getDeliveryPartners, createDeliveryPartner, updatePartnerStatus } from "../controllers/deliveryController.js";
+import { getPendingConfigs, approveConfig, rejectConfig } from "../controllers/deliveryChargeController.js";
+
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() }); // Use memory storage for S3
@@ -257,6 +259,14 @@ router.put('/radius-requests/approve/:id', superadminAuth, approveRadiusRequest)
 router.put('/radius-requests/reject/:id', superadminAuth, rejectRadiusRequest);
 
 // ============================================
+// DELIVERY CHARGE CONFIGURATION (SUPERADMIN)
+// ============================================
+router.get('/delivery-charge-configs/pending', superadminAuth, getPendingConfigs);
+router.put('/delivery-charge-configs/approve/:id', superadminAuth, approveConfig);
+router.put('/delivery-charge-configs/reject/:id', superadminAuth, rejectConfig);
+
+
+// ============================================
 // GET SUPERADMIN DASHBOARD STATS
 // ============================================
 router.get('/stats', superadminAuth, async (req, res) => {
@@ -428,6 +438,8 @@ router.get('/orders', superadminAuth, async (req, res) => {
                 orders."parcelamount" AS "parcelAmount",
                 orders."created_at" AS "createdAt",
                 orders."updated_at" AS "updatedAt",
+                orders."delivery_charge" AS "deliveryCharge",
+
                 cafeterias.name AS "cafeteriaName",
                 users.name AS "userName",
                 users.email AS "userEmail"

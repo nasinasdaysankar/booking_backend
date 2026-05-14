@@ -228,7 +228,8 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
   try {
-    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount, orderType: snapOrderType, deliveryAddress: snapAddress, latitude: snapLat, longitude: snapLng, roomNumber: snapRoom, blockName: snapBlock, receiverPhone: snapPhone } = req.body;
+    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount, orderType: snapOrderType, deliveryAddress: snapAddress, latitude: snapLat, longitude: snapLng, roomNumber: snapRoom, blockName: snapBlock, receiverPhone: snapPhone, deliveryCharge: snapDeliveryCharge } = req.body;
+
 
     // 🔍 STOCK CHECK (IF ITEMS PROVIDED)
     if (items && Array.isArray(items) && items.length > 0) {
@@ -342,7 +343,9 @@ export const createCashfreeOrder = async (req, res) => {
               receiver_phone      VARCHAR(255),
               latitude            DECIMAL(10,7),
               longitude           DECIMAL(10,7),
+              delivery_charge     DECIMAL(10,2) NOT NULL DEFAULT 0,
               created_at          TIMESTAMP DEFAULT NOW(),
+
               updated_at          TIMESTAMP DEFAULT NOW(),
               expires_at          TIMESTAMP DEFAULT (NOW() + INTERVAL '2 hours')
             )`,
@@ -362,6 +365,8 @@ export const createCashfreeOrder = async (req, res) => {
             
             await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS ${col} ${type}`, { type: QueryTypes.RAW }).catch(() => {});
           }
+          await sequelize.query(`ALTER TABLE order_snapshots ADD COLUMN IF NOT EXISTS delivery_charge DECIMAL(10,2) NOT NULL DEFAULT 0`, { type: QueryTypes.RAW }).catch(() => {});
+
 
           // 3. Ensure Primary Key exists (if table was created early without it)
           await sequelize.query(`ALTER TABLE order_snapshots ADD PRIMARY KEY (cashfree_order_id)`, { type: QueryTypes.RAW }).catch(() => {});
@@ -369,8 +374,9 @@ export const createCashfreeOrder = async (req, res) => {
           // 4. Save Snapshot
           await sequelize.query(
             `INSERT INTO order_snapshots
-               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount, order_type, delivery_address, room_number, block_name, receiver_phone, latitude, longitude)
-             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount, :orderType, :deliveryAddress, :roomNumber, :blockName, :receiverPhone, :latitude, :longitude)
+               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount, order_type, delivery_address, room_number, block_name, receiver_phone, latitude, longitude, delivery_charge)
+             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount, :orderType, :deliveryAddress, :roomNumber, :blockName, :receiverPhone, :latitude, :longitude, :deliveryCharge)
+
              ON CONFLICT (cashfree_order_id) 
              DO UPDATE SET 
                amount = EXCLUDED.amount,
@@ -402,7 +408,9 @@ export const createCashfreeOrder = async (req, res) => {
                 receiverPhone: snapPhone || null,
                 latitude: snapLat || null,
                 longitude: snapLng || null,
+                deliveryCharge: Number(snapDeliveryCharge) || 0,
               },
+
               type: QueryTypes.INSERT,
             }
           );
@@ -457,7 +465,9 @@ export const confirmPayment = async (req, res) => {
       receiverPhone,
       latitude,
       longitude,
+      deliveryCharge,
     } = req.body;
+
 
     const authenticatedStudentId = req.user?.id;
 
@@ -503,6 +513,8 @@ export const confirmPayment = async (req, res) => {
     const finalLng = longitude || snapshot?.longitude || null;
     const finalIsParcel = Boolean(isParcel) || Boolean(snapshot?.is_parcel);
     const finalParcelAmount = Number(parcelAmount) || Number(snapshot?.parcel_amount) || 0;
+    const finalDeliveryCharge = Number(deliveryCharge) || Number(snapshot?.delivery_charge) || 0;
+
 
     if (!cashfreeOrderId || !cafeteriaId || !amount || !transactionId) {
       console.error("❌ [VALIDATE] Missing required fields!");
@@ -684,8 +696,10 @@ export const confirmPayment = async (req, res) => {
             receiverPhone: finalReceiverPhone,
             latitude: finalLat,
             longitude: finalLng,
+            deliveryCharge: finalDeliveryCharge,
             deliveryOrderId: null,
             affiliateReward: assignedReward, // ✅ Store reward here
+
           },
           { transaction: t }
         );
@@ -733,8 +747,10 @@ export const confirmPayment = async (req, res) => {
         receiverPhone: finalReceiverPhone || order.receiverPhone,
         latitude: finalLat || order.latitude,
         longitude: finalLng || order.longitude,
+        deliveryCharge: finalDeliveryCharge || order.deliveryCharge,
         deliveryOrderId: order.deliveryOrderId,
       };
+
 
       if (!order.dailyOrderNumber) {
         dailyOrderNumber = await generateDailyOrderNumber(cafeteriaId, t);

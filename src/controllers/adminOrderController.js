@@ -566,7 +566,9 @@ export const getAdminOrders = async (req, res) => {
               orders."delivery_address" AS "deliveryAddress",
               orders."latitude" AS "latitude",
               orders."longitude" AS "longitude",
+              orders."delivery_charge" AS "deliveryCharge",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
+
               users.name AS "customerName"
        FROM orders
        LEFT JOIN users ON users.id = orders."studentid"
@@ -730,6 +732,7 @@ export const updateOrderStatus = async (req, res) => {
       deliveryAddress: order.deliveryAddress,
       latitude: order.latitude,
       longitude: order.longitude,
+      deliveryCharge: order.deliveryCharge,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 

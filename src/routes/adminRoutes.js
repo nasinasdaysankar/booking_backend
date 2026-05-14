@@ -22,6 +22,8 @@ import { verifyOwnerPin } from '../controllers/adminController.js';
 import { getDeliveryPartners, createDeliveryPartner, updatePartnerStatus } from '../controllers/deliveryController.js';
 import { assignPartner } from '../controllers/deliveryWorkflowController.js';
 import { getRecentStockOuts } from '../controllers/menuController.js';
+import { submitDeliveryChargeConfig } from '../controllers/deliveryChargeController.js';
+
 
 
 const router = express.Router();
@@ -261,6 +263,17 @@ router.get("/recent-stockouts", auth, requireRole(['admin']), getRecentStockOuts
  * Body: { pin: "123456" }
  */
 router.post("/verify-owner-pin", auth, requireRole(['admin']), verifyOwnerPin);
+
+
+// ============================================
+// DELIVERY CHARGE CONFIGURATION
+// ============================================
+/**
+ * POST /api/admin/delivery-charges
+ * Submit a new distance-based delivery charge configuration for approval
+ */
+router.post("/delivery-charges", auth, requireRole(['admin']), submitDeliveryChargeConfig);
+
 
 
 export default router;

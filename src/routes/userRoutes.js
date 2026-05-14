@@ -39,6 +39,8 @@ import {
   deleteAccount  // ✅ ADD THIS
 } from "../controllers/userProfileController.js";
 import { getUserRefundHistory } from "../controllers/adminRefundController.js";
+import { getActiveConfig } from "../controllers/deliveryChargeController.js";
+
 
 const router = express.Router();
 
@@ -85,5 +87,10 @@ router.post("/activity", auth, async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to log activity" });
   }
 });
+
+// ============================================
+// DELIVERY CHARGE CONFIGURATION
+// ============================================
+router.get("/delivery-charge-config/active", auth, getActiveConfig);
 
 export default router;

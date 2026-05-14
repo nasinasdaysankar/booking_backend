@@ -29,6 +29,8 @@ import PromotionalPosterModel from "./PromotionalPoster.js";
 import DeliveryPartnerModel from "./DeliveryPartner.js";
 import PartnerFcmTokenModel from "./PartnerFcmToken.js";
 import AffiliateProductModel from "./AffiliateProduct.js";
+import DeliveryChargeConfigModel from "./DeliveryChargeConfig.js";
+
 
 
 
@@ -73,6 +75,8 @@ const PromotionalPoster = PromotionalPosterModel(sequelize);
 const DeliveryPartner = DeliveryPartnerModel(sequelize);
 const PartnerFcmToken = PartnerFcmTokenModel(sequelize);
 const AffiliateProduct = AffiliateProductModel(sequelize);
+const DeliveryChargeConfig = DeliveryChargeConfigModel(sequelize);
+
 
 
 
@@ -174,6 +178,12 @@ PartnerFcmToken.belongsTo(DeliveryPartner, { foreignKey: { name: "partnerId", fi
 AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
 Admin.hasMany(AuditLog, { foreignKey: { name: "adminId", field: "adminid" } });
 
+// Delivery Charge Config Relations
+Admin.hasMany(DeliveryChargeConfig, { foreignKey: 'adminId' });
+DeliveryChargeConfig.belongsTo(Admin, { foreignKey: 'adminId', as: 'creator' });
+DeliveryChargeConfig.belongsTo(Admin, { foreignKey: 'approverId', as: 'approver' });
+
+
 Payment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } });
 Order.hasMany(Payment, { foreignKey: { name: "orderId", field: "orderid" } });
 
@@ -187,6 +197,10 @@ InventoryBatch.belongsTo(InventoryProduct, { foreignKey: "product_id", as: "prod
 InventoryProduct.hasMany(InventoryTransaction, { foreignKey: "product_id", as: "transactions" });
 InventoryTransaction.belongsTo(InventoryProduct, { foreignKey: "product_id", as: "product" });
 
+
+// Cafeteria -> DeliveryChargeConfig
+Cafeteria.hasMany(DeliveryChargeConfig, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+DeliveryChargeConfig.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
 
 // ================= EXPORT =================
 export {
@@ -222,6 +236,8 @@ export {
   DeliveryPartner,
   PartnerFcmToken,
   AffiliateProduct,
+  DeliveryChargeConfig,
 };
+
 
 

@@ -76,6 +76,13 @@ export default (sequelize) => {
         defaultValue: 0.0,
         field: "commission_amount",
       },
+      
+      deliveryCharge: {
+        type: DataTypes.DECIMAL(10, 2),
+        defaultValue: 0.0,
+        field: "delivery_charge",
+      },
+
 
       // ========================================
       // PARCEL INFORMATION

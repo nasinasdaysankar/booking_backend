@@ -181,7 +181,11 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE orders ADD COLUMN IF NOT EXISTS affiliate_reward JSONB`
       );
-      logger.info("✅ orders delivery, support, affiliate, and status ENUM ensured");
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_charge DECIMAL(10, 2) DEFAULT 0.00`
+      );
+      logger.info("✅ orders delivery, support, affiliate, delivery_charge and status ENUM ensured");
+
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure orders delivery/support columns: " + colErr.message);
     }
@@ -377,6 +381,26 @@ const start = async () => {
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure support system tables/columns: " + colErr.message);
     }
+
+    // ✅ Ensure delivery_charge_configs table exists
+    try {
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS delivery_charge_configs (
+          id SERIAL PRIMARY KEY,
+          cafeteriaid INTEGER NOT NULL REFERENCES cafeterias(id) ON DELETE CASCADE,
+          ranges JSONB NOT NULL DEFAULT '{"ranges": []}',
+          status VARCHAR(20) DEFAULT 'PENDING',
+          is_active BOOLEAN DEFAULT false,
+          feedback TEXT,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+        )
+      `);
+      logger.info("✅ delivery_charge_configs table ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure delivery_charge_configs table: " + colErr.message);
+    }
+
 
     // ✅ Ensure affiliate_products columns are TEXT to support long URLs
     try {
