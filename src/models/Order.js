@@ -165,6 +165,24 @@ export default (sequelize) => {
         field: "delivery_address",
       },
 
+      roomNumber: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: "room_number",
+      },
+
+      blockName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: "block_name",
+      },
+
+      receiverPhone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: "receiver_phone",
+      },
+
       latitude: {
         type: DataTypes.DECIMAL(10, 7),
         allowNull: true,

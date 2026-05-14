@@ -228,7 +228,7 @@ async function updateUserStreak(userId, cafeteriaId, transaction) {
 // ===================================================================
 export const createCashfreeOrder = async (req, res) => {
   try {
-    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount, orderType: snapOrderType, deliveryAddress: snapAddress, latitude: snapLat, longitude: snapLng } = req.body;
+    const { items, cafeteriaId, commissionAmount: snapCommission, platformFee: snapPlatformFee, gstAmount: snapGst, isParcel: snapIsParcel, parcelAmount: snapParcelAmount, orderType: snapOrderType, deliveryAddress: snapAddress, latitude: snapLat, longitude: snapLng, roomNumber: snapRoom, blockName: snapBlock, receiverPhone: snapPhone } = req.body;
 
     // 🔍 STOCK CHECK (IF ITEMS PROVIDED)
     if (items && Array.isArray(items) && items.length > 0) {
@@ -337,6 +337,9 @@ export const createCashfreeOrder = async (req, res) => {
               parcel_amount       DECIMAL(10,2) NOT NULL DEFAULT 0,
               order_type          VARCHAR(20) DEFAULT 'DINE_IN',
               delivery_address    TEXT,
+              room_number         VARCHAR(255),
+              block_name          VARCHAR(255),
+              receiver_phone      VARCHAR(255),
               latitude            DECIMAL(10,7),
               longitude           DECIMAL(10,7),
               created_at          TIMESTAMP DEFAULT NOW(),
@@ -347,12 +350,13 @@ export const createCashfreeOrder = async (req, res) => {
           ).catch(() => {});
 
           // 2. Safe Column Migrations
-          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount", "order_type", "delivery_address", "latitude", "longitude", "updated_at"];
+          const columns = ["commission_amount", "platform_fee", "gst_amount", "is_parcel", "parcel_amount", "order_type", "delivery_address", "room_number", "block_name", "receiver_phone", "latitude", "longitude", "updated_at"];
           for (const col of columns) {
             let type = "DECIMAL(10,2) NOT NULL DEFAULT 0";
             if (col === "is_parcel") type = "BOOLEAN NOT NULL DEFAULT false";
             if (col === "order_type") type = "VARCHAR(20) DEFAULT 'DINE_IN'";
             if (col === "delivery_address") type = "TEXT";
+            if (col === "room_number" || col === "block_name" || col === "receiver_phone") type = "VARCHAR(255)";
             if (col === "latitude" || col === "longitude") type = "DECIMAL(10,7)";
             if (col === "updated_at") type = "TIMESTAMP DEFAULT NOW()";
             
@@ -365,14 +369,17 @@ export const createCashfreeOrder = async (req, res) => {
           // 4. Save Snapshot
           await sequelize.query(
             `INSERT INTO order_snapshots
-               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount, order_type, delivery_address, latitude, longitude)
-             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount, :orderType, :deliveryAddress, :latitude, :longitude)
+               (cashfree_order_id, student_id, cafeteria_id, amount, items, commission_amount, platform_fee, gst_amount, is_parcel, parcel_amount, order_type, delivery_address, room_number, block_name, receiver_phone, latitude, longitude)
+             VALUES (:cashfreeOrderId, :studentId, :cafeteriaId, :amount, :items, :commissionAmount, :platformFee, :gstAmount, :isParcel, :parcelAmount, :orderType, :deliveryAddress, :roomNumber, :blockName, :receiverPhone, :latitude, :longitude)
              ON CONFLICT (cashfree_order_id) 
              DO UPDATE SET 
                amount = EXCLUDED.amount,
                items = EXCLUDED.items,
                order_type = EXCLUDED.order_type,
                delivery_address = EXCLUDED.delivery_address,
+               room_number = EXCLUDED.room_number,
+               block_name = EXCLUDED.block_name,
+               receiver_phone = EXCLUDED.receiver_phone,
                latitude = EXCLUDED.latitude,
                longitude = EXCLUDED.longitude,
                updated_at = NOW()`,
@@ -390,6 +397,9 @@ export const createCashfreeOrder = async (req, res) => {
                 parcelAmount: Number(snapParcelAmount) || 0,
                 orderType: snapOrderType || 'DINE_IN',
                 deliveryAddress: snapAddress || null,
+                roomNumber: snapRoom || null,
+                blockName: snapBlock || null,
+                receiverPhone: snapPhone || null,
                 latitude: snapLat || null,
                 longitude: snapLng || null,
               },
@@ -442,6 +452,9 @@ export const confirmPayment = async (req, res) => {
       gstAmount,
       orderType,
       deliveryAddress,
+      roomNumber,
+      blockName,
+      receiverPhone,
       latitude,
       longitude,
     } = req.body;
@@ -483,6 +496,9 @@ export const confirmPayment = async (req, res) => {
     const finalOrderType = (snapshot?.order_type === 'DELIVERY' || orderType === 'DELIVERY') ? 'DELIVERY' : 'DINE_IN';
     console.log(`🎯 [DEBUG TYPE] finalOrderType determined: ${finalOrderType}`);
     const finalAddress = deliveryAddress || snapshot?.delivery_address || null;
+    const finalRoomNumber = roomNumber || snapshot?.room_number || null;
+    const finalBlockName = blockName || snapshot?.block_name || null;
+    const finalReceiverPhone = receiverPhone || snapshot?.receiver_phone || null;
     const finalLat = latitude || snapshot?.latitude || null;
     const finalLng = longitude || snapshot?.longitude || null;
     const finalIsParcel = Boolean(isParcel) || Boolean(snapshot?.is_parcel);
@@ -663,6 +679,9 @@ export const confirmPayment = async (req, res) => {
             gstAmount: Number(gstAmount) || 0,
             orderType: finalOrderType,
             deliveryAddress: finalAddress,
+            roomNumber: finalRoomNumber,
+            blockName: finalBlockName,
+            receiverPhone: finalReceiverPhone,
             latitude: finalLat,
             longitude: finalLng,
             deliveryOrderId: null,
@@ -709,6 +728,9 @@ export const confirmPayment = async (req, res) => {
         gstAmount: Number(gstAmount) || 0,
         orderType: finalOrderType,
         deliveryAddress: finalAddress || order.deliveryAddress,
+        roomNumber: finalRoomNumber || order.roomNumber,
+        blockName: finalBlockName || order.blockName,
+        receiverPhone: finalReceiverPhone || order.receiverPhone,
         latitude: finalLat || order.latitude,
         longitude: finalLng || order.longitude,
         deliveryOrderId: order.deliveryOrderId,

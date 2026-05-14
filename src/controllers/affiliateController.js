@@ -328,9 +328,14 @@ export async function getUserRewards(req, res) {
       let isAvailable = false;
 
       if (isGloballyEnabled && reward && reward.id) {
-        const product = await AffiliateProduct.findByPk(reward.id);
-        if (product && product.isActive) {
-          isAvailable = true;
+        try {
+          const product = await AffiliateProduct.findByPk(reward.id);
+          // Explicitly check for true to avoid any falsy/truthy ambiguity
+          if (product && product.isActive === true) {
+            isAvailable = true;
+          }
+        } catch (err) {
+          console.error(`Error checking product ${reward.id} status:`, err);
         }
       }
 
