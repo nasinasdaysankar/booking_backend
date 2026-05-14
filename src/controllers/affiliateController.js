@@ -318,13 +318,16 @@ export async function getUserRewards(req, res) {
       order: [['createdAt', 'DESC']]
     });
 
+    // Check if affiliate rewards are enabled globally
+    const setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' } });
+    const isGloballyEnabled = !setting || setting.value === 'true';
+
     // We want to check if the reward product is still active
-    // The reward object in order has an 'id' field
     const rewards = await Promise.all(orders.map(async (order) => {
       const reward = order.affiliateReward;
       let isAvailable = false;
 
-      if (reward && reward.id) {
+      if (isGloballyEnabled && reward && reward.id) {
         const product = await AffiliateProduct.findByPk(reward.id);
         if (product && product.isActive) {
           isAvailable = true;

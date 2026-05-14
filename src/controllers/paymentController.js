@@ -623,6 +623,7 @@ export const confirmPayment = async (req, res) => {
         const setting = await SystemSetting.findOne({ where: { key: 'is_affiliate_rewards_enabled' }, transaction: t });
         if (setting && setting.value === 'true') {
           const product = await AffiliateProduct.findOne({
+            where: { isActive: true },
             order: [sequelize.random()],
             transaction: t
           });
