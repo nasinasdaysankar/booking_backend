@@ -29,6 +29,7 @@ export const initNotificationScheduler = () => {
                 const readyOrders = await Order.findAll({
                     where: {
                         status: "READY",
+                        orderType: "DINE_IN", // 🚀 DELIVERY orders don't expire/remind like Dine-in
                         [Op.or]: [
                             { tenMinReminderSent: false },
                             { expirationNotificationSent: false }

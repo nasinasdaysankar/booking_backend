@@ -779,9 +779,14 @@ export const updateOrderStatus = async (req, res) => {
               titleText = "👨‍🍳 Order Preparing...";
               bodyText = `Order #${order.dailyOrderNumber ?? order.id} is being prepared.`;
             } else if (status === "READY") {
-              const buffer = order.Cafeteria?.bufferTime || 20;
-              titleText = `✅ Ready! (Pick up in ${buffer}m)`;
-              bodyText = `Pick up soon or order cancels (No Refund).`;
+              if (order.orderType === "DELIVERY") {
+                titleText = "✅ Order Ready!";
+                bodyText = `Your order is prepared. A delivery partner is being assigned.`;
+              } else {
+                const buffer = order.Cafeteria?.bufferTime || 20;
+                titleText = `✅ Ready! (Pick up in ${buffer}m)`;
+                bodyText = `Pick up soon or order cancels (No Refund).`;
+              }
             }
 
             const bufferMinutes = order.Cafeteria?.bufferTime || 20;
@@ -799,8 +804,8 @@ export const updateOrderStatus = async (req, res) => {
                 status: order.status,
                 type: "ORDER_STATUS_UPDATE",
                 image: notificationImageUrl || "",
-                expiryTimestamp: status === "READY" ? String(expiryTimestamp) : "",
-                expiryTimeISO: status === "READY" ? expiryTimeISO : "",
+                expiryTimestamp: (status === "READY" && order.orderType !== "DELIVERY") ? String(expiryTimestamp) : "",
+                expiryTimeISO: (status === "READY" && order.orderType !== "DELIVERY") ? expiryTimeISO : "",
               },
               android: {
                 priority: "high",
