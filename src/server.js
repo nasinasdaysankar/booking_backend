@@ -140,6 +140,24 @@ const start = async () => {
         `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_address TEXT`
       );
       await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS room_number VARCHAR(255)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS block_name VARCHAR(255)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS receiver_phone VARCHAR(50)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 7)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS longitude DECIMAL(10, 7)`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_order_id VARCHAR(255)`
+      );
+      await sequelize.query(
         `ALTER TYPE "enum_orders_status" ADD VALUE IF NOT EXISTS 'ASSIGNED'`
       );
       await sequelize.query(
@@ -154,7 +172,16 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE orders ADD COLUMN IF NOT EXISTS picked_up_at TIMESTAMP WITH TIME ZONE`
       );
-      logger.info("✅ orders delivery, support, and status ENUM ensured");
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE`
+      );
+      await sequelize.query(
+        `ALTER TABLE orders ADD COLUMN IF NOT EXISTS affiliate_reward JSONB`
+      );
+      logger.info("✅ orders delivery, support, affiliate, and status ENUM ensured");
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure orders delivery/support columns: " + colErr.message);
     }
