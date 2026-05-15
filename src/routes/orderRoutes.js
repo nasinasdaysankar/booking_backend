@@ -30,8 +30,8 @@ router.get("/by-bill/:billId", auth, getOrderByBillId);
 router.post("/", auth, createOrder);
 
 // Get my orders
-router.get("/", auth, getMyOrders);
 router.get("/my-orders", auth, getMyOrders);
+router.get("/", auth, getMyOrders);
 
 
 

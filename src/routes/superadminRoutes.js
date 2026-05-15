@@ -112,7 +112,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showCommission,
             ownerPin,
             isOnlineOrderEnabled,
-            isDeliveryEnabled
+            isDeliveryEnabled,
+            isDineInEnabled
         } = req.body;
 
 
@@ -142,7 +143,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
             showCommission: showCommission !== undefined ? showCommission : true,
             ownerPin,
-            isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true
+            isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
+            isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true
         });
 
 
@@ -150,7 +152,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
         emitCafeteriaUpdate(cafeteria.id, {
             isOpen: cafeteria.isOpen,
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
-            isDeliveryEnabled: cafeteria.isDeliveryEnabled
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled, isDineInEnabled: cafeteria.isDineInEnabled
         });
 
 
@@ -190,7 +192,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             showCommission,
             ownerPin,
             isOnlineOrderEnabled,
-            isDeliveryEnabled
+            isDeliveryEnabled,
+            isDineInEnabled
         } = req.body;
 
 
@@ -217,6 +220,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(ownerPin !== undefined && { ownerPin }),
             ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
             ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
+            ...(isDineInEnabled !== undefined && { isDineInEnabled }),
         });
 
 
@@ -224,7 +228,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
         emitCafeteriaUpdate(cafeteria.id, {
             isOpen: cafeteria.isOpen,
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
-            isDeliveryEnabled: cafeteria.isDeliveryEnabled
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled, isDineInEnabled: cafeteria.isDineInEnabled
         });
 
 

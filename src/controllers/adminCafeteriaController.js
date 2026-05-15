@@ -46,7 +46,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "radiusRequestFeedback",
         "isOnlineOrderEnabled",
         "isPureVeg",
-        "isDeliveryEnabled",
+        "isDeliveryEnabled", "isDineInEnabled",
       ],
     });
 
@@ -105,7 +105,7 @@ export const getMyCafeterias = async (req, res) => {
         "radiusRequestStatus",
         "radiusRequestFeedback",
         "isPureVeg",
-        "isDeliveryEnabled",
+        "isDeliveryEnabled", "isDineInEnabled",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -154,6 +154,7 @@ export const updateCafeteria = async (req, res) => {
       isOnlineOrderEnabled,
       isPureVeg,
       isDeliveryEnabled,
+      isDineInEnabled,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -194,6 +195,7 @@ export const updateCafeteria = async (req, res) => {
     if (isOnlineOrderEnabled !== undefined) cafeteria.isOnlineOrderEnabled = isOnlineOrderEnabled;
     if (isPureVeg !== undefined) cafeteria.isPureVeg = isPureVeg;
     if (isDeliveryEnabled !== undefined) cafeteria.isDeliveryEnabled = isDeliveryEnabled;
+    if (isDineInEnabled !== undefined) cafeteria.isDineInEnabled = isDineInEnabled;
 
     if (visibilityRadius !== undefined) {
       // Only process radius changes if the new value is different from the currently active value.
@@ -228,7 +230,8 @@ export const updateCafeteria = async (req, res) => {
       isOffline: cafeteria.isOffline,
       isBusy: cafeteria.isBusy,
       isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
-      isDeliveryEnabled: cafeteria.isDeliveryEnabled
+      isDeliveryEnabled: cafeteria.isDeliveryEnabled,
+      isDineInEnabled: cafeteria.isDineInEnabled
     });
 
     return res.json({
@@ -260,6 +263,7 @@ export const updateCafeteria = async (req, res) => {
         radiusRequestFeedback: cafeteria.radiusRequestFeedback,
         isPureVeg: cafeteria.isPureVeg,
         isDeliveryEnabled: cafeteria.isDeliveryEnabled,
+        isDineInEnabled: cafeteria.isDineInEnabled,
       },
     });
   } catch (err) {
