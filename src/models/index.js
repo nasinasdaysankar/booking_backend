@@ -178,10 +178,12 @@ PartnerFcmToken.belongsTo(DeliveryPartner, { foreignKey: { name: "partnerId", fi
 AuditLog.belongsTo(Admin, { foreignKey: { name: "adminId", field: "adminid" } });
 Admin.hasMany(AuditLog, { foreignKey: { name: "adminId", field: "adminid" } });
 
-// Delivery Charge Config Relations
-Admin.hasMany(DeliveryChargeConfig, { foreignKey: 'adminId' });
-DeliveryChargeConfig.belongsTo(Admin, { foreignKey: 'adminId', as: 'creator' });
-DeliveryChargeConfig.belongsTo(Admin, { foreignKey: 'approverId', as: 'approver' });
+// Admin -> DeliveryChargeConfig (Creator)
+Admin.hasMany(DeliveryChargeConfig, { foreignKey: { name: 'adminId', field: 'admin_id' } });
+DeliveryChargeConfig.belongsTo(Admin, { foreignKey: { name: 'adminId', field: 'admin_id' }, as: 'creator' });
+
+// Admin -> DeliveryChargeConfig (Approver)
+DeliveryChargeConfig.belongsTo(Admin, { foreignKey: { name: 'approverId', field: 'approver_id' }, as: 'approver' });
 
 
 Payment.belongsTo(Order, { foreignKey: { name: "orderId", field: "orderid" } });
@@ -199,8 +201,8 @@ InventoryTransaction.belongsTo(InventoryProduct, { foreignKey: "product_id", as:
 
 
 // Cafeteria -> DeliveryChargeConfig
-Cafeteria.hasMany(DeliveryChargeConfig, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
-DeliveryChargeConfig.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteriaid" } });
+Cafeteria.hasMany(DeliveryChargeConfig, { foreignKey: { name: "cafeteriaId", field: "cafeteria_id" } });
+DeliveryChargeConfig.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "cafeteria_id" } });
 
 // ================= EXPORT =================
 export {
