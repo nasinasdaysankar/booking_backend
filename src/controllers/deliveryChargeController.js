@@ -50,7 +50,8 @@ export const getPendingConfigs = async (req, res) => {
 export const approveConfig = async (req, res) => {
     try {
         const { id } = req.params;
-        const approverId = req.user.id || 0; // superadminAuth might set req.user
+        // If ID is 0 (Superadmin), set to null to avoid Foreign Key constraint error in 'admins' table
+        const approverId = (req.user && req.user.id !== 0) ? req.user.id : null; 
 
         const config = await DeliveryChargeConfig.findByPk(id);
         if (!config) {
