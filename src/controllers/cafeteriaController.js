@@ -48,7 +48,8 @@ export const getCafeterias = async (req, res) => {
         'isBusy',
         'visibilityRadius',
         'isOnlineOrderEnabled',
-        'isDeliveryEnabled'
+        'isDeliveryEnabled',
+        'isDineInEnabled'
       ],
       where: {
         isOnlineOrderEnabled: true,
