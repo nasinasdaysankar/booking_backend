@@ -31,6 +31,7 @@ router.post("/", auth, createOrder);
 
 // Get my orders
 router.get("/", auth, getMyOrders);
+router.get("/my-orders", auth, getMyOrders);
 
 
 
