@@ -47,6 +47,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "isOnlineOrderEnabled",
         "isPureVeg",
         "isDeliveryEnabled", "isDineInEnabled",
+        "isCampusOnly",
       ],
     });
 
@@ -106,6 +107,7 @@ export const getMyCafeterias = async (req, res) => {
         "radiusRequestFeedback",
         "isPureVeg",
         "isDeliveryEnabled", "isDineInEnabled",
+        "isCampusOnly",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -155,6 +157,7 @@ export const updateCafeteria = async (req, res) => {
       isPureVeg,
       isDeliveryEnabled,
       isDineInEnabled,
+      isCampusOnly,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -196,6 +199,7 @@ export const updateCafeteria = async (req, res) => {
     if (isPureVeg !== undefined) cafeteria.isPureVeg = isPureVeg;
     if (isDeliveryEnabled !== undefined) cafeteria.isDeliveryEnabled = isDeliveryEnabled;
     if (isDineInEnabled !== undefined) cafeteria.isDineInEnabled = isDineInEnabled;
+    if (isCampusOnly !== undefined) cafeteria.isCampusOnly = isCampusOnly;
 
     if (visibilityRadius !== undefined) {
       // Only process radius changes if the new value is different from the currently active value.
@@ -231,7 +235,8 @@ export const updateCafeteria = async (req, res) => {
       isBusy: cafeteria.isBusy,
       isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
       isDeliveryEnabled: cafeteria.isDeliveryEnabled,
-      isDineInEnabled: cafeteria.isDineInEnabled
+      isDineInEnabled: cafeteria.isDineInEnabled,
+      isCampusOnly: cafeteria.isCampusOnly
     });
 
     return res.json({
@@ -264,6 +269,7 @@ export const updateCafeteria = async (req, res) => {
         isPureVeg: cafeteria.isPureVeg,
         isDeliveryEnabled: cafeteria.isDeliveryEnabled,
         isDineInEnabled: cafeteria.isDineInEnabled,
+        isCampusOnly: cafeteria.isCampusOnly,
       },
     });
   } catch (err) {

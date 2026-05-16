@@ -113,7 +113,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             ownerPin,
             isOnlineOrderEnabled,
             isDeliveryEnabled,
-            isDineInEnabled
+            isDineInEnabled,
+            isCampusOnly
         } = req.body;
 
 
@@ -144,7 +145,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showCommission: showCommission !== undefined ? showCommission : true,
             ownerPin,
             isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
-            isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true
+            isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true,
+            isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false
         });
 
 
@@ -152,7 +154,9 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
         emitCafeteriaUpdate(cafeteria.id, {
             isOpen: cafeteria.isOpen,
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
-            isDeliveryEnabled: cafeteria.isDeliveryEnabled, isDineInEnabled: cafeteria.isDineInEnabled
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled, 
+            isDineInEnabled: cafeteria.isDineInEnabled,
+            isCampusOnly: cafeteria.isCampusOnly
         });
 
 
@@ -193,7 +197,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ownerPin,
             isOnlineOrderEnabled,
             isDeliveryEnabled,
-            isDineInEnabled
+            isDineInEnabled,
+            isCampusOnly
         } = req.body;
 
 
@@ -221,6 +226,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
             ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
             ...(isDineInEnabled !== undefined && { isDineInEnabled }),
+            ...(isCampusOnly !== undefined && { isCampusOnly }),
         });
 
 
@@ -228,7 +234,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
         emitCafeteriaUpdate(cafeteria.id, {
             isOpen: cafeteria.isOpen,
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
-            isDeliveryEnabled: cafeteria.isDeliveryEnabled, isDineInEnabled: cafeteria.isDineInEnabled
+            isDeliveryEnabled: cafeteria.isDeliveryEnabled, 
+            isDineInEnabled: cafeteria.isDineInEnabled,
+            isCampusOnly: cafeteria.isCampusOnly
         });
 
 

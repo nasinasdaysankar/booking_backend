@@ -13,20 +13,20 @@ export const auth = async (req, res, next) => {
   try {
     const header = req.headers.authorization;
     if (!header || !header.startsWith("Bearer ")) {
-       return res.status(401).json({ success: false, message: "Token missing" });
+      return res.status(401).json({ success: false, message: "Token missing" });
     }
 
     const token = header.split(" ")[1];
-    
+
     // 🔥 DEBUG LOGGING
     if (!token) {
-        console.error("❌ [AUTH] Token extraction failed - Header:", header);
+      console.error("❌ [AUTH] Token extraction failed - Header:", header);
     } else {
-       // Only log first 20 chars for security, unless it's malformed then we need to see it
-       console.log("🔍 [AUTH] Verifying token:", token.substring(0, 20) + "..."); 
-       console.log("   Token Length:", token.length);
+      // Only log first 20 chars for security, unless it's malformed then we need to see it
+      console.log("🔍 [AUTH] Verifying token:", token.substring(0, 20) + "...");
+      console.log("   Token Length:", token.length);
     }
-    
+
     // Check for common issues
     if (token.includes('"')) console.warn("⚠️ [AUTH] Token contains quotes!");
 
@@ -153,7 +153,7 @@ export const superadminAuth = async (req, res, next) => {
     }
 
     const token = header.split(" ")[1];
-    
+
     // Verify using the dedicated superadmin secret
     const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
 
@@ -165,7 +165,7 @@ export const superadminAuth = async (req, res, next) => {
       id: payload.id,
       role: 'superadmin'
     };
-    
+
     next();
   } catch (err) {
     console.error("❌ [SUPERADMIN AUTH] Error:", err.message);
@@ -207,7 +207,7 @@ export const verifyWebhookKey = (req, res, next) => {
 export const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
- 
+
 // Middleware that allows EITHER regular admin (JWT_SECRET) OR superadmin (SUPERADMIN_JWT_SECRET)
 export const eitherAdminAuth = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -215,7 +215,7 @@ export const eitherAdminAuth = async (req, res, next) => {
     return res.status(401).json({ success: false, message: "Token missing" });
   }
   const token = header.split(" ")[1];
- 
+
   // 1. Try Superadmin first
   try {
     const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
@@ -223,22 +223,22 @@ export const eitherAdminAuth = async (req, res, next) => {
       req.user = { id: payload.id, role: 'superadmin', userType: 'admin' };
       return next();
     }
-  } catch (_) {}
- 
+  } catch (_) { }
+
   // 2. Try Regular Admin
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (payload.role === 'admin' || payload.role === 'superadmin') {
-      req.user = { 
-        id: payload.id, 
-        role: payload.role || 'admin', 
+      req.user = {
+        id: payload.id,
+        role: payload.role || 'admin',
         cafeteriaId: payload.cafeteriaId || null,
         userType: 'admin'
       };
       return next();
     }
-  } catch (_) {}
- 
+  } catch (_) { }
+
   return res.status(401).json({ success: false, message: "Unauthorized: Access denied" });
 };
 
@@ -255,19 +255,19 @@ export const eitherAuth = async (req, res, next) => {
     try {
       const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
       if (payload.role === 'superadmin') {
-        req.user = { 
-          id: payload.id, 
+        req.user = {
+          id: payload.id,
           role: 'superadmin',
-          userType: 'admin' 
+          userType: 'admin'
         };
         return next();
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. Try Regular JWT (Admin App / User App)
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      
+
       const cacheKey = CACHE_KEYS.AUTH(payload.id);
       let userData = await getCache(cacheKey);
 

@@ -212,6 +212,11 @@ export default (sequelize) => {
         defaultValue: true,
         field: "is_dine_in_enabled",
       },
+      isCampusOnly: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        field: "is_campus_only",
+      },
     },
 
     {
