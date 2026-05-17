@@ -62,6 +62,12 @@ export default (sequelize) => {
         field: "isinsidecampus",
       },
 
+      campusName: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: "campus_name",
+      },
+
       ownerId: {
         type: DataTypes.INTEGER,
         allowNull: false,

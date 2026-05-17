@@ -26,6 +26,7 @@ import {
 } from "../controllers/supportTicketController.js";
 import { getDeliveryPartners, createDeliveryPartner, updatePartnerStatus } from "../controllers/deliveryController.js";
 import { getPendingConfigs, approveConfig, rejectConfig } from "../controllers/deliveryChargeController.js";
+import { createOrUpdateCampusBoundary, deleteCampusBoundary, getCampusBoundary } from '../controllers/campusBoundaryController.js';
 
 
 const router = express.Router();
@@ -114,7 +115,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled,
             isDeliveryEnabled,
             isDineInEnabled,
-            isCampusOnly
+            isCampusOnly,
+            campusName
         } = req.body;
 
 
@@ -146,7 +148,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             ownerPin,
             isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
             isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true,
-            isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false
+            isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false,
+            campusName: campusName || null
         });
 
 
@@ -198,7 +201,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled,
             isDeliveryEnabled,
             isDineInEnabled,
-            isCampusOnly
+            isCampusOnly,
+            campusName
         } = req.body;
 
 
@@ -227,6 +231,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
             ...(isDineInEnabled !== undefined && { isDineInEnabled }),
             ...(isCampusOnly !== undefined && { isCampusOnly }),
+            ...(campusName !== undefined && { campusName: campusName || null }),
         });
 
 
@@ -1903,6 +1908,13 @@ router.post("/delivery-partners", superadminAuth, createDeliveryPartner);
  * Update status/online status of a partner
  */
 router.patch("/delivery-partners/:id", superadminAuth, updatePartnerStatus);
+
+// ==========================================
+// CAMPUS BOUNDARY GEOFENCING API
+// ==========================================
+router.get("/campus-boundaries", superadminAuth, getCampusBoundary);
+router.post("/campus-boundary", superadminAuth, createOrUpdateCampusBoundary);
+router.delete("/campus-boundary/:name", superadminAuth, deleteCampusBoundary);
 
 export default router;
 

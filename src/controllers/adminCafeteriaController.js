@@ -48,6 +48,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "isPureVeg",
         "isDeliveryEnabled", "isDineInEnabled",
         "isCampusOnly",
+        "campusName",
       ],
     });
 
@@ -108,6 +109,7 @@ export const getMyCafeterias = async (req, res) => {
         "isPureVeg",
         "isDeliveryEnabled", "isDineInEnabled",
         "isCampusOnly",
+        "campusName",
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -158,6 +160,7 @@ export const updateCafeteria = async (req, res) => {
       isDeliveryEnabled,
       isDineInEnabled,
       isCampusOnly,
+      campusName,
     } = req.body;
 
     // 🔒 Admin can update only their cafeteria
@@ -200,6 +203,7 @@ export const updateCafeteria = async (req, res) => {
     if (isDeliveryEnabled !== undefined) cafeteria.isDeliveryEnabled = isDeliveryEnabled;
     if (isDineInEnabled !== undefined) cafeteria.isDineInEnabled = isDineInEnabled;
     if (isCampusOnly !== undefined) cafeteria.isCampusOnly = isCampusOnly;
+    if (campusName !== undefined) cafeteria.campusName = campusName || null;
 
     if (visibilityRadius !== undefined) {
       // Only process radius changes if the new value is different from the currently active value.
@@ -270,6 +274,7 @@ export const updateCafeteria = async (req, res) => {
         isDeliveryEnabled: cafeteria.isDeliveryEnabled,
         isDineInEnabled: cafeteria.isDineInEnabled,
         isCampusOnly: cafeteria.isCampusOnly,
+        campusName: cafeteria.campusName,
       },
     });
   } catch (err) {
