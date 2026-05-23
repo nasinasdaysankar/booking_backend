@@ -110,14 +110,12 @@ export const assignPartner = async (req, res) => {
       readyReminderCount: order.readyReminderCount,
     });
 
+    // Fetch full order for consistent notifications
+    const sanitizedOrder = await getSanitizedOrderForNotify(order.id);
+
     // 2. Emit Socket to User & Admin
     emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "ASSIGNED" });
-    emitAdminOrderUpdate(order.cafeteriaId, { 
-      orderId: order.id, 
-      status: "ASSIGNED", 
-      partnerName: partner.name,
-      orderType: order.orderType,
-    });
+    emitAdminOrderUpdate(order.cafeteriaId, sanitizedOrder);
 
     // 3. Send Push Notification to Partner
     const partnerTokens = await PartnerFcmToken.findAll({ where: { partnerId: partner.id } });
