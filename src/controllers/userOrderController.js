@@ -77,8 +77,8 @@ export const submitOrderFeedback = async (req, res) => {
       });
     }
 
-    // ✅ 3. VERIFY STATUS (must be PICKED_UP or DELIVERED)
-    if (order.status !== "PICKED_UP" && order.status !== "DELIVERED") {
+    // ✅ 3. VERIFY STATUS (must be PICKED_UP, DELIVERED, COMPLETED, or SERVED)
+    if (!["PICKED_UP", "DELIVERED", "COMPLETED", "SERVED"].includes(order.status)) {
       console.log(
         "❌ Order status not allowed for feedback, actual status:",
         order.status
