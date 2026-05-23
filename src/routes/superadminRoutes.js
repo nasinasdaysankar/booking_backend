@@ -115,6 +115,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled,
             isDeliveryEnabled,
             isDineInEnabled,
+            isManualOrderEnabled,
             isCampusOnly,
             campusName
         } = req.body;
@@ -148,6 +149,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             ownerPin,
             isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
             isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true,
+            isManualOrderEnabled: isManualOrderEnabled !== undefined ? isManualOrderEnabled : true,
             isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false,
             campusName: campusName || null
         });
@@ -159,6 +161,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
             isDeliveryEnabled: cafeteria.isDeliveryEnabled, 
             isDineInEnabled: cafeteria.isDineInEnabled,
+            isManualOrderEnabled: cafeteria.isManualOrderEnabled,
             isCampusOnly: cafeteria.isCampusOnly
         });
 
@@ -201,6 +204,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled,
             isDeliveryEnabled,
             isDineInEnabled,
+            isManualOrderEnabled,
             isCampusOnly,
             campusName
         } = req.body;
@@ -230,6 +234,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
             ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
             ...(isDineInEnabled !== undefined && { isDineInEnabled }),
+            ...(isManualOrderEnabled !== undefined && { isManualOrderEnabled }),
             ...(isCampusOnly !== undefined && { isCampusOnly }),
             ...(campusName !== undefined && { campusName: campusName || null }),
         });

@@ -50,6 +50,7 @@ export const getCafeterias = async (req, res) => {
         'isOnlineOrderEnabled',
         'isDeliveryEnabled',
         'isDineInEnabled',
+        'isManualOrderEnabled',
         'isCampusOnly',
         'campusName'
       ],

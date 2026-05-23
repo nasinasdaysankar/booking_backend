@@ -233,7 +233,10 @@ const start = async () => {
       await sequelize.query(
         `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS is_online_order_enabled BOOLEAN DEFAULT true`
       );
-      logger.info("✅ cafeterias.visibility_radius, delivery_fee and online_order_toggle columns ensured");
+      await sequelize.query(
+        `ALTER TABLE cafeterias ADD COLUMN IF NOT EXISTS is_manual_order_enabled BOOLEAN DEFAULT true`
+      );
+      logger.info("✅ cafeterias.visibility_radius, delivery_fee, online_order_toggle and manual_order_toggle columns ensured");
     } catch (colErr) {
       logger.warn("⚠️ Could not ensure cafeterias visibility radius/delivery columns: " + colErr.message);
     }

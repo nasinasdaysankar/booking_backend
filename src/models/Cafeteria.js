@@ -218,6 +218,11 @@ export default (sequelize) => {
         defaultValue: true,
         field: "is_dine_in_enabled",
       },
+      isManualOrderEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "is_manual_order_enabled",
+      },
       isCampusOnly: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,

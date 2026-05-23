@@ -46,7 +46,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "radiusRequestFeedback",
         "isOnlineOrderEnabled",
         "isPureVeg",
-        "isDeliveryEnabled", "isDineInEnabled",
+        "isDeliveryEnabled", "isDineInEnabled", "isManualOrderEnabled",
         "isCampusOnly",
         "campusName",
       ],
@@ -107,7 +107,7 @@ export const getMyCafeterias = async (req, res) => {
         "radiusRequestStatus",
         "radiusRequestFeedback",
         "isPureVeg",
-        "isDeliveryEnabled", "isDineInEnabled",
+        "isDeliveryEnabled", "isDineInEnabled", "isManualOrderEnabled",
         "isCampusOnly",
         "campusName",
       ],
@@ -159,6 +159,7 @@ export const updateCafeteria = async (req, res) => {
       isPureVeg,
       isDeliveryEnabled,
       isDineInEnabled,
+      isManualOrderEnabled,
       isCampusOnly,
       campusName,
     } = req.body;
@@ -202,6 +203,7 @@ export const updateCafeteria = async (req, res) => {
     if (isPureVeg !== undefined) cafeteria.isPureVeg = isPureVeg;
     if (isDeliveryEnabled !== undefined) cafeteria.isDeliveryEnabled = isDeliveryEnabled;
     if (isDineInEnabled !== undefined) cafeteria.isDineInEnabled = isDineInEnabled;
+    if (isManualOrderEnabled !== undefined) cafeteria.isManualOrderEnabled = isManualOrderEnabled;
     if (isCampusOnly !== undefined) cafeteria.isCampusOnly = isCampusOnly;
     if (campusName !== undefined) cafeteria.campusName = campusName || null;
 
@@ -240,6 +242,7 @@ export const updateCafeteria = async (req, res) => {
       isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
       isDeliveryEnabled: cafeteria.isDeliveryEnabled,
       isDineInEnabled: cafeteria.isDineInEnabled,
+      isManualOrderEnabled: cafeteria.isManualOrderEnabled,
       isCampusOnly: cafeteria.isCampusOnly
     });
 
@@ -273,6 +276,7 @@ export const updateCafeteria = async (req, res) => {
         isPureVeg: cafeteria.isPureVeg,
         isDeliveryEnabled: cafeteria.isDeliveryEnabled,
         isDineInEnabled: cafeteria.isDineInEnabled,
+        isManualOrderEnabled: cafeteria.isManualOrderEnabled,
         isCampusOnly: cafeteria.isCampusOnly,
         campusName: cafeteria.campusName,
       },
