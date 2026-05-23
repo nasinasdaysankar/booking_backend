@@ -8,6 +8,7 @@ import {
   getMyOrders,
   getOrderById,
   getOrderByBillId, // ✅ ADDED
+  getLastDeliveryOrder,
 } from "../controllers/orderController.js";
 
 import {
@@ -19,6 +20,9 @@ import {
 import { getActiveOrders } from "../controllers/orderStatusController.js";
 
 // ================= USER ORDER ROUTES =================
+
+// 🔥 GET LAST DELIVERY DETAILS (MUST BE ABOVE :id)
+router.get("/last-delivery", auth, getLastDeliveryOrder);
 
 // 🔥 ACTIVE ORDER MUST COME BEFORE :id
 router.get("/active", auth, getActiveOrders);

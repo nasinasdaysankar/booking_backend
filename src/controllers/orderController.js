@@ -420,3 +420,38 @@ export const getOrderByBillId = async (req, res) => {
   }
 };
 
+export const getLastDeliveryOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const order = await Order.findOne({
+      where: {
+        studentId: userId,
+        orderType: 'DELIVERY',
+        status: { [Op.ne]: 'CANCELLED' }
+      },
+      attributes: ['deliveryAddress', 'roomNumber', 'blockName', 'receiverPhone', 'latitude', 'longitude'],
+      order: [['createdAt', 'DESC']],
+      limit: 1
+    });
+
+    if (!order) {
+      return res.json({ success: false, message: "No previous delivery order found" });
+    }
+
+    return res.json({
+      success: true,
+      deliveryDetails: {
+        deliveryAddress: order.deliveryAddress,
+        roomNumber: order.roomNumber,
+        blockName: order.blockName,
+        receiverPhone: order.receiverPhone,
+        latitude: order.latitude ? parseFloat(order.latitude) : null,
+        longitude: order.longitude ? parseFloat(order.longitude) : null
+      }
+    });
+  } catch (err) {
+    console.error("🔥 GET LAST DELIVERY ORDER ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
