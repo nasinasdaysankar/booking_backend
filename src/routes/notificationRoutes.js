@@ -135,7 +135,7 @@ router.post("/save-user-token", auth, async (req, res) => {
 });
 
 
-router.post("/api/notify/geofence-event", auth, async (req, res) => {
+router.post("/geofence-event", auth, async (req, res) => {
   try {
     const { cafeteriaId, cafeteriaName, eventType } = req.body;
     const userId = req.user.id;
@@ -174,8 +174,8 @@ router.post("/api/notify/geofence-event", auth, async (req, res) => {
     const { success, error } = await sendNotification(message, userId);
 
     if (success) {
-        console.log("✅ FCM push sent");
-        res.json({ success: true });
+      console.log("✅ FCM push sent");
+      res.json({ success: true });
     }
   } catch (error) {
     console.error("❌ Geofence notification error:", error);
@@ -184,7 +184,7 @@ router.post("/api/notify/geofence-event", auth, async (req, res) => {
 });
 
 // Optional: Admin can manually send notifications
-router.post('/api/notify/send-geofence-notification', async (req, res) => {
+router.post('/send-geofence-notification', async (req, res) => {
   try {
     const { cafeteriaId } = req.body;
 

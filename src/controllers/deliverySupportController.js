@@ -27,15 +27,18 @@ export const reportDeliveryIssue = async (req, res) => {
 
     // Handle specific issue logic
     if (issueType === 'UNREACHABLE') {
-      const tokens = await UserFcmToken.findAll({ where: { studentId: order.studentId } });
-      const tokenStrings = tokens.map(t => t.token);
+      const tokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      const tokenStrings = tokens.map(t => t.fcmToken);
 
       if (tokenStrings.length > 0) {
         await sendPushNotification(
           tokenStrings,
           "🚨 Partner Waiting!",
           "Your delivery partner is at your location but cannot reach you. Please contact them immediately.",
-          { type: 'PARTNER_WAITING', orderId: orderId.toString() }
+          { type: 'PARTNER_WAITING', orderId: orderId.toString() },
+          order.studentId,
+          false,
+          "delivery_updates_channel"
         );
       }
     }
@@ -90,6 +93,26 @@ export const markUnableToDeliver = async (req, res) => {
       status: 'CANCELLED',
       supportNotes: `UNDELIVERABLE: Customer was unreachable after ${diffMins} minutes.`
     });
+
+    // Send Push Notification to User
+    try {
+      const tokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      const tokenStrings = tokens.map(t => t.fcmToken);
+
+      if (tokenStrings.length > 0) {
+        await sendPushNotification(
+          tokenStrings,
+          "❌ Order Cancelled (Undeliverable)",
+          `Your order #${order.billId || order.id} has been cancelled because you were unreachable.`,
+          { type: 'ORDER_CANCELLED', orderId: orderId.toString() },
+          order.studentId,
+          false,
+          "delivery_updates_channel"
+        );
+      }
+    } catch (pushErr) {
+      console.error("❌ [CANCELLED_UNDELIVERABLE_PUSH] ERROR:", pushErr.message);
+    }
 
     emitAdminOrderUpdate(order.cafeteriaId, { orderId, status: 'CANCELLED' });
 

@@ -135,6 +135,28 @@ export const assignPartner = async (req, res) => {
       );
     }
 
+    // 4. Send Push Notification to User (Student)
+    try {
+      const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      if (userTokens.length > 0) {
+        await sendPushNotification(
+          userTokens.map(t => t.fcmToken),
+          "Delivery Partner Assigned 🛵",
+          `${partner.name} has been assigned to deliver your order #${order.billId || order.id}.`,
+          { 
+            orderId: order.id.toString(), 
+            type: "PARTNER_ASSIGNED",
+            target_screen: "ORDER_HISTORY",
+          },
+          order.studentId,
+          false,
+          "delivery_updates_channel"
+        );
+      }
+    } catch (pushErr) {
+      console.error("❌ [USER_ASSIGN_PUSH] ERROR:", pushErr.message);
+    }
+
     console.log(`✅ Order ${orderId} assigned to Partner ${partnerId} (${partner.name})`);
     res.json({ message: "Order assigned successfully", order });
   } catch (err) {
@@ -461,8 +483,8 @@ export const generateDeliveryOtp = async (req, res) => {
       if (userTokens.length > 0) {
         await sendPushNotification(
           userTokens.map(t => t.fcmToken),
-          "Out for Delivery! 🛵",
-          `OTP for order #${order.billId || order.id} is ${otp}.`,
+          `🔑 Delivery OTP: ${otp}`,
+          `Use code ${otp} to verify your delivery for order #${order.billId || order.id}.`,
           { 
             orderId: order.id.toString(), 
             type: "DELIVERY_OTP_REGENERATED",
@@ -519,6 +541,28 @@ export const verifyDeliveryOtp = async (req, res) => {
 
     emitOrderStatusToUser(order.studentId, { orderId: order.id, status: "COMPLETED" });
     emitAdminOrderUpdate(order.cafeteriaId, finalOrder);
+
+    // Send Push Notification to User (Student)
+    try {
+      const userTokens = await UserFcmToken.findAll({ where: { userId: order.studentId } });
+      if (userTokens.length > 0) {
+        await sendPushNotification(
+          userTokens.map(t => t.fcmToken),
+          "Order Delivered! 🥳",
+          `Your order #${order.billId || order.id} has been successfully delivered.`,
+          { 
+            orderId: order.id.toString(), 
+            type: "DELIVERY_COMPLETED",
+            target_screen: "ORDER_HISTORY",
+          },
+          order.studentId,
+          false,
+          "delivery_updates_channel"
+        );
+      }
+    } catch (pushErr) {
+      console.error("❌ [DELIVERY_DELIVERED_PUSH] ERROR:", pushErr.message);
+    }
 
     res.json({ message: "Delivery verified successfully" });
   } catch (err) {

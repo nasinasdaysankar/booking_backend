@@ -757,8 +757,8 @@ export const updateOrderStatus = async (req, res) => {
       console.log("✅ Partner socket notification sent");
     }
 
-    // 🔔 FCM → USER (BACKGROUND - ONLY FOR PREPARING AND READY)
-    if (status === "PREPARING" || status === "READY") {
+    // 🔔 FCM → USER (BACKGROUND - PREPARING, READY, COMPLETED, CANCELLED)
+    if (status === "PREPARING" || status === "READY" || status === "COMPLETED" || status === "CANCELLED") {
       (async () => {
         try {
           const userTokens = await UserFcmToken.findAll({
@@ -766,18 +766,19 @@ export const updateOrderStatus = async (req, res) => {
             order: [['updatedAt', 'DESC']],
             limit: 3
           });
-
+ 
           if (userTokens.length > 0) {
             const trackSnaps = {
               "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep_v3.png",
-              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png"
+              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png",
+              "COMPLETED": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png"
             };
-
+ 
             const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
             
             let titleText = "";
             let bodyText = "";
-
+ 
             if (status === "PREPARING") {
               titleText = "👨‍🍳 Order Preparing...";
               bodyText = `Order #${order.dailyOrderNumber ?? order.id} is being prepared.`;
@@ -790,6 +791,12 @@ export const updateOrderStatus = async (req, res) => {
                 titleText = `✅ Ready! (Pick up in ${buffer}m)`;
                 bodyText = `Pick up soon or order cancels (No Refund).`;
               }
+            } else if (status === "COMPLETED") {
+              titleText = "🍽️ Order Completed!";
+              bodyText = `Hope you enjoyed your meal! Order #${order.dailyOrderNumber ?? order.id} has been completed.`;
+            } else if (status === "CANCELLED") {
+              titleText = "❌ Order Cancelled";
+              bodyText = `Order #${order.dailyOrderNumber ?? order.id} has been cancelled by the cafeteria.`;
             }
 
             const bufferMinutes = order.Cafeteria?.bufferTime || 20;
