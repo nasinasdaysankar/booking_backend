@@ -212,7 +212,7 @@ export const getAssignedOrders = async (req, res) => {
         'id', 'billId', 'status', 'totalAmount', 'orderType', 
         'deliveryAddress', 'roomNumber', 'blockName', 'receiverPhone',
         'latitude', 'longitude', 'deliveryOtp', 'readyReminderCount', 
-        'pickedUpAt', 'assignedAt', 'createdAt', 'updatedAt'
+        'pickedUpAt', 'assignedAt', 'createdAt', 'updatedAt', 'deliveryOrderId'
       ],
       include: [
         { 
@@ -238,6 +238,7 @@ export const getAssignedOrders = async (req, res) => {
         ...plain,
         orderType: finalOrderType,
         totalAmount: parseFloat(plain.totalAmount || 0),
+        deliveryOrderId: plain.deliveryOrderId,
         customerName: plain.User?.name || 'Guest User',
         customerPhone: plain.User?.phone || '',
         deliveryAddress: plain.deliveryAddress || 'No Address Provided',

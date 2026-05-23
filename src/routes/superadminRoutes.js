@@ -116,6 +116,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isDeliveryEnabled,
             isDineInEnabled,
             isManualOrderEnabled,
+            isInsideCampus,
             isCampusOnly,
             campusName
         } = req.body;
@@ -150,6 +151,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
             isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true,
             isManualOrderEnabled: isManualOrderEnabled !== undefined ? isManualOrderEnabled : true,
+            isInsideCampus: isInsideCampus !== undefined ? isInsideCampus : false,
             isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false,
             campusName: campusName || null
         });
@@ -162,6 +164,7 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isDeliveryEnabled: cafeteria.isDeliveryEnabled, 
             isDineInEnabled: cafeteria.isDineInEnabled,
             isManualOrderEnabled: cafeteria.isManualOrderEnabled,
+            isInsideCampus: cafeteria.isInsideCampus,
             isCampusOnly: cafeteria.isCampusOnly
         });
 
@@ -205,6 +208,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isDeliveryEnabled,
             isDineInEnabled,
             isManualOrderEnabled,
+            isInsideCampus,
             isCampusOnly,
             campusName
         } = req.body;
@@ -235,6 +239,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
             ...(isDineInEnabled !== undefined && { isDineInEnabled }),
             ...(isManualOrderEnabled !== undefined && { isManualOrderEnabled }),
+            ...(isInsideCampus !== undefined && { isInsideCampus }),
             ...(isCampusOnly !== undefined && { isCampusOnly }),
             ...(campusName !== undefined && { campusName: campusName || null }),
         });
@@ -246,6 +251,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
             isDeliveryEnabled: cafeteria.isDeliveryEnabled, 
             isDineInEnabled: cafeteria.isDineInEnabled,
+            isManualOrderEnabled: cafeteria.isManualOrderEnabled,
+            isInsideCampus: cafeteria.isInsideCampus,
             isCampusOnly: cafeteria.isCampusOnly
         });
 
