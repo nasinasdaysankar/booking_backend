@@ -1,6 +1,7 @@
 import { Cafeteria } from "../models/index.js";
 import { emitCafeteriaUpdate } from "../socket.js";
 import { clearCafeteriaCache, clearMenuCache } from "../utils/cache.js";
+import { syncAllCafeteriaCampuses } from "../utils/geoUtils.js";
 
 /**
  * 🔐 GET LOGGED-IN ADMIN'S CAFETERIA DETAILS
@@ -227,6 +228,9 @@ export const updateCafeteria = async (req, res) => {
     }
 
     await cafeteria.save();
+    
+    // Resync campus mappings in case coordinates changed
+    await syncAllCafeteriaCampuses();
 
     // 🗑️ Clear Cache instantly so changes are visible to users
     await clearCafeteriaCache();

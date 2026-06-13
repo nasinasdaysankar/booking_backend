@@ -1,4 +1,5 @@
 import { CampusBoundary } from "../models/index.js";
+import { syncAllCafeteriaCampuses } from "../utils/geoUtils.js";
 
 // Public endpoint: Get boundaries grouped by campus name
 export const getCampusBoundary = async (req, res) => {
@@ -59,6 +60,9 @@ export const createOrUpdateCampusBoundary = async (req, res) => {
         }));
 
         await CampusBoundary.bulkCreate(pointsToInsert);
+        
+        // 3. Resync all cafeterias to check if they fall inside the new boundaries
+        await syncAllCafeteriaCampuses();
 
         res.status(200).json({
             success: true,
@@ -83,6 +87,9 @@ export const deleteCampusBoundary = async (req, res) => {
         }
 
         await CampusBoundary.destroy({ where: { name } });
+        
+        // Resync cafeterias since a boundary was deleted
+        await syncAllCafeteriaCampuses();
 
         res.status(200).json({
             success: true,
