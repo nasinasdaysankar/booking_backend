@@ -1,4 +1,4 @@
-import { Cafeteria, MenuItem } from '../models/index.js';
+import { Cafeteria, MenuItem, CampusBoundary } from '../models/index.js';
 import { cafeteriaCacheGet, cafeteriaCacheSet, CACHE_KEYS } from '../utils/cache.js';
 
 // ============================================
@@ -61,13 +61,64 @@ export const getCafeterias = async (req, res) => {
       order: [['id', 'ASC']]
     });
 
+    const cafesJson = cafes.map(c => c.toJSON());
+
+    // --- Dynamic Campus Mapping ---
+    try {
+        const boundaryPoints = await CampusBoundary.findAll({
+            order: [["name", "ASC"], ["pointOrder", "ASC"]],
+        });
+        
+        const campuses = {};
+        for (const point of boundaryPoints) {
+            if (!campuses[point.name]) campuses[point.name] = [];
+            campuses[point.name].push({
+                latitude: parseFloat(point.latitude),
+                longitude: parseFloat(point.longitude)
+            });
+        }
+        
+        const isPointInPolygon = (point, polygon) => {
+            let x = point.longitude, y = point.latitude;
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                let xi = polygon[i].longitude, yi = polygon[i].latitude;
+                let xj = polygon[j].longitude, yj = polygon[j].latitude;
+                let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        };
+
+        for (const cafe of cafesJson) {
+            if (cafe.latitude && cafe.longitude) {
+                let foundCampus = null;
+                const cafePoint = { latitude: parseFloat(cafe.latitude), longitude: parseFloat(cafe.longitude) };
+                for (const [campusName, polygon] of Object.entries(campuses)) {
+                    if (polygon.length >= 3 && isPointInPolygon(cafePoint, polygon)) {
+                        foundCampus = campusName;
+                        break;
+                    }
+                }
+                
+                if (foundCampus) {
+                    cafe.isInsideCampus = true;
+                    cafe.campusName = foundCampus;
+                }
+            }
+        }
+    } catch (geoErr) {
+        console.error("Error calculating dynamic campus mapping:", geoErr);
+    }
+    // ------------------------------
+
     // ✅ SAVE TO REDIS CACHE
-    await cafeteriaCacheSet(cacheKey, cafes);
+    await cafeteriaCacheSet(cacheKey, cafesJson);
 
     res.json({
       success: true,
       cached: false,
-      data: cafes
+      data: cafesJson
     });
   } catch (err) {
     console.error('Error fetching cafeterias:', err);
