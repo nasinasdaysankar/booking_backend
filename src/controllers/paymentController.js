@@ -437,6 +437,50 @@ export const createCashfreeOrder = async (req, res) => {
 // ✅ CONFIRM PAYMENT (FROM FLUTTER APP)
 // ===================================================================
 export const confirmPayment = async (req, res) => {
+  const cashfreeOrderId = req.body.orderId;
+  
+  if (cashfreeOrderId) {
+    const lockKey = `lock:payment_confirm:${cashfreeOrderId}`;
+    let isLocked = await getCache(lockKey);
+    let attempts = 0;
+
+    // If locked by another request, wait up to 10 seconds for it to finish
+    while (isLocked && attempts < 10) {
+      console.warn(`⏳ [PAYMENT] Waiting for concurrent confirmation to finish (${cashfreeOrderId})`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      isLocked = await getCache(lockKey);
+      attempts++;
+    }
+
+    if (attempts > 0 && !isLocked) {
+      // Lock cleared! See if the other request created the order.
+      const existingOrder = await Order.findOne({ where: { cashfreeOrderId } });
+      if (existingOrder) {
+        console.log(`✅ [PAYMENT] Concurrent request finished successfully! Returning 200 OK.`);
+        return res.json({
+          success: true,
+          dbOrderId: existingOrder.id,
+          dailyOrderNumber: existingOrder.dailyOrderNumber,
+          totalOrderNumber: existingOrder.totalOrderNumber,
+          billId: existingOrder.billId,
+          kotNumber: existingOrder.kotNumber,
+          message: "Payment confirmed successfully.",
+        });
+      }
+    }
+
+    if (isLocked) {
+      console.warn(`⚠️ [PAYMENT] Concurrent confirmation attempt timed out for ${cashfreeOrderId}`);
+      return res.status(409).json({
+        success: false,
+        message: "Payment is currently being processed. Please check your orders in a moment.",
+        error: "CONCURRENT_REQUEST"
+      });
+    }
+
+    await setCache(lockKey, "1", 30); // Lock for 30 seconds
+  }
+
   const t = await sequelize.transaction();
 
   try {
@@ -1060,6 +1104,10 @@ export const confirmPayment = async (req, res) => {
       message: "Payment confirmed successfully. Order sent to cafeteria.",
     });
   } catch (err) {
+    if (req.body.orderId) {
+      await delCache(`lock:payment_confirm:${req.body.orderId}`).catch(() => {});
+    }
+
     if (!t.finished) {
       await t.rollback();
     }
