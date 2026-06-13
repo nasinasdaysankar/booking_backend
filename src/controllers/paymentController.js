@@ -470,7 +470,6 @@ export const confirmPayment = async (req, res) => {
     console.log("📍 [BODY] Request body:", JSON.stringify(req.body, null, 2));
 
     const {
-      orderId: cashfreeOrderId,
       cafeteriaId,
       transactionId,
       amount,
