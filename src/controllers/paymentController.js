@@ -181,46 +181,48 @@ export const generateTotalOrderNumber = async (transaction) => {
 // --------------------------------------------------
 // 🆕 HELPER: UPDATE USER STREAK
 // --------------------------------------------------
-async function updateUserStreak(userId, cafeteriaId, transaction) {
+async function updateUserStreak(userId, cafeteriaId) {
   // ✅ FORCE IST DATE (Asia/Kolkata)
   const today = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000) + (new Date().getTimezoneOffset() * 60000))
     .toISOString()
     .split("T")[0];
 
-  let streak = await UserStreak.findOne({
-    where: { userId, cafeteriaId },
-    transaction,
-  });
+  try {
+    let streak = await UserStreak.findOne({
+      where: { userId, cafeteriaId },
+    });
 
-  if (!streak) {
-    await UserStreak.create(
-      {
-        userId,
-        cafeteriaId,
-        currentStreak: 1,
-        maxStreak: 1,
-        lastOrderDate: today,
-      },
-      { transaction }
-    );
-    return;
+    if (!streak) {
+      await UserStreak.create(
+        {
+          userId,
+          cafeteriaId,
+          currentStreak: 1,
+          maxStreak: 1,
+          lastOrderDate: today,
+        }
+      );
+      return;
+    }
+
+    const lastDate = dayjs(streak.lastOrderDate);
+    const diff = dayjs(today).diff(lastDate, "day");
+
+    if (diff === 1) {
+      streak.currentStreak += 1;
+    } else if (diff > 1) {
+      streak.currentStreak = 1;
+    } else {
+      return;
+    }
+
+    streak.lastOrderDate = today;
+    streak.maxStreak = Math.max(streak.maxStreak, streak.currentStreak);
+
+    await streak.save();
+  } catch (error) {
+    console.error("❌ [STREAK] Non-critical error updating user streak:", error.message);
   }
-
-  const lastDate = dayjs(streak.lastOrderDate);
-  const diff = dayjs(today).diff(lastDate, "day");
-
-  if (diff === 1) {
-    streak.currentStreak += 1;
-  } else if (diff > 1) {
-    streak.currentStreak = 1;
-  } else {
-    return;
-  }
-
-  streak.lastOrderDate = today;
-  streak.maxStreak = Math.max(streak.maxStreak, streak.currentStreak);
-
-  await streak.save({ transaction });
 }
 
 // ===================================================================
@@ -888,12 +890,14 @@ export const confirmPayment = async (req, res) => {
       }
     }
 
-    // ========================================
-    // 🎯 UPDATE USER STREAK
-    // ========================================
-    await updateUserStreak(authenticatedStudentId, cafeteriaId, t);
-
     await t.commit();
+
+    // ========================================
+    // 🎯 UPDATE USER STREAK (Run asynchronously after commit)
+    // ========================================
+    updateUserStreak(authenticatedStudentId, cafeteriaId).catch(err => {
+      console.error("❌ [STREAK] Failed to run updateUserStreak:", err.message);
+    });
 
     // ⚡ Evict the verify-status cache now that the order is confirmed.
     // This ensures any subsequent verify call (e.g. a late retry) hits
