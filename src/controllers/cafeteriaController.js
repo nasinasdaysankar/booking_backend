@@ -136,7 +136,7 @@ export const getCafeteriaMenu = async (req, res) => {
 
     // Check if cafeteria exists
     const cafeteria = await Cafeteria.findByPk(id, {
-      attributes: ['id', 'name', 'isOpen', 'isOffline', 'isBusy', 'isOnlineOrderEnabled', 'isUserVisible', 'promoImageUrl', 'promoImageUrl2']
+      attributes: ['id', 'name', 'isOpen', 'isOffline', 'isBusy', 'isOnlineOrderEnabled', 'isUserVisible', 'promoImageUrl', 'promoImageUrl2', 'fssaiLicense']
     });
 
     if (!cafeteria) {
@@ -161,6 +161,7 @@ export const getCafeteriaMenu = async (req, res) => {
       cafeteriaBusy: cafeteria.isBusy,
       isOnlineOrderEnabled: cafeteria.isOnlineOrderEnabled,
       isUserVisible: cafeteria.isUserVisible,
+      fssaiLicense: cafeteria.fssaiLicense,
       data: items
     });
   } catch (err) {
