@@ -10,119 +10,116 @@ const SUPPORT_CATEGORIES = {
     "Order Issues": [
         {
             question: "My order is stuck in 'Preparing' status for too long",
-            solution: "We apologize for the delay! Order preparation time depends on the cafeteria's current workload. If your order has been in 'Preparing' status for more than 15 minutes, this could be due to high demand or a temporary kitchen delay. You can visit the counter and show your digital token. If the issue persists, our team will look into it.",
+            solution: "We apologize for the delay! Order preparation depends on the cafeteria's current queue. If your order is in 'Preparing' status for more than 15 minutes, please visit the counter to check with the cafeteria staff directly.",
         },
         {
             question: "I picked up my order but the app still shows it as 'Ready'",
-            solution: "The order status updates automatically once the cafeteria staff scans or marks it as collected. If the status hasn't changed within a few minutes, try pulling down to refresh your order history. The status discrepancy doesn't affect your order record.",
+            solution: "The order status updates when the cafeteria marks it as collected. If it hasn't updated, pull down to refresh the page. This doesn't affect your record or payment.",
         },
         {
             question: "I received the wrong item",
-            solution: "We sincerely apologize for the mix-up! Please return to the cafeteria counter immediately and show your digital receipt/bill. The staff will replace the wrong item with the correct one. If you've already left, please submit this ticket and our team will follow up with the cafeteria.",
+            solution: "We apologize for the mix-up! Please return to the cafeteria counter immediately with your digital receipt/bill. The staff will replace the wrong item with the correct one.",
         },
         {
             question: "An item is missing from my order",
-            solution: "Please cross-check all items in your tray against your digital bill. If an item is indeed missing, return to the counter and notify the staff — they will provide the missing item right away. If you cannot go back, submit this ticket and we'll coordinate with the cafeteria.",
+            solution: "Please double check your digital receipt. If any item is missing from your package, please notify the counter staff immediately so they can provide it to you.",
         },
         {
             question: "I want to cancel my order",
-            solution: "Orders can only be cancelled before the cafeteria begins preparation. Please visit the cafeteria counter as quickly as possible and inform the staff. Once preparation has started, cancellation is not possible. For future orders, you can check your order status and act promptly.",
+            solution: "Orders can only be cancelled before the cafeteria starts preparing the food. Once preparation begins, cancellation and refunds are not possible as the items are cooked specifically for you.",
         },
         {
             question: "My order was marked as expired or cancelled automatically",
-            solution: "Orders are automatically cancelled if not collected within the designated buffer time after they become 'Ready'. This is done to ensure food freshness. Unfortunately, refunds for expired orders follow the standard refund policy — please submit a ticket and our team will review your case.",
+            solution: "To ensure food freshness and safety, orders must be picked up within the designated time after they become 'Ready'. Expired orders are automatically cancelled. If you believe there was an issue, please submit this ticket.",
         },
         {
             question: "I see an order in my history that I didn't place",
-            solution: "If you notice an unauthorized order under your account, please do not ignore it. This could indicate an account security issue. Change your password immediately and contact our support team by submitting a ticket. We will investigate the transaction and take appropriate action.",
+            solution: "If you notice an unauthorized order under your account, this might be a synchronization issue, or someone else has access to your logged-in device. Please submit a support ticket so we can inspect the details.",
+        },
+        {
+            question: "I selected Dine-in but want to switch to Delivery (or vice versa)",
+            solution: "Once placed, order type (Dine-in or Delivery) cannot be modified as it affects kitchen prep and delivery fees. If you haven't checked out, change your choice from the main screen or cart page. Otherwise, ask the counter staff if they can accommodate you.",
         },
     ],
     "Payment Issues": [
         {
             question: "Payment was deducted but my order was not placed",
-            solution: "This can happen due to a temporary network interruption between your bank and our payment gateway. In most cases, the amount is automatically refunded within 3-5 business days. Our team will need to manually verify this with the payment gateway. Please provide your contact details so we can follow up with you directly.",
+            solution: "This happens when there's a temporary network interruption between your bank and our payment gateway. Usually, the bank or payment gateway will refund this automatically within 3-5 business days. Please share your details so we can check our logs.",
             requiresContactDetails: true,
         },
         {
             question: "I was charged twice for the same order",
-            solution: "A double charge usually occurs due to a network timeout causing your bank to retry the payment. Please provide your contact details below. Our team will verify both transactions in the payment gateway logs and initiate a refund for the duplicate charge within 3-5 business days.",
+            solution: "Double charges can occur due to a timeout error on the payment page. Please submit this ticket with your details. Our team will verify the payment logs and initiate a refund for the duplicate charge within 3-5 business days.",
             requiresContactDetails: true,
         },
         {
             question: "My refund has not been received",
-            solution: "Refunds typically take 3-7 business days to reflect in your account, depending on your bank. If it has been longer than that, our team will need to check the refund status with the payment gateway. Please share your contact details so we can investigate and provide an update.",
+            solution: "Once a refund is initiated, it typically takes 3-7 business days to reflect in your original payment source, depending on your bank. If it has been longer, please submit this ticket with your details so we can trace the refund reference.",
             requiresContactDetails: true,
         },
         {
             question: "My UPI payment is stuck or pending",
-            solution: "A UPI payment stuck in 'Pending' state usually resolves automatically within 24 hours. If the money was debited but the order was not placed, it will be refunded. If it hasn't resolved, our team will manually check the gateway logs. Please provide your contact details below.",
+            solution: "UPI payments marked 'Pending' by your bank usually resolve automatically within 24 hours. If the payment fails, it will be refunded. If you want us to check, please submit a ticket with your transaction details.",
             requiresContactDetails: true,
         },
         {
             question: "I paid but the payment screen shows an error",
-            solution: "If you encountered an error screen but the payment was deducted from your account, please don't attempt to pay again. Our system logs all payment attempts. Provide your contact details and we will verify the transaction status and ensure your order is processed or refunded.",
+            solution: "If you saw an error screen but money was deducted, do not attempt to pay again. Please submit this ticket with your details, and we will verify if the transaction succeeded or arrange a refund.",
             requiresContactDetails: true,
         },
         {
             question: "I want to request a refund for my order",
-            solution: "Refunds are processed on a case-by-case basis depending on the reason. If the cafeteria did not provide your ordered items or made an error, you may be eligible for a refund. Please provide your contact details so our team can review your order and initiate the refund process.",
+            solution: "Refunds are processed if the cafeteria was unable to fulfill your order or if there was a major discrepancy. Please submit this ticket with details of the problem and our team will review the order.",
             requiresContactDetails: true,
         },
     ],
     "Account Issues": [
         {
-            question: "I am unable to login to my account",
-            solution: "Please check that your internet connection is stable. Ensure you are entering the correct mobile number or email and password. If you've forgotten your password, use the 'Forgot Password' option on the login screen. If the issue persists after trying these steps, try reinstalling the app.",
+            question: "I am unable to login using Google or Apple Sign-In",
+            solution: "Please ensure you have a stable internet connection and are using the correct Google or Apple account. If you see authentication errors, try clearing the app's cache or reinstalling the app. If you are still blocked, please submit this ticket.",
         },
         {
-            question: "I forgot my password",
-            solution: "Tap the 'Forgot Password' button on the login screen. Enter your registered email address and you will receive a password reset link. Check your spam folder if you don't see the email in your inbox. Complete the reset process and you should be able to log in with your new password.",
-        },
-        {
-            question: "My account has been locked or suspended",
-            solution: "Accounts may be temporarily suspended due to suspicious activity or repeated failed login attempts. Please submit this ticket with your registered email/phone and our team will review your account status and assist you in restoring access.",
-        },
-        {
-            question: "I need to update my phone number or email",
-            solution: "For security reasons, updating primary contact details requires manual verification by our team. Please go to your Profile page to update basic details. For changes to your registered phone/email, submit a ticket and our team will guide you through the verification process.",
+            question: "My account is suspended or disabled",
+            solution: "Accounts can be suspended for policy violations. If you believe this is a mistake, please submit a ticket with your registered email/phone number so our team can review your account status.",
         },
         {
             question: "My profile picture or name is not updating",
-            solution: "Go to your Profile page and tap the edit button. Make your changes and ensure you press 'Save'. If you're updating a profile picture, ensure your internet connection is stable during the upload. If the update still doesn't save, try logging out and back in.",
+            solution: "You can edit your name, phone number, and profile picture directly from the Edit Profile screen. If you face issues saving them, ensure you have a stable connection and that the phone number is valid.",
         },
         {
             question: "I want to delete my account",
-            solution: "Account deletion is a permanent action and cannot be undone. Before proceeding, ensure you have collected any pending orders. To request account deletion, please submit this ticket with your registered email address. Our team will process the deletion and confirm via email.",
+            solution: "Account deletion is a permanent action and cannot be undone. All active orders, rewards, and history will be lost. To request account deletion, please submit this ticket with your registered email address. Our team will process the deletion and confirm via email.",
         },
     ],
     "App Issues": [
         {
             question: "The app is crashing or freezing",
-            solution: "Please try the following steps: (1) Force close the app and reopen it. (2) Clear the app's cache from your phone settings. (3) Check if your phone's storage is full. (4) Update the app to the latest version from the Play Store or App Store. (5) If none of these work, try reinstalling the app.",
+            solution: "Please force-close the app and reopen it. If the issue persists, clear the app cache from your phone's settings or update the app to the latest version from the Play Store/App Store.",
         },
         {
             question: "The menu is not loading or is empty",
-            solution: "This is usually caused by a slow or unstable internet connection. Try the following: (1) Check your Wi-Fi or mobile data connection. (2) Pull down on the menu screen to refresh. (3) Toggle your Wi-Fi off and on again. (4) Close and reopen the app. If the menu still doesn't load, the cafeteria may be temporarily closed.",
+            solution: "This is usually caused by network latency or a temporary server refresh. Please pull down to refresh the screen, or toggle your Wi-Fi/mobile data off and on.",
         },
         {
             question: "I cannot see my order history",
-            solution: "Pull down on the Order History page to refresh. Ensure you are connected to the internet. If you've recently logged in on a new device, your history may take a moment to sync. If history is still missing, try logging out and back in. Your order data is saved on our servers and is never lost.",
+            solution: "Pull down to refresh the Order History page. Make sure you are logged into the correct account. If history is still missing, log out and log back in to force a sync.",
         },
         {
             question: "Notifications are not working",
-            solution: "Please check: (1) Notification permissions for the app in your phone's Settings > Apps > [App Name] > Notifications. (2) Ensure 'Do Not Disturb' mode is not active. (3) Make sure the app is updated to the latest version. (4) On some Android phones, you may need to disable battery optimization for the app.",
+            solution: "Please make sure notification permissions are enabled for Velish in your phone's system settings. Also, ensure battery saver mode is disabled, as it can block real-time push notifications.",
         },
-        {
-            question: "The QR code scanner is not working",
-            solution: "Ensure the app has camera permission: go to Phone Settings > Apps > [App Name] > Permissions > Camera and enable it. Also make sure your camera lens is clean and you're holding the device steady. If the scanner still doesn't work, try restarting the app.",
-        },
+    
         {
             question: "My location is not being detected",
-            solution: "Please ensure: (1) Your device's Location/GPS is turned on. (2) The app has location permission (Settings > Apps > [App Name] > Permissions > Location). (3) Set location mode to 'High Accuracy' for best results. If you're indoors, GPS may be less accurate — try moving closer to a window.",
+            solution: "Velish requires location permissions to verify you are in the cafeteria boundary. Go to Settings > Apps > Velish > Permissions and ensure location access is allowed and set to 'Precise' or 'High Accuracy'.",
         },
         {
             question: "Images and media are not loading",
-            solution: "Image loading issues are typically caused by a slow internet connection. Try switching between Wi-Fi and mobile data. Ensure you have enough storage space on your device. Clearing the app cache can also help load images faster. If a specific item has no image, it may not have been added by the cafeteria.",
+            solution: "Image loading issues are typically caused by a slow internet connection. Try switching between Wi-Fi and mobile data. Clearing the app cache can also help load images faster. If a specific item has no image, it may not have been added by the cafeteria.",
+        },
+        {
+            question: "I am getting an 'Outside Campus Boundary' warning even though I am inside campus",
+            solution: "GPS signals can sometimes degrade indoors. Try toggling your Wi-Fi on (even if not connected) to help improve location accuracy, or step near a window. Ensure 'Precise Location' is enabled in your phone's settings.",
         },
     ],
     "Other": [
