@@ -144,6 +144,10 @@ const ADMIN_SUPPORT_CATEGORIES = {
             solution: "Go to the Orders section and find the specific order. Tap on it to open the order details. You will see options to update its status (e.g., from 'Preparing' to 'Ready'). Tap the appropriate status button and confirm. The customer's app will update in real-time. Only update statuses when they accurately reflect the kitchen's progress.",
         },
         {
+            question: "How do I assign or reassign a delivery partner to an order?",
+            solution: "For delivery orders, open the active order details card. You will see an option to 'Assign Partner' or 'Reassign Partner'. Select from the list of active delivery staff members. Once assigned, the driver will receive a push notification with the order details and pickup OTP.",
+        },
+        {
             question: "An order is stuck in 'Preparing' status",
             solution: "This typically happens when the kitchen completes an order but the status isn't updated in the app. Go to the Order details and manually mark it as 'Ready'. If you are unable to update the status due to an app error, try refreshing the orders page or restarting the app. If the issue persists, submit a ticket.",
         },
@@ -170,6 +174,10 @@ const ADMIN_SUPPORT_CATEGORIES = {
             question: "A refund was processed but the customer hasn't received it",
             solution: "Refunds take 3-7 business days to reflect in the customer's bank account after being initiated. Please share the Order ID and refund initiation date. Our team will verify the refund status with the payment gateway and provide a tracking reference number to the customer.",
             requiresContactDetails: true,
+        },
+        {
+            question: "How do I manage/configure delivery charges for customers?",
+            solution: "You can configure delivery charges directly from the 'Delivery Charges' screen in settings. You can set flat rates or base it on distances. Ensure you save the changes. Customers will see the updated charges on their cart/checkout screens immediately.",
         },
         {
             question: "My daily revenue report shows incorrect totals",
@@ -220,6 +228,10 @@ const ADMIN_SUPPORT_CATEGORIES = {
         {
             question: "New customer orders are not appearing in real-time",
             solution: "Real-time order updates depend on a stable internet connection and active socket connection. Check: (1) Your internet connection is active. (2) The app is not in battery-saving mode (this can kill background connections). (3) Notifications are enabled for the app. (4) Your cafeteria status is set to 'Open'. Try closing and reopening the app to re-establish the socket connection.",
+        },
+        {
+            question: "A delivery partner is not getting notified about their assigned order",
+            solution: "Please verify that the delivery staff member is logged into their app and has a stable network connection. Ask them to verify that notification permissions are enabled in their phone system settings and that battery saver mode is off. If the problem persists, try reassigning the order or contact us for help.",
         },
         {
             question: "I cannot log in to the admin panel",
