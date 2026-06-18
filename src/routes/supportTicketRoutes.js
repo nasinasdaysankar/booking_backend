@@ -2,9 +2,11 @@ import express from "express";
 import {
     getSupportCategories,
     getAdminSupportCategories,
+    getDeliverySupportCategories,
     createSupportTicket,
     getMyTickets,
     getAllTickets,
+    getDeliverySupportTickets,
     resolveTicket,
     verifyTicketResolution,
     addTicketMessage,
@@ -26,6 +28,9 @@ router.get("/categories", auth, getSupportCategories);
 // Get admin-specific support categories & questions
 router.get("/admin-categories", auth, getAdminSupportCategories);
 
+// Get delivery-specific support categories & questions
+router.get("/delivery-categories", auth, getDeliverySupportCategories);
+
 // Submit a new support ticket
 router.post("/create", auth, createSupportTicket);
 
@@ -42,6 +47,9 @@ router.get("/all", superadminAuth, getAllTickets);
 
 // Get all admin-source tickets
 router.get("/admin/all", superadminAuth, getAdminSupportTickets);
+
+// Get all delivery-source tickets
+router.get("/delivery/all", superadminAuth, getDeliverySupportTickets);
 
 // Resolve/update a ticket
 router.put("/:id/resolve", superadminAuth, resolveTicket);

@@ -152,12 +152,15 @@ UserStreak.belongsTo(Cafeteria, { foreignKey: { name: "cafeteriaId", field: "caf
 User.hasMany(UserActivity, { foreignKey: { name: "userId", field: "userid" } });
 UserActivity.belongsTo(User, { foreignKey: { name: "userId", field: "userid" } });
 
-// User/Admin → Support Tickets (constraints: false to allow both user and admin IDs)
+// User/Admin/DeliveryPartner → Support Tickets (constraints: false to allow user, admin and partner IDs)
 User.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
 SupportTicket.belongsTo(User, { foreignKey: { name: "userId", field: "userid" }, as: "user", constraints: false });
 
 Admin.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
 SupportTicket.belongsTo(Admin, { foreignKey: { name: "userId", field: "userid" }, as: "admin", constraints: false });
+
+DeliveryPartner.hasMany(SupportTicket, { foreignKey: { name: "userId", field: "userid" }, constraints: false });
+SupportTicket.belongsTo(DeliveryPartner, { foreignKey: { name: "userId", field: "userid" }, as: "delivery", constraints: false });
 
 // Support Ticket → Messages
 SupportTicket.hasMany(SupportMessage, { foreignKey: { name: "ticketId", field: "ticket_id" }, as: "messages" });

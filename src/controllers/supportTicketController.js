@@ -1,4 +1,4 @@
-import { sequelize, SupportTicket, User, Admin, SupportMessage, UserFcmToken, AdminFcmToken } from "../models/index.js";
+import { sequelize, SupportTicket, User, Admin, SupportMessage, UserFcmToken, AdminFcmToken, PartnerFcmToken, DeliveryPartner } from "../models/index.js";
 import { sendNotification, sendPushNotification } from "../utils/notificationUtils.js";
 import { emitSupportMessage } from "../socket.js";
 import path from "path";
@@ -259,6 +259,83 @@ const ADMIN_SUPPORT_CATEGORIES = {
 };
 
 // ============================================
+// DELIVERY-SPECIFIC SUPPORT CATEGORIES
+// ============================================
+const DELIVERY_SUPPORT_CATEGORIES = {
+    "App & Technical": [
+        {
+            question: "My GPS/location is not updating correctly",
+            solution: "Please ensure precise location is enabled in your phone's system settings and that the Velish Delivery app has background location permission set to 'Always Allow'. Also disable battery saver mode as it restricts GPS updates.",
+        },
+        {
+            question: "The app is crashing or freezing",
+            solution: "Try force closing and restarting the app. If the issue persists, clear the app cache from Phone Settings or update to the latest version. If it still crashes, please submit a ticket.",
+        },
+        {
+            question: "I am not receiving order notifications",
+            solution: "Ensure notification permissions are enabled for the Velish Delivery app in your phone settings, and that battery optimization is disabled for this app, as it kills background notifications.",
+        },
+    ],
+    "Pickup & Delivery": [
+        {
+            question: "The cafeteria has not prepared the food yet",
+            solution: "Cafeteria preparation times can vary during peak hours. Please verify with the counter staff. If the order is delayed by more than 15 minutes, please submit this ticket so we can investigate.",
+        },
+        {
+            question: "I cannot contact the customer",
+            solution: "Try calling the customer using the phone number on the active order screen. If they don't answer, wait 5 minutes and try again. If they are still unreachable, submit this ticket.",
+        },
+        {
+            question: "I am unable to verify the delivery OTP",
+            solution: "Make sure you entered the correct 6-digit OTP provided by the customer. If the app shows an OTP verification error, pull to refresh. If it still fails, submit this ticket with the customer name and order ID.",
+        },
+    ],
+    "Earnings & Payouts": [
+        {
+            question: "My delivery earnings are not showing correctly",
+            solution: "Earnings are updated once the order is marked as 'Delivered'. If a completed delivery is missing from your earnings, please submit this ticket with the Order ID.",
+            requiresContactDetails: true,
+        },
+        {
+            question: "My payout is delayed",
+            solution: "Payouts are processed weekly. If you haven't received your payout by the scheduled date, please submit a support ticket with your registered details and UPI ID.",
+            requiresContactDetails: true,
+        },
+    ],
+    "Account Issues": [
+        {
+            question: "I want to update my phone number or vehicle details",
+            solution: "For security reasons, vehicle details and registered phone number changes can only be performed by the Superadmin. Please submit this ticket with your new details.",
+        },
+        {
+            question: "My account is offline or suspended",
+            solution: "If your account is suspended, this might be due to low acceptance rates, delivery delays, or policy violations. Submit this ticket to request a review of your account status.",
+        },
+    ],
+    "Other": [
+        {
+            question: "I have a different issue (describe below)",
+            solution: "Please describe your issue in detail in the text box below. Our support team will review your ticket and assist you as soon as possible.",
+        },
+    ],
+};
+
+// ============================================
+// GET DELIVERY SUPPORT CATEGORIES (for delivery app)
+// ============================================
+export const getDeliverySupportCategories = async (req, res) => {
+    try {
+        return res.json({
+            success: true,
+            categories: DELIVERY_SUPPORT_CATEGORIES,
+        });
+    } catch (error) {
+        console.error("❌ getDeliverySupportCategories ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
 // GET SUPPORT CATEGORIES (for user app)
 // ============================================
 export const getSupportCategories = async (req, res) => {
@@ -295,7 +372,7 @@ export const createSupportTicket = async (req, res) => {
     try {
         const userId = req.user.id;
         const { category, question, description, platform, source } = req.body;
-        const senderType = source || "user";
+        const senderType = source || req.user.userType || "user";
 
         if (!category || !question) {
             return res.status(400).json({
@@ -306,8 +383,13 @@ export const createSupportTicket = async (req, res) => {
 
         console.log(`🔍 Validating ticket submission: Source=${senderType}, Category=${category}, Question=${question}`);
 
-        // Use admin or user categories depending on source
-        const categories = senderType === "admin" ? ADMIN_SUPPORT_CATEGORIES : SUPPORT_CATEGORIES;
+        // Use admin, delivery, or user categories depending on source
+        let categories = SUPPORT_CATEGORIES;
+        if (senderType === "admin") {
+            categories = ADMIN_SUPPORT_CATEGORIES;
+        } else if (senderType === "delivery") {
+            categories = DELIVERY_SUPPORT_CATEGORIES;
+        }
 
         // Validate category exists
         if (!categories[category]) {
@@ -476,12 +558,11 @@ export const resolveTicket = async (req, res) => {
              ticket.ownerRequestedConfirmation = ownerRequestedConfirmation;
         }
 
-        ticket.status = status || "resolved";
-        if (status === "resolved" || (!status && adminResponse)) {
-            if (ticket.status !== "resolved") {
-                ticket.resolvedAt = new Date();
-            }
-            ticket.status = "resolved";
+        // Use the explicit status sent by admin. Only default to 'resolved' if nothing provided.
+        ticket.status = status || ticket.status || "resolved";
+        // Set resolvedAt only when actually resolving
+        if (ticket.status === "resolved" && !ticket.resolvedAt) {
+            ticket.resolvedAt = new Date();
         }
         await ticket.save();
 
@@ -509,17 +590,33 @@ export const resolveTicket = async (req, res) => {
                 if (ticketSource === 'admin') {
                     const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
                     tokens = adminTokens.map(t => t.fcmToken);
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, notifTitle, notifBody, {
+                            type: "SUPPORT_UPDATE",
+                            ticketId: id.toString(),
+                            category: ticket.category,
+                        }, ticket.userId, true);
+                    }
+                } else if (ticketSource === 'delivery') {
+                    const partnerTokens = await PartnerFcmToken.findAll({ where: { partnerId: ticket.userId } });
+                    tokens = partnerTokens.map(t => t.fcmToken);
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, notifTitle, notifBody, {
+                            type: "SUPPORT_UPDATE",
+                            ticketId: id.toString(),
+                            category: ticket.category,
+                        }, ticket.userId, false, null, true);
+                    }
                 } else {
                     const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
                     tokens = userTokens.map(t => t.fcmToken);
-                }
-
-                if (tokens.length > 0) {
-                    await sendPushNotification(tokens, notifTitle, notifBody, {
-                        type: "SUPPORT_UPDATE",
-                        ticketId: id.toString(),
-                        category: ticket.category,
-                    }, ticket.userId, ticketSource === 'admin');
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, notifTitle, notifBody, {
+                            type: "SUPPORT_UPDATE",
+                            ticketId: id.toString(),
+                            category: ticket.category,
+                        }, ticket.userId, false);
+                    }
                 }
 
                 // 🌐 Real-time socket update
@@ -615,8 +712,8 @@ export const addTicketMessage = async (req, res) => {
         const { message, mediaUrl1, mediaUrl2 } = req.body;
         const senderId = req.user.id;
 
-        // Determine senderType from user object/role
-        let senderType = "user";
+        // Determine senderType from user object/role/userType
+        let senderType = req.user.userType || "user";
         if (req.user.role === "superadmin") senderType = "owner";
         else if (req.user.role === "admin" || req.user.role === "vendor") senderType = "admin";
 
@@ -668,30 +765,43 @@ export const addTicketMessage = async (req, res) => {
                 console.log(`🔍 [NOTIFY] Attempting to notify other party for ticket ${id}. Source: ${ticket.source}, Sender: ${senderType}`);
 
                 if (senderType === "owner") {
-                    // Notify User or Admin
+                    // Notify User, Admin or Delivery Partner
                     if (ticket.source === "admin") {
                         console.log(`🔍 [NOTIFY] Fetching Admin tokens for adminId: ${ticket.userId}`);
                         const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
                         tokens = adminTokens.map(t => t.fcmToken);
-                        console.log(`🔍 [NOTIFY] Found ${tokens.length} Admin tokens.`);
+                        if (tokens.length > 0) {
+                            await sendPushNotification(tokens, title, body, {
+                                type: "SUPPORT_MESSAGE",
+                                ticketId: id.toString(),
+                                category: ticket.category || "Support",
+                            }, ticket.userId, true);
+                        }
+                    } else if (ticket.source === "delivery") {
+                        console.log(`🔍 [NOTIFY] Fetching Partner tokens for partnerId: ${ticket.userId}`);
+                        const partnerTokens = await PartnerFcmToken.findAll({ where: { partnerId: ticket.userId } });
+                        tokens = partnerTokens.map(t => t.fcmToken);
+                        if (tokens.length > 0) {
+                            await sendPushNotification(tokens, title, body, {
+                                type: "SUPPORT_MESSAGE",
+                                ticketId: id.toString(),
+                                category: ticket.category || "Support",
+                            }, ticket.userId, false, null, true);
+                        }
                     } else {
                         console.log(`🔍 [NOTIFY] Fetching User tokens for userId: ${ticket.userId}`);
                         const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
                         tokens = userTokens.map(t => t.fcmToken);
-                        console.log(`🔍 [NOTIFY] Found ${tokens.length} User tokens.`);
+                        if (tokens.length > 0) {
+                            await sendPushNotification(tokens, title, body, {
+                                type: "SUPPORT_MESSAGE",
+                                ticketId: id.toString(),
+                                category: ticket.category || "Support",
+                            }, ticket.userId, false);
+                        }
                     }
                 } else {
                     console.log(`🔍 [NOTIFY] Ticket creator (${senderType}) replied. Superadmin dashboard update via socket.`);
-                }
-
-                if (tokens.length > 0) {
-                    await sendPushNotification(tokens, title, body, {
-                        type: "SUPPORT_MESSAGE",
-                        ticketId: id.toString(),
-                        category: ticket.category || "Support",
-                    }, ticket.userId, ticket.source === 'admin');
-                } else if (senderType === "owner") {
-                    console.log(`⚠️ [NOTIFY] No tokens found for recipient ${ticket.userId} (source: ${ticket.source})`);
                 }
 
                 // 🌐 Real-time socket update for everyone in the ticket room
@@ -801,17 +911,33 @@ export const toggleMedia = async (req, res) => {
                 if (ticket.source === "admin") {
                     const adminTokens = await AdminFcmToken.findAll({ where: { adminId: ticket.userId } });
                     tokens = adminTokens.map(t => t.fcmToken);
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, title, body, {
+                            type: "SUPPORT_MEDIA_TOGGLE",
+                            ticketId: id.toString(),
+                            isMediaEnabled: isMediaEnabled.toString()
+                        }, ticket.userId, true);
+                    }
+                } else if (ticket.source === "delivery") {
+                    const partnerTokens = await PartnerFcmToken.findAll({ where: { partnerId: ticket.userId } });
+                    tokens = partnerTokens.map(t => t.fcmToken);
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, title, body, {
+                            type: "SUPPORT_MEDIA_TOGGLE",
+                            ticketId: id.toString(),
+                            isMediaEnabled: isMediaEnabled.toString()
+                        }, ticket.userId, false, null, true);
+                    }
                 } else {
                     const userTokens = await UserFcmToken.findAll({ where: { userId: ticket.userId } });
                     tokens = userTokens.map(t => t.fcmToken);
-                }
-
-                if (tokens.length > 0) {
-                    await sendPushNotification(tokens, title, body, {
-                        type: "SUPPORT_MEDIA_TOGGLE",
-                        ticketId: id.toString(),
-                        isMediaEnabled: isMediaEnabled.toString()
-                    }, ticket.userId, ticket.source === 'admin');
+                    if (tokens.length > 0) {
+                        await sendPushNotification(tokens, title, body, {
+                            type: "SUPPORT_MEDIA_TOGGLE",
+                            ticketId: id.toString(),
+                            isMediaEnabled: isMediaEnabled.toString()
+                        }, ticket.userId, false);
+                    }
                 }
 
                 // 🌐 Real-time socket update for media toggle
@@ -834,6 +960,40 @@ export const toggleMedia = async (req, res) => {
         });
     } catch (error) {
         console.error("❌ toggleMedia ERROR:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ============================================
+// GET ALL DELIVERY TICKETS (admin/owner view)
+// ============================================
+export const getDeliverySupportTickets = async (req, res) => {
+    try {
+        const { status, category } = req.query;
+
+        const where = { source: 'delivery' };
+        if (status) where.status = status;
+        if (category) where.category = category;
+
+        const tickets = await SupportTicket.findAll({
+            where,
+            include: [
+                {
+                    model: DeliveryPartner,
+                    as: "delivery",
+                    attributes: ["id", "partnerId", "name", "phone", "cafeteriaId"],
+                },
+            ],
+            order: [["createdAt", "DESC"]],
+        });
+
+        return res.json({
+            success: true,
+            count: tickets.length,
+            data: tickets,
+        });
+    } catch (error) {
+        console.error("❌ getDeliverySupportTickets ERROR:", error.message);
         return res.status(500).json({ message: "Internal server error" });
     }
 };

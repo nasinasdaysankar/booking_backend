@@ -21,10 +21,10 @@ export default (sequelize) => {
                 comment: "ID of the user, admin, or 0 for superadmin",
             },
             senderType: {
-                type: DataTypes.ENUM("user", "admin", "owner"),
+                type: DataTypes.ENUM("user", "admin", "owner", "delivery"),
                 allowNull: false,
                 field: "sender_type",
-                comment: "user = customer, admin = cafeteria owner, owner = velish support",
+                comment: "user = customer, admin = cafeteria owner, owner = velish support, delivery = delivery partner",
             },
             message: {
                 type: DataTypes.TEXT,

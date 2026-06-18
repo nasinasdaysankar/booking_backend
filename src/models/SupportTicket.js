@@ -69,10 +69,10 @@ export default (sequelize) => {
                 comment: "Android or iOS",
             },
             source: {
-                type: DataTypes.ENUM("user", "admin"),
+                type: DataTypes.ENUM("user", "admin", "delivery"),
                 defaultValue: "user",
                 allowNull: false,
-                comment: "Whether ticket was submitted from user app or admin app",
+                comment: "Whether ticket was submitted from user app, admin app, or delivery app",
             },
             isMediaEnabled: {
                 type: DataTypes.BOOLEAN,

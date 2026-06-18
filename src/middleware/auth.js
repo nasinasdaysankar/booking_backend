@@ -242,7 +242,7 @@ export const eitherAdminAuth = async (req, res, next) => {
   return res.status(401).json({ success: false, message: "Unauthorized: Access denied" });
 };
 
-// Middleware that allows ANY authenticated user (Superadmin, Regular Admin, or Regular User)
+// Middleware that allows ANY authenticated user (Superadmin, Regular Admin, Regular User, or Delivery Partner)
 export const eitherAuth = async (req, res, next) => {
   try {
     const header = req.headers.authorization;
@@ -264,20 +264,38 @@ export const eitherAuth = async (req, res, next) => {
       }
     } catch (_) { }
 
-    // 2. Try Regular JWT (Admin App / User App)
+    // 2. Try Regular JWT (Admin App / User App / Delivery App)
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-      const cacheKey = CACHE_KEYS.AUTH(payload.id);
+      const isDelivery = payload.role === "DELIVERY";
+      const cacheKey = isDelivery
+        ? CACHE_KEYS.AUTH_DELIVERY(payload.id)
+        : CACHE_KEYS.AUTH(payload.id);
+
       let userData = await getCache(cacheKey);
 
       if (!userData) {
         let userType = "admin";
-        let account = await Admin.findByPk(payload.id);
+        let account = null;
 
-        if (!account) {
-          userType = "user";
-          account = await User.findByPk(payload.id);
+        if (payload.role === "DELIVERY") {
+          const { DeliveryPartner } = await import("../models/index.js");
+          account = await DeliveryPartner.findByPk(payload.id);
+          userType = "delivery";
+        } else {
+          account = await Admin.findByPk(payload.id);
+          if (!account) {
+            userType = "user";
+            account = await User.findByPk(payload.id);
+          }
+        }
+
+        // Fallback checks
+        if (!account && payload.role !== "DELIVERY") {
+          const { DeliveryPartner } = await import("../models/index.js");
+          account = await DeliveryPartner.findByPk(payload.id);
+          if (account) userType = "delivery";
         }
 
         if (!account) {
@@ -286,7 +304,7 @@ export const eitherAuth = async (req, res, next) => {
 
         userData = {
           id: account.id,
-          role: account.role,
+          role: account.role || (userType === "delivery" ? "DELIVERY" : account.role),
           userType,
           cafeteriaId: account.cafeteriaId || null,
         };
