@@ -22,20 +22,20 @@ const router = express.Router();
 // USER ROUTES (authenticated users)
 // ============================================
 
-// Get predefined support categories & questions
+// Get predefined support categories & questions (users)
 router.get("/categories", auth, getSupportCategories);
 
-// Get admin-specific support categories & questions
-router.get("/admin-categories", auth, getAdminSupportCategories);
+// Get admin-specific support categories & questions (admin app)
+router.get("/admin-categories", eitherAuth, getAdminSupportCategories);
 
-// Get delivery-specific support categories & questions
-router.get("/delivery-categories", auth, getDeliverySupportCategories);
+// Get delivery-specific support categories & questions (delivery app)
+router.get("/delivery-categories", eitherAuth, getDeliverySupportCategories);
 
-// Submit a new support ticket
-router.post("/create", auth, createSupportTicket);
+// Submit a new support ticket (user, admin, or delivery)
+router.post("/create", eitherAuth, createSupportTicket);
 
-// Get my support tickets
-router.get("/my-tickets", auth, getMyTickets);
+// Get my support tickets (user, admin, or delivery)
+router.get("/my-tickets", eitherAuth, getMyTickets);
 
 
 // ============================================
