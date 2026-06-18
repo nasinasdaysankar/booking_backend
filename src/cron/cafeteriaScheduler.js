@@ -16,8 +16,13 @@ export const initCafeteriaScheduler = () => {
   cron.schedule("* * * * *", async () => {
     try {
       const now = new Date();
-      // Get current time in HH:mm format (24h)
-      const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      // Get current time in HH:mm format (24h) in Asia/Kolkata timezone
+      const options = { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false };
+      const formatter = new Intl.DateTimeFormat("en-US", options);
+      const parts = formatter.formatToParts(now);
+      const hour = parts.find(p => p.type === "hour").value;
+      const minute = parts.find(p => p.type === "minute").value;
+      const currentTime = `${hour}:${minute}`;
       
       // Fetch all cafeterias that HAVE a schedule set
       const cafeterias = await Cafeteria.findAll({
@@ -30,8 +35,13 @@ export const initCafeteriaScheduler = () => {
       for (const cafe of cafeterias) {
         if (!cafe.openTime || !cafe.closeTime) continue;
 
-        // Simple string comparison for HH:mm
-        const shouldBeOpen = currentTime >= cafe.openTime && currentTime < cafe.closeTime;
+        // Determine if cafeteria should be open (supports overnight shifts crossing midnight)
+        let shouldBeOpen = false;
+        if (cafe.openTime <= cafe.closeTime) {
+          shouldBeOpen = currentTime >= cafe.openTime && currentTime < cafe.closeTime;
+        } else {
+          shouldBeOpen = currentTime >= cafe.openTime || currentTime < cafe.closeTime;
+        }
 
         if (cafe.isOpen !== shouldBeOpen) {
           logger.info(`🔄 [SCHEDULER] Toggling ${cafe.name} to ${shouldBeOpen ? "OPEN" : "CLOSED"} (Current: ${currentTime}, Schedule: ${cafe.openTime}-${cafe.closeTime})`);
