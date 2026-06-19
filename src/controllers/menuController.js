@@ -452,6 +452,8 @@ export const getMostLovedItems = async (req, res) => {
         mi.category,
         mi."imageurl" AS "imageUrl",
         CAST(mi."cafeteriaid" AS INTEGER) AS "cafeteriaId",
+        mi.isparcelavailable AS "isParcelAvailable",
+        mi.parcel_charges AS "parcelCharges",
         COUNT(oi.id) AS "orderCount"
       FROM order_items oi
       JOIN menu_items mi ON (
@@ -462,7 +464,7 @@ export const getMostLovedItems = async (req, res) => {
       JOIN orders o ON o.id = oi."orderid"
       WHERE o.status IN ('PAID', 'PREPARING', 'READY', 'PICKED_UP', 'COMPLETED')
       ${cafeteriaFilter}
-      GROUP BY mi.id, mi.name, mi.price, mi.category, mi.imageurl, mi.cafeteriaid
+      GROUP BY mi.id, mi.name, mi.price, mi.category, mi.imageurl, mi.cafeteriaid, mi.isparcelavailable, mi.parcel_charges
       ORDER BY "orderCount" DESC
       LIMIT 10
     `);
