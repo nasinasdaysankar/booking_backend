@@ -76,6 +76,12 @@ export default (sequelize) => {
         defaultValue: true,
         field: "isparcelavailable",
       },
+      parcelCharges: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 10.00,
+        field: "parcel_charges",
+      },
       // 📅 Which date it is special for (YYYY-MM-DD)
       specialDate: {
         type: DataTypes.DATEONLY,

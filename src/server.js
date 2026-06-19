@@ -420,6 +420,14 @@ const start = async () => {
     }
 
 
+    // ✅ Ensure menu_items has parcel_charges column
+    try {
+      await sequelize.query(`ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS parcel_charges DECIMAL(10, 2) DEFAULT 10.00`).catch(() => {});
+      logger.info("✅ menu_items parcel_charges column ensured");
+    } catch (colErr) {
+      logger.warn("⚠️ Could not ensure menu_items parcel_charges: " + colErr.message);
+    }
+
     // ✅ Ensure affiliate_products columns are TEXT to support long URLs
     try {
       await sequelize.query(`ALTER TABLE affiliate_products ALTER COLUMN title TYPE TEXT`);

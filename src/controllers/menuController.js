@@ -11,7 +11,7 @@ import { syncCategoryBanner } from "../utils/bannerSync.js";
 /* ================== ADD SINGLE MENU ITEM ================== */
 export const addMenuItem = async (req, res) => {
   try {
-    const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial, isParcelAvailable, stock, trackStock, autoStockUpdate, defaultStockQuantity } = req.body;
+    const { cafeteriaId, name, price, imageUrl, category, isTodaySpecial, isParcelAvailable, parcelCharges, stock, trackStock, autoStockUpdate, defaultStockQuantity } = req.body;
 
     if (!cafeteriaId || !name || !price)
       return res.status(400).json({ success: false, message: "Missing fields" });
@@ -26,6 +26,7 @@ export const addMenuItem = async (req, res) => {
       category,
       isTodaySpecial: isTodaySpecial === true,
       isParcelAvailable: isParcelAvailable !== undefined ? isParcelAvailable : true,
+      parcelCharges: parcelCharges !== undefined ? parcelCharges : 10.00,
       stock: stock || 0,
       trackStock: trackStock === true,
       autoStockUpdate: autoStockUpdate === true,
@@ -366,7 +367,7 @@ export const uploadBulkImages = async (req, res) => {
 export const updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, category, isAvailable, isTodaySpecial, imageUrl, isParcelAvailable, stock, trackStock, autoStockUpdate, defaultStockQuantity } = req.body;
+    const { name, price, category, isAvailable, isTodaySpecial, imageUrl, isParcelAvailable, parcelCharges, stock, trackStock, autoStockUpdate, defaultStockQuantity } = req.body;
 
     const item = await MenuItem.findByPk(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
@@ -378,6 +379,7 @@ export const updateMenuItem = async (req, res) => {
     if (category) item.category = category;
     if (isAvailable !== undefined) item.isAvailable = isAvailable;
     if (isParcelAvailable !== undefined) item.isParcelAvailable = isParcelAvailable;
+    if (parcelCharges !== undefined) item.parcelCharges = parcelCharges;
     if (imageUrl) item.imageUrl = imageUrl;
     if (stock !== undefined) item.stock = stock;
     if (trackStock !== undefined) item.trackStock = trackStock;
@@ -671,6 +673,7 @@ export const getPublicMenuByCafeteria = async (req, res) => {
         "category",
         "isTodaySpecial",
         "isParcelAvailable",
+        "parcelCharges",
       ],
       order: [
         ["isTodaySpecial", "DESC"],
