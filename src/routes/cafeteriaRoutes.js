@@ -47,7 +47,7 @@
 
 
 import express from 'express';
-import { auth } from '../middleware/auth.js';
+import { auth, eitherAuth } from '../middleware/auth.js';
 import { getCafeterias, getCafeteriaMenu } from '../controllers/cafeteriaController.js';
 import { SystemSetting } from '../models/index.js';
 
@@ -69,8 +69,8 @@ const router = express.Router();
  *     responses:
  *       200: { description: List returned }
  */
-// ✅ REMOVED auth middleware - public endpoint
-router.get('/', getCafeterias);
+// 🔐 Secure with eitherAuth to prevent public data extraction
+router.get('/', eitherAuth, getCafeterias);
 
 /**
  * @swagger

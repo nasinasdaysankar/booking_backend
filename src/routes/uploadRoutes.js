@@ -4,17 +4,70 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
 import slugify from "slugify";
 import axios from "axios";
+import { eitherAuth, eitherAdminAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Multer memory storage (required for S3)
-const upload = multer({ storage: multer.memoryStorage() });
+// 🛡️ Multer configurations with strict MIME validation to prevent stored XSS (C-03)
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only JPEG, PNG, GIF, and WEBP images are allowed."), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  }
+});
+
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      "image/jpeg", "image/png", "image/gif", "image/webp",
+      "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+      "application/json"
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only standard images, videos, and JSON animations are allowed."), false);
+    }
+  },
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB limit for video/media
+  }
+});
+
+// MIME to Extension maps to prevent spoofing
+const imageMimeToExt = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp"
+};
+
+const mediaMimeToExt = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/ogg": ".ogg",
+  "video/quicktime": ".mov",
+  "application/json": ".json"
+};
 
 /** ===========================
  *  📍 SINGLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-image
  * ===========================*/
-router.post("/upload-image", upload.single("image"), async (req, res) => {
+router.post("/upload-image", eitherAuth, imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ 
@@ -50,7 +103,7 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
       lower: true,
     });
 
-    const ext = req.file.mimetype === "image/png" ? "png" : "jpg";
+    const ext = imageMimeToExt[req.file.mimetype] || "jpg";
     const s3Key = `images/uploads/${safeName}-${Date.now()}.${ext}`;
 
     console.log(`📊 S3 Details:
@@ -92,7 +145,7 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
  *  📍 MULTIPLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-multiple
  * ===========================*/
-router.post("/upload-multiple", upload.array("images", 10), async (req, res) => {
+router.post("/upload-multiple", eitherAuth, imageUpload.array("images", 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 
@@ -130,7 +183,7 @@ router.post("/upload-multiple", upload.array("images", 10), async (req, res) => 
       const safeName = slugify(file.originalname.split(".")[0], {
         lower: true,
       });
-      const ext = file.mimetype === "image/png" ? "png" : "jpg";
+      const ext = imageMimeToExt[file.mimetype] || "jpg";
       const s3Key = `images/uploads/${safeName}-${Date.now()}.${ext}`;
 
       console.log(`📤 Uploading: ${s3Key}`);
@@ -171,7 +224,7 @@ router.post("/upload-multiple", upload.array("images", 10), async (req, res) => 
  *  📍 HEADER MEDIA UPLOAD (S3)
  *  /api/upload/upload-header-media
  * ===========================*/
-router.post("/upload-header-media", upload.single("media"), async (req, res) => {
+router.post("/upload-header-media", eitherAdminAuth, mediaUpload.single("media"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Media file required" });
@@ -180,9 +233,9 @@ router.post("/upload-header-media", upload.single("media"), async (req, res) => 
     const s3 = getS3Client();
     const bucket = getS3Bucket();
 
-    // Preserve original extension
+    // Determine secure extension based on mime type to prevent extension spoofing
+    const ext = mediaMimeToExt[req.file.mimetype] || ".jpg";
     const originalName = req.file.originalname;
-    const ext = originalName.substring(originalName.lastIndexOf("."));
     const safeName = slugify(originalName.split(".")[0], { lower: true });
     const s3Key = `header/media/${safeName}-${Date.now()}${ext}`;
 
@@ -221,6 +274,17 @@ router.get("/proxy-image", async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).send("URL is required");
+
+    // 🛡️ SSRF Prevention: Restrict hostnames to allowed S3 bucket domains
+    const parsedUrl = new URL(url);
+    const allowedHosts = [
+      "udaya-food-app-images.s3.ap-south-1.amazonaws.com",
+      "udaya-food-app-images.s3.amazonaws.com"
+    ];
+
+    if (!allowedHosts.includes(parsedUrl.hostname)) {
+      return res.status(403).send("Forbidden: Host not allowed for proxying");
+    }
 
     // Fetch the image as a buffer
     const response = await axios.get(url, { responseType: 'arraybuffer' });

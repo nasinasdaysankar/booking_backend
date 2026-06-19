@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 
 import authRoutes from "./routes/auth.routes.js";
 import cafeteriaRoutes from "./routes/cafeteriaRoutes.js";
@@ -44,6 +45,12 @@ const app = express();
 // 🔥 TRUST PROXY - Required for Railway/Heroku
 // ============================================
 app.set('trust proxy', 1);
+
+// 🛡️ HTTP Security Headers (M-04)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allows clients to load cross-origin images/assets
+  contentSecurityPolicy: false, // Turned off as this is a backend API serving JSON
+}));
 
 // ================= MIDDLEWARE =================
 const allowedOrigins = [
@@ -91,6 +98,15 @@ const paymentLimiter = rateLimit({
   message: { success: false, message: "Payment rate limit exceeded. Please wait." },
 });
 
+// Stricter limit for authentication endpoints (M-05)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Max 20 authentication attempts per 15 minutes per IP
+  message: { success: false, message: "Too many authentication requests. Please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Apply rate limiting conditionally
 if (process.env.ENABLE_RATE_LIMIT !== "false") {
   app.use("/api/", generalLimiter);
@@ -119,7 +135,7 @@ app.get("/api/health", (req, res) => {
 
 // ================= PUBLIC ROUTES =================
 // 🔓 PUBLIC AUTH (LOGIN / REGISTER)
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 
 // ================= USER ROUTES =================
 app.use("/api/user", userRoutes);
@@ -132,7 +148,7 @@ app.use("/api/payments", paymentRoutes);
 
 // ================= ADMIN ROUTES =================
 // 🔐 ADMIN AUTH (ADMIN LOGIN ONLY)
-app.use("/api/auth/admin", adminAuthRoutes);
+app.use("/api/auth/admin", authLimiter, adminAuthRoutes);
 
 // 🔐 ADMIN FEATURES
 app.use("/api/admin", adminRoutes);
@@ -179,6 +195,17 @@ logger.info("✅ Affiliate routes mounted");
 // ================= FALLBACK =================
 app.use((req, res) => {
   res.status(404).json({ message: "API route not found" });
+});
+
+// 💥 Centralized Error Handler to hide internal path and stack trace leaks (H-01)
+app.use((err, req, res, next) => {
+  console.error("💥 Unhandled Server Error:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: process.env.NODE_ENV === "production" 
+      ? "An unexpected error occurred." 
+      : err.message,
+  });
 });
 
 export default app;

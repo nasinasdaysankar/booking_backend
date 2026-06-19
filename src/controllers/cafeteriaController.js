@@ -61,7 +61,20 @@ export const getCafeterias = async (req, res) => {
       order: [['id', 'ASC']]
     });
 
-    const cafesJson = cafes.map(c => c.toJSON());
+    const userRole = req.user ? req.user.role : null;
+    const isAdmin = ["admin", "superadmin", "manager", "staff"].includes(userRole);
+
+    let cafesJson = cafes.map(c => c.toJSON());
+
+    // 🛡️ Redact sensitive business parameters for non-admin requests
+    if (!isAdmin) {
+      cafesJson = cafesJson.map(cafe => {
+        delete cafe.commissionType;
+        delete cafe.commissionAmount;
+        delete cafe.showCommission;
+        return cafe;
+      });
+    }
 
     // --- Dynamic Campus Mapping ---
     try {
