@@ -282,7 +282,7 @@
 //       avgOrderValue: 0,
 //     });
 //   }
-import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria, OrderFeedback } from "../models/index.js";
+import { sequelize, Order, OrderItem, UserFcmToken, User, MenuItem, Cafeteria, OrderFeedback, DeliveryPartner } from "../models/index.js";
 import { QueryTypes, Op } from "sequelize";
 import { emitNewOrder, emitOrderStatusToUser, emitAdminOrderUpdate, emitOrderStatusToPartner, emitStockUpdate } from "../socket.js";
 import admin from "../config/firebaseAdmin.js";
@@ -569,9 +569,12 @@ export const getAdminOrders = async (req, res) => {
               orders."delivery_charge" AS "deliveryCharge",
               (orders."totalamount" - (orders."totalamount" * 0.0195 * 1.18) - COALESCE(orders."commission_amount", 0)) AS "netAmount",
 
-              users.name AS "customerName"
+              users.name AS "customerName",
+              orders."delivery_partner_id" AS "deliveryPartnerId",
+              dp.name AS "deliveryPartnerName"
        FROM orders
        LEFT JOIN users ON users.id = orders."studentid"
+       LEFT JOIN delivery_partners dp ON dp.id = orders."delivery_partner_id"
        WHERE ${statusCondition}
        AND orders."cafeteriaid" = :cafeteriaId
        ${dateClause}
@@ -615,6 +618,7 @@ export const getAdminOrders = async (req, res) => {
 
     const combinedData = orders.map((order) => ({
       ...order,
+      DeliveryPartner: order.deliveryPartnerName ? { name: order.deliveryPartnerName } : null,
       items: allItems.filter((item) => item.orderId === order.id),
     }));
 
@@ -637,7 +641,11 @@ export const updateOrderStatus = async (req, res) => {
     if (status) status = status.toUpperCase();
 
     const order = await Order.findByPk(id, {
-      include: [{ model: User }, { model: Cafeteria, as: "Cafeteria" }]
+      include: [
+        { model: User }, 
+        { model: Cafeteria, as: "Cafeteria" },
+        { model: DeliveryPartner }
+      ]
     });
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
@@ -733,6 +741,9 @@ export const updateOrderStatus = async (req, res) => {
       latitude: order.latitude,
       longitude: order.longitude,
       deliveryCharge: order.deliveryCharge,
+      deliveryPartnerId: order.deliveryPartnerId,
+      deliveryPartnerName: order.DeliveryPartner?.name || null,
+      DeliveryPartner: order.DeliveryPartner ? { name: order.DeliveryPartner.name } : null,
     });
     console.log("✅ Admin notification sent via emitAdminOrderUpdate");
 
