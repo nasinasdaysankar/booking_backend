@@ -254,7 +254,7 @@ export const createCashfreeOrder = async (req, res) => {
 
     // 🔍 DELIVERY ENABLED CHECK
     const cafeteria = await Cafeteria.findByPk(cafeteriaId);
-    if (cafeteria && !cafeteria.isDeliveryEnabled && snapOrderType === 'DELIVERY') {
+    if (cafeteria && (!cafeteria.isDeliveryAllowed || !cafeteria.isDeliveryEnabled) && snapOrderType === 'DELIVERY') {
       return res.status(400).json({
         success: false,
         message: "Sorry, delivery is currently disabled for this cafeteria.",

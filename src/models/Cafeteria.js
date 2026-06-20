@@ -213,6 +213,11 @@ export default (sequelize) => {
         defaultValue: true,
         field: "is_delivery_enabled",
       },
+      isDeliveryAllowed: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        field: "is_delivery_allowed",
+      },
       isDineInEnabled: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
