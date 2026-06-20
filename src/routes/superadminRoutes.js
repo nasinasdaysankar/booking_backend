@@ -119,7 +119,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isManualOrderEnabled,
             isInsideCampus,
             isCampusOnly,
-            campusName
+            campusName,
+            fssaiLicense
         } = req.body;
 
 
@@ -157,7 +158,8 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             isManualOrderEnabled: isManualOrderEnabled !== undefined ? isManualOrderEnabled : true,
             isInsideCampus: isInsideCampus !== undefined ? isInsideCampus : false,
             isCampusOnly: isCampusOnly !== undefined ? isCampusOnly : false,
-            campusName: campusName || null
+            campusName: campusName || null,
+            fssaiLicense: fssaiLicense || null
         });
 
 
@@ -216,7 +218,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isManualOrderEnabled,
             isInsideCampus,
             isCampusOnly,
-            campusName
+            campusName,
+            fssaiLicense
         } = req.body;
 
 
@@ -247,6 +250,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isInsideCampus !== undefined && { isInsideCampus }),
             ...(isCampusOnly !== undefined && { isCampusOnly }),
             ...(campusName !== undefined && { campusName: campusName || null }),
+            ...(fssaiLicense !== undefined && { fssaiLicense: fssaiLicense || null }),
         };
 
         if (isDeliveryAllowed !== undefined) {

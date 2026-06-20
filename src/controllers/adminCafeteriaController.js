@@ -50,6 +50,7 @@ export const getCafeteriaDetails = async (req, res) => {
         "isDeliveryEnabled", "isDineInEnabled", "isManualOrderEnabled", "isDeliveryAllowed",
         "isCampusOnly",
         "campusName",
+        "fssaiLicense",
       ],
     });
 
@@ -111,6 +112,7 @@ export const getMyCafeterias = async (req, res) => {
         "isDeliveryEnabled", "isDineInEnabled", "isManualOrderEnabled", "isDeliveryAllowed",
         "isCampusOnly",
         "campusName",
+        "fssaiLicense",
       ],
       order: [["createdAt", "ASC"]],
     });
