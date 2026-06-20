@@ -768,8 +768,8 @@ export const updateOrderStatus = async (req, res) => {
       console.log("✅ Partner socket notification sent");
     }
 
-    // 🔔 FCM → USER (BACKGROUND - PREPARING, READY, COMPLETED, CANCELLED)
-    if (status === "PREPARING" || status === "READY" || status === "COMPLETED" || status === "CANCELLED") {
+    // 🔔 FCM → USER (BACKGROUND - PREPARING, READY, CANCELLED)
+    if (status === "PREPARING" || status === "READY" || status === "CANCELLED") {
       (async () => {
         try {
           const userTokens = await UserFcmToken.findAll({
@@ -779,14 +779,6 @@ export const updateOrderStatus = async (req, res) => {
           });
  
           if (userTokens.length > 0) {
-            const trackSnaps = {
-              "PREPARING": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_in_prep_v3.png",
-              "READY": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png",
-              "COMPLETED": "https://udaya-food-app-images.s3.ap-south-1.amazonaws.com/assets/track_ready_v3.png"
-            };
- 
-            const notificationImageUrl = trackSnaps[status] || (parsedItems.length && parsedItems[0].imageUrl ? parsedItems[0].imageUrl : undefined);
-            
             let titleText = "";
             let bodyText = "";
  
@@ -802,9 +794,6 @@ export const updateOrderStatus = async (req, res) => {
                 titleText = `✅ Ready! (Pick up in ${buffer}m)`;
                 bodyText = `Pick up soon or order cancels (No Refund).`;
               }
-            } else if (status === "COMPLETED") {
-              titleText = "🍽️ Order Completed!";
-              bodyText = `Hope you enjoyed your meal! Order #${order.dailyOrderNumber ?? order.id} has been completed.`;
             } else if (status === "CANCELLED") {
               titleText = "❌ Order Cancelled";
               bodyText = `Order #${order.dailyOrderNumber ?? order.id} has been cancelled by the cafeteria.`;
@@ -816,34 +805,27 @@ export const updateOrderStatus = async (req, res) => {
 
             const messages = userTokens.map(ut => ({
               token: ut.fcmToken,
-              // 🚨 REMOVED top-level 'notification' to prevent OS-level truncation.
-              // This is now a "Data-Only" message. The app will handle display.
+              // Data-Only message — the app handles display via native/Flutter handlers.
               data: {
                 title: titleText,
                 body: bodyText,
                 orderId: String(order.id),
                 status: order.status,
                 type: "ORDER_STATUS_UPDATE",
-                image: notificationImageUrl || "",
                 expiryTimestamp: (status === "READY" && order.orderType !== "DELIVERY") ? String(expiryTimestamp) : "",
                 expiryTimeISO: (status === "READY" && order.orderType !== "DELIVERY") ? expiryTimeISO : "",
               },
               android: {
                 priority: "high",
-                // 🛠️ data messages don't use android.notification
               },
               apns: {
                 payload: {
                   aps: {
                     sound: "default",
                     badge: 1,
-                    mutableContent: notificationImageUrl ? true : false,
-                    contentAvailable: true, // 🚨 Required for background 'data' messages on iOS
+                    contentAvailable: true,
                     category: 'ORDER_UPDATE'
                   }
-                },
-                fcmOptions: {
-                  imageUrl: notificationImageUrl
                 }
               }
             }));

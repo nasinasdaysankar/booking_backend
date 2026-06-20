@@ -140,45 +140,11 @@ router.post("/geofence-event", auth, async (req, res) => {
     const { cafeteriaId, cafeteriaName, eventType } = req.body;
     const userId = req.user.id;
 
-    console.log(`📍 User ${userId} ${eventType} ${cafeteriaName}`);
+    console.log(`📍 User ${userId} ${eventType} ${cafeteriaName} (Geofence/Nearby notification disabled)`);
 
-    // 🔍 Get user's FCM token
-    const tokenRecord = await UserFcmToken.findOne({
-      where: { userId },
-    });
-
-    if (!tokenRecord) {
-      return res.json({ success: true, message: "No FCM token found" });
-    }
-
-    const message = {
-      token: tokenRecord.fcmToken,
-      notification: {
-        title: `🍽 ${cafeteriaName} Nearby!`,
-        body: `You're close to ${cafeteriaName}. Order now!`,
-      },
-      data: {
-        cafeteriaId: cafeteriaId.toString(),
-        cafeteriaName,
-        type: "GEOFENCE",
-      },
-      android: {
-        priority: "high",
-        notification: {
-          sound: "default",
-          channelId: "cafeteria_alerts",
-        },
-      },
-    };
-
-    const { success, error } = await sendNotification(message, userId);
-
-    if (success) {
-      console.log("✅ FCM push sent");
-      res.json({ success: true });
-    }
+    return res.json({ success: true, message: "Geofence notifications are disabled" });
   } catch (error) {
-    console.error("❌ Geofence notification error:", error);
+    console.error("❌ Geofence event error:", error);
     res.status(500).json({ success: false });
   }
 });
