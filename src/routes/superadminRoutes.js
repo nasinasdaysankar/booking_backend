@@ -149,8 +149,10 @@ router.post('/cafeterias', superadminAuth, async (req, res) => {
             showPlatformFee: showPlatformFee !== undefined ? showPlatformFee : true,
             showCommission: showCommission !== undefined ? showCommission : true,
             ownerPin,
-            isDeliveryEnabled: isDeliveryEnabled !== undefined ? isDeliveryEnabled : true,
             isDeliveryAllowed: isDeliveryAllowed !== undefined ? isDeliveryAllowed : true,
+            isDeliveryEnabled: (isDeliveryAllowed !== undefined ? isDeliveryAllowed : true) === false
+                ? false
+                : (isDeliveryEnabled !== undefined ? isDeliveryEnabled : true),
             isDineInEnabled: isDineInEnabled !== undefined ? isDineInEnabled : true,
             isManualOrderEnabled: isManualOrderEnabled !== undefined ? isManualOrderEnabled : true,
             isInsideCampus: isInsideCampus !== undefined ? isInsideCampus : false,
@@ -223,7 +225,7 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Cafeteria not found' });
         }
 
-        await cafeteria.update({
+        const updateFields = {
             ...(name !== undefined && { name }),
             ...(isOpen !== undefined && { isOpen }),
             ...(isUserVisible !== undefined && { isUserVisible }),
@@ -240,14 +242,29 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(showCommission !== undefined && { showCommission }),
             ...(ownerPin !== undefined && { ownerPin }),
             ...(isOnlineOrderEnabled !== undefined && { isOnlineOrderEnabled }),
-            ...(isDeliveryEnabled !== undefined && { isDeliveryEnabled }),
-            ...(isDeliveryAllowed !== undefined && { isDeliveryAllowed }),
             ...(isDineInEnabled !== undefined && { isDineInEnabled }),
             ...(isManualOrderEnabled !== undefined && { isManualOrderEnabled }),
             ...(isInsideCampus !== undefined && { isInsideCampus }),
             ...(isCampusOnly !== undefined && { isCampusOnly }),
             ...(campusName !== undefined && { campusName: campusName || null }),
-        });
+        };
+
+        if (isDeliveryAllowed !== undefined) {
+            updateFields.isDeliveryAllowed = isDeliveryAllowed;
+            if (isDeliveryAllowed === false) {
+                updateFields.isDeliveryEnabled = false;
+            } else if (isDeliveryEnabled !== undefined) {
+                updateFields.isDeliveryEnabled = isDeliveryEnabled;
+            }
+        } else if (isDeliveryEnabled !== undefined) {
+            if (cafeteria.isDeliveryAllowed === false) {
+                updateFields.isDeliveryEnabled = false;
+            } else {
+                updateFields.isDeliveryEnabled = isDeliveryEnabled;
+            }
+        }
+
+        await cafeteria.update(updateFields);
 
 
         // ✅ Emit real-time update

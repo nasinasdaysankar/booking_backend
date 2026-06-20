@@ -202,7 +202,9 @@ export const updateCafeteria = async (req, res) => {
     if (closeTime !== undefined) cafeteria.closeTime = closeTime;
     if (isOnlineOrderEnabled !== undefined) cafeteria.isOnlineOrderEnabled = isOnlineOrderEnabled;
     if (isPureVeg !== undefined) cafeteria.isPureVeg = isPureVeg;
-    if (isDeliveryEnabled !== undefined) cafeteria.isDeliveryEnabled = isDeliveryEnabled;
+    if (isDeliveryEnabled !== undefined) {
+      cafeteria.isDeliveryEnabled = cafeteria.isDeliveryAllowed === false ? false : isDeliveryEnabled;
+    }
     if (isDineInEnabled !== undefined) cafeteria.isDineInEnabled = isDineInEnabled;
     if (isManualOrderEnabled !== undefined) cafeteria.isManualOrderEnabled = isManualOrderEnabled;
     if (isCampusOnly !== undefined) cafeteria.isCampusOnly = isCampusOnly;
