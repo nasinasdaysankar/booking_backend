@@ -1401,23 +1401,27 @@ router.post('/notifications/broadcast', superadminAuth, upload.single('image'), 
         let totalFailure = 0;
 
         // Process batches
+        const isPremium = isPremiumUI === 'true' || isPremiumUI === true;
+        const isLocationTargeted = parsedLocationConfig && parsedLocationConfig.enabled === true;
+        const isDataOnly = isPremium || isLocationTargeted;
+
         for (const batchTokens of batches) {
             const multicastMessage = {
                 tokens: batchTokens,
-                // 🛑 ONLY include top-level notification for iOS or standard Android notifications.
-                // For "Specific UI" on Android, we use a "Data-Only" message to force native interception.
-                notification: isPremiumUI === 'true' ? undefined : {
+                // 🛑 ONLY include top-level notification for non-premium and non-geofenced notifications.
+                // For location targeted or Premium UI, we use "Data-Only" messages to allow client-side handling.
+                notification: isDataOnly ? undefined : {
                     title,
                     body,
                     image: imageUrl || undefined
                 },
                 data: {
-                    type: isPremiumUI === 'true' ? 'ORDER_STATUS_UPDATE' : 'BROADCAST',
+                    type: isPremium ? 'ORDER_STATUS_UPDATE' : 'BROADCAST',
                     status: 'BROADCAST',
                     title: title, 
                     body: body,
                     imageUrl: imageUrl || "",
-                    isPremiumUI: isPremiumUI || "false",
+                    isPremiumUI: isPremium ? "true" : "false",
                     accentColor: accentColor || "#9C27B0",
                     isGradient: isGradient || "false",
                     target_screen: targetScreen || "HOME",
@@ -1430,8 +1434,8 @@ router.post('/notifications/broadcast', superadminAuth, upload.single('image'), 
                 },
                 android: {
                     priority: "high",
-                    // 🛑 Omit notification block for Premium UI to enable data-only handling
-                    notification: isPremiumUI === 'true' ? undefined : {
+                    // 🛑 Omit notification block for Premium/Location-targeted messages
+                    notification: isDataOnly ? undefined : {
                         channelId: "high_importance_channel",
                         body: body,
                         icon: "stock_ticker_update",
@@ -1443,12 +1447,14 @@ router.post('/notifications/broadcast', superadminAuth, upload.single('image'), 
                 apns: {
                     payload: {
                         aps: {
-                            sound: "default",
-                            badge: 1,
-                            alert: {
-                                title,
-                                body
-                            },
+                            sound: isDataOnly ? undefined : "default",
+                            badge: isDataOnly ? undefined : 1,
+                            ...(isDataOnly ? { 'content-available': 1 } : {
+                                alert: {
+                                    title,
+                                    body
+                                }
+                            }),
                             'mutable-content': imageUrl ? 1 : 0
                         }
                     },
