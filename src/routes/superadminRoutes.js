@@ -1304,11 +1304,22 @@ router.get('/payments', superadminAuth, async (req, res) => {
 // ============================================
 router.post('/notifications/broadcast', superadminAuth, upload.single('image'), async (req, res) => {
     try {
-        const { title, body, isPremiumUI, accentColor, isGradient, targetScreen, targetId, layoutConfig } = req.body;
+        const { title, body, isPremiumUI, accentColor, isGradient, targetScreen, targetId, layoutConfig, locationConfig } = req.body;
 
         // ✅ Relaxed validation: Allow image-only notifications
         if ((!title || !body) && !req.file) {
             return res.status(400).json({ success: false, message: 'Notification requires either text (title & body) or an image banner.' });
+        }
+
+        // 🗺️ Parse and validate locationConfig if provided
+        let parsedLocationConfig = null;
+        if (locationConfig) {
+            try {
+                parsedLocationConfig = typeof locationConfig === 'string' ? JSON.parse(locationConfig) : locationConfig;
+                console.log("📍 Location targeting enabled:", parsedLocationConfig);
+            } catch (e) {
+                console.warn("⚠️ Invalid locationConfig JSON, ignoring location filter:", e.message);
+            }
         }
 
         let imageUrl = null;
@@ -1412,6 +1423,9 @@ router.post('/notifications/broadcast', superadminAuth, upload.single('image'), 
                     target_screen: targetScreen || "HOME",
                     target_id: targetId || "",
                     layoutConfig: layoutConfig || "{}",
+                    // 🗺️ Location config for client-side geofence filtering
+                    // Flutter checks this before showing the notification overlay
+                    locationConfig: parsedLocationConfig ? JSON.stringify(parsedLocationConfig) : "{}",
                     click_action: 'FLUTTER_NOTIFICATION_CLICK'
                 },
                 android: {
