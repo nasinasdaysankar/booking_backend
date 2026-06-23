@@ -212,7 +212,7 @@ export const getAssignedOrders = async (req, res) => {
       attributes: [
         'id', 'billId', 'status', 'totalAmount', 'orderType', 
         'deliveryAddress', 'roomNumber', 'blockName', 'receiverPhone',
-        'latitude', 'longitude', 'deliveryOtp', 'readyReminderCount', 
+        'latitude', 'longitude', 'readyReminderCount', 
         'pickedUpAt', 'assignedAt', 'createdAt', 'updatedAt', 'deliveryOrderId'
       ],
       include: [
