@@ -289,13 +289,6 @@ export const createCashfreeOrder = async (req, res) => {
     console.log(`🔗 [PROXY] Finance URL: ${financeBackendUrl}`);
     console.log(`🔑 [PROXY] API Key set: ${!!internalApiKey}, length: ${internalApiKey?.length || 0}`);
 
-    if (!financeBackendUrl) {
-      return res.status(500).json({
-        success: false,
-        message: "Finance backend URL not configured",
-      });
-    }
-
     if (!internalApiKey) {
       return res.status(500).json({
         success: false,
@@ -1125,11 +1118,6 @@ export const verifyPaymentStatus = async (req, res) => {
     // ================================================================
     const financeBackendUrl = process.env.FINANCE_BACKEND_URL;
     if (financeBackendUrl && env !== "production") {
-      if (!financeBackendUrl) {
-        console.error("❌ [VERIFY] FINANCE_BACKEND_URL is not configured");
-        return res.status(500).json({ success: false, message: "Finance backend URL not configured" });
-      }
-
       const verifyUrl = financeBackendUrl.replace(/createCashfreeOrder/i, "verifyCashfreePayment");
       console.log(`🔀 [VERIFY PROXY] Routing to Finance Emulator: ${verifyUrl}`);
       try {

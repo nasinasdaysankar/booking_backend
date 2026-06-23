@@ -28,7 +28,7 @@ try {
 
     redisClient.on("connect", () => {
         redisAvailable = true;
-        console.log("✅ Redis connected");
+        console.log(`✅ Redis connected to: ${redisClient.options.host}:${redisClient.options.port}`);
     });
 
     redisClient.on("error", (err) => {

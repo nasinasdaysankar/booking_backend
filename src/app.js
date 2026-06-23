@@ -94,7 +94,7 @@ const generalLimiter = rateLimit({
 // Stricter limit for payment endpoints
 const paymentLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 100,             // ✅ Increased to 100 payment requests per minute per IP
+  max: 20,             // ✅ Decreased to 20 payment requests per minute per IP for enhanced fraud protection
   message: { success: false, message: "Payment rate limit exceeded. Please wait." },
 });
 
