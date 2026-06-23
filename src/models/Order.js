@@ -154,17 +154,7 @@ export default (sequelize) => {
         },
       },
 
-      deliveryOtp: {
-        type: DataTypes.STRING(6),
-        allowNull: true,
-        field: "delivery_otp",
-      },
 
-      deliveryOtpExpiresAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
-        field: "delivery_otp_expires_at",
-      },
 
       deliveryAddress: {
         type: DataTypes.TEXT,

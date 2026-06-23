@@ -4,6 +4,8 @@ import { sendPushNotification } from "../utils/notificationUtils.js";
 import { Sequelize } from "sequelize";
 import admin from "../config/firebaseAdmin.js";
 import { generateDeliveryOrderId } from "./paymentController.js";
+import { getCache, setCache, delCache } from "../config/redis.js";
+import { CACHE_KEYS } from "../utils/cache.js";
 
 // ==========================================
 // 🛠️ HELPER: FETCH & SANITIZE ORDER FOR NOTIFICATIONS
@@ -25,6 +27,13 @@ const getSanitizedOrderForNotify = async (orderId) => {
   if (!fullOrder) return null;
 
   const plainOrder = fullOrder.get({ plain: true });
+
+  // 🔎 Load Delivery OTP from Redis if it exists
+  const cachedOtp = await getCache(`delivery_otp:${orderId}`);
+  if (cachedOtp) {
+    plainOrder.deliveryOtp = cachedOtp;
+  }
+
   return {
     ...plainOrder,
     totalAmount: parseFloat(plainOrder.totalAmount || 0),
@@ -470,9 +479,10 @@ export const generateDeliveryOtp = async (req, res) => {
 
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    order.deliveryOtp = otp;
-    order.deliveryOtpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins validity
-    await order.save();
+    
+    // 💾 Store OTP in Redis (15 mins validity)
+    const deliveryOtpKey = `delivery_otp:${orderId}`;
+    await setCache(deliveryOtpKey, otp, 900);
 
     // Emit to User
     emitDeliveryOtp(order.studentId, { orderId: order.id, otp });
@@ -500,7 +510,10 @@ export const generateDeliveryOtp = async (req, res) => {
       console.error("❌ [REGEN_OTP_PUSH] ERROR:", pushErr.message);
     }
 
-    res.json({ message: "OTP generated", expiresAt: order.deliveryOtpExpiresAt });
+    // Set standard expiration date for response (15 minutes from now)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    res.json({ message: "OTP generated", expiresAt });
   } catch (err) {
     console.error("GENERATE OTP ERROR:", err);
     res.status(500).json({ message: "OTP generation failed" });
@@ -515,11 +528,17 @@ export const verifyDeliveryOtp = async (req, res) => {
     const order = await Order.findOne({ where: { id: orderId, deliveryPartnerId: partnerId } });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    if (!order.deliveryOtp || order.deliveryOtp !== otp) {
+    // 🔎 Check Redis for Delivery OTP
+    const deliveryOtpKey = `delivery_otp:${orderId}`;
+    const cachedOtp = await getCache(deliveryOtpKey);
+
+    if (!cachedOtp || cachedOtp !== otp) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    // Success flow
+    // Success flow: delete from cache
+    await delCache(deliveryOtpKey);
+
     order.status = "DELIVERED";
     order.deliveredAt = new Date();
     await order.save();
@@ -533,7 +552,6 @@ export const verifyDeliveryOtp = async (req, res) => {
 
     // Also mark as COMPLETED and emit that too
     order.status = "COMPLETED";
-    order.deliveryOtp = null; // clear OTP immediately
     await order.save();
 
     // Fetch again for COMPLETED status

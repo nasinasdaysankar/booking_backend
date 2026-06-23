@@ -59,14 +59,7 @@ export default (sequelize) => {
     },
 
 
-    otpCode: {
-      type: DataTypes.STRING,
-      field: "otpcode",
-    },
-    otpExpiry: {
-      type: DataTypes.DATE,
-      field: "otpexpiry",
-    },
+
 
     role: { // 'student' or 'staff'
       type: DataTypes.ENUM('student', 'staff', 'admin'),

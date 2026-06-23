@@ -130,6 +130,7 @@ import { Order, OrderItem, MenuItem, OrderFeedback, Cafeteria, DeliveryPartner, 
 import { clearAnalyticsCache } from '../utils/cache.js';
 import { generateBillId, generateDailyOrderNumber } from './paymentController.js';
 import { Op } from 'sequelize';
+import { getCache } from '../config/redis.js';
 import { appendOrderToSheet } from '../utils/googleSheets.js';
 import { emitStockUpdate } from '../socket.js';
 import { syncCategoryBanner } from '../utils/bannerSync.js';
@@ -317,8 +318,20 @@ export const getMyOrders = async (req, res) => {
         },
       ],
     });
-    // 🔥 Return status as is to allow frontend to handle labels
-    const mapped = orders.map(o => o.toJSON ? o.toJSON() : { ...o });
+
+    // 🔥 Populate deliveryOtp from Redis for active orders
+    const mapped = await Promise.all(orders.map(async (o) => {
+      const plain = o.toJSON ? o.toJSON() : { ...o };
+      const activeStatuses = ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'];
+      if (activeStatuses.includes(plain.status)) {
+        const cachedOtp = await getCache(`delivery_otp:${plain.id}`);
+        if (cachedOtp) {
+          plain.deliveryOtp = cachedOtp;
+        }
+      }
+      return plain;
+    }));
+
     return res.json(mapped);
   } catch (err) {
     console.error("🔥 GET MY ORDERS ERROR:", err);
@@ -362,7 +375,15 @@ export const getOrderById = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    return res.json(order);
+    const plainOrder = order.toJSON ? order.toJSON() : { ...order };
+
+    // 🔎 Fetch Delivery OTP from Redis
+    const cachedOtp = await getCache(`delivery_otp:${orderId}`);
+    if (cachedOtp) {
+      plainOrder.deliveryOtp = cachedOtp;
+    }
+
+    return res.json(plainOrder);
   } catch (err) {
     console.error("🔥 ORDER FETCH ERROR:", err);
     return res.status(500).json({ message: "Error fetching order" });
@@ -407,9 +428,17 @@ export const getOrderByBillId = async (req, res) => {
       });
     }
 
+    const plainOrder = order.toJSON ? order.toJSON() : { ...order };
+
+    // 🔎 Fetch Delivery OTP from Redis
+    const cachedOtp = await getCache(`delivery_otp:${plainOrder.id}`);
+    if (cachedOtp) {
+      plainOrder.deliveryOtp = cachedOtp;
+    }
+
     return res.json({
       success: true,
-      order,
+      order: plainOrder,
     });
   } catch (err) {
     console.error("🔥 GET ORDER BY BILL ERROR:", err);

@@ -402,9 +402,23 @@
 
 
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { User } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
+import { getCache, setCache, delCache } from "../config/redis.js";
+import { CACHE_KEYS } from "../utils/cache.js";
+
+// Configure SMTP transporter
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.office365.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 
 // Generate JWT Token
@@ -783,6 +797,15 @@ export const sendOtp = async (req, res) => {
       return res.status(400).json({ message: "Email required" });
     }
 
+    // 🛡️ Rate Limit: Allow only 1 OTP generation per 60 seconds
+    const limitKey = `otp:limit:${email}`;
+    const isRateLimited = await getCache(limitKey);
+    if (isRateLimited) {
+      return res.status(429).json({ 
+        message: "Please wait 60 seconds before requesting another OTP." 
+      });
+    }
+
     let user = await User.findOne({ where: { email } });
 
     if (!user) {
@@ -792,11 +815,15 @@ export const sendOtp = async (req, res) => {
       });
     }
 
+    // Generate a secure 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    user.otpCode = otp;
-    user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
-    await user.save();
+    // 💾 Save OTP in Redis (expires in 5 minutes)
+    const cacheKey = CACHE_KEYS.OTP(email);
+    await setCache(cacheKey, { otp, email, attempts: 0 }, 300);
+
+    // Set a 60-second rate limit guard in Redis
+    await setCache(limitKey, true, 60);
 
     // ✅ SEND EMAIL
     await transporter.sendMail({
@@ -822,6 +849,7 @@ export const sendOtp = async (req, res) => {
     return res.status(500).json({ message: "OTP send failed" });
   }
 };
+
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -837,17 +865,31 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    if (
-      user.otpCode !== otp ||
-      !user.otpExpiry ||
-      new Date() > user.otpExpiry
-    ) {
+    // 🔎 Check Redis OTP Cache
+    const cacheKey = CACHE_KEYS.OTP(email);
+    const cachedData = await getCache(cacheKey);
+
+    if (!cachedData) {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    user.otpCode = null;
-    user.otpExpiry = null;
-    await user.save();
+    // 🛡️ Prevent brute forcing: track failed attempts (max 3)
+    if (cachedData.otp !== otp) {
+      cachedData.attempts = (cachedData.attempts || 0) + 1;
+      
+      if (cachedData.attempts >= 3) {
+        await delCache(cacheKey); // Destroy OTP immediately
+        return res.status(400).json({ message: "Too many failed attempts. Please request a new OTP." });
+      }
+
+      // Save updated attempts back to cache (preserve remaining TTL)
+      // Note: we can read TTL or just rewrite. To keep it simple, rewrite with default 5-min max or remaining.
+      await setCache(cacheKey, cachedData, 300);
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    // Success: Delete the OTP from Redis
+    await delCache(cacheKey);
 
     const { accessToken, refreshToken } = signToken(user);
 
@@ -864,7 +906,7 @@ export const verifyOtp = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("❌ OTP VERIFY ERROR:", err);
     res.status(500).json({ message: "OTP verification failed" });
   }
 };

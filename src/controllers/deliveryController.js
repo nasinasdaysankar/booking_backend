@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import bcrypt from "bcryptjs";
 import { generateToken, generateRefreshToken } from "../utils/jwt.js";
 import { emitPartnerLocationToUser } from "../socket.js";
+import { getCache } from "../config/redis.js";
 
 // ==========================================
 // 1. DELIVERY PARTNER AUTH
@@ -229,10 +230,19 @@ export const getAssignedOrders = async (req, res) => {
     console.log(`🔍 [DB DEBUG] Partner ${partnerId} query result: found ${orders.length} orders.`);
 
     // Explicitly map to ensure camelCase and correct types
-    const sanitizedOrders = orders.map(order => {
+    const sanitizedOrders = await Promise.all(orders.map(async (order) => {
       const plain = order.get({ plain: true });
       const hasDeliveryData = plain.deliveryAddress || (plain.latitude && plain.longitude);
       const finalOrderType = plain.orderType || (hasDeliveryData ? 'DELIVERY' : 'DINE_IN');
+
+      // 🔎 Fetch Delivery OTP from Redis
+      const activeStatuses = ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'];
+      if (activeStatuses.includes(plain.status)) {
+        const cachedOtp = await getCache(`delivery_otp:${plain.id}`);
+        if (cachedOtp) {
+          plain.deliveryOtp = cachedOtp;
+        }
+      }
 
       const result = {
         ...plain,
@@ -266,7 +276,7 @@ export const getAssignedOrders = async (req, res) => {
       });
 
       return result;
-    });
+    }));
 
     console.log(`📡 [DELIVERY] Fetched ${sanitizedOrders.length} orders for Partner ${partnerId}.${sanitizedOrders.length > 0 ? ` Example Type: ${sanitizedOrders[0].orderType}` : ''}`);
     res.json(sanitizedOrders);

@@ -4,6 +4,8 @@ import {
   login,
   googleLogin,
   appleLogin,
+  sendOtp,
+  verifyOtp,
 } from "../controllers/authController.js";
 import { refreshToken } from "../controllers/refreshTokenController.js";
 
@@ -17,9 +19,8 @@ router.post("/apple", appleLogin);
 router.post("/refresh-token", refreshToken);
 
 //✅ OTP ROUTES (FIXED)
-// router.post("/send-otp", sendOtp);
-// router.post("/verify-otp", verifyOtp);
-// router.post("/save-fcm", saveFcmForOtp);
+router.post("/send-otp", sendOtp);
+router.post("/verify-otp", verifyOtp);
 
 
 export default router;
