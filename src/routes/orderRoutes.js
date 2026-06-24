@@ -30,8 +30,13 @@ router.get("/active", auth, getActiveOrders);
 // 🔥 GET ORDER BY BILL ID (MUST BE ABOVE :id)
 router.get("/by-bill/:billId", auth, getOrderByBillId);
 
-// Place order
-router.post("/", auth, createOrder);
+// Place order (Disabled direct order bypass - checkout must go through payments API)
+router.post("/", auth, (req, res) => {
+  return res.status(405).json({
+    success: false,
+    message: "Direct order creation is disabled. Please checkout using the payments API instead."
+  });
+});
 
 // Get my orders
 router.get("/my-orders", auth, getMyOrders);

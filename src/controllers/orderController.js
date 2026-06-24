@@ -287,7 +287,7 @@ export const createOrder = async (req, res) => {
   } catch (err) {
     await t.rollback();
     console.error("🔥 CREATE ORDER ERROR:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: "Failed to create order. Please try again." });
   }
 };
 
@@ -335,7 +335,7 @@ export const getMyOrders = async (req, res) => {
     return res.json(mapped);
   } catch (err) {
     console.error("🔥 GET MY ORDERS ERROR:", err);
-    return res.status(500).json({ message: err.message });
+    return res.status(500).json({ success: false, message: "Failed to fetch orders. Please try again." });
   }
 };
 
@@ -444,7 +444,7 @@ export const getOrderByBillId = async (req, res) => {
     console.error("🔥 GET ORDER BY BILL ERROR:", err);
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: "Failed to fetch order details. Please try again.",
     });
   }
 };
@@ -480,7 +480,7 @@ export const getLastDeliveryOrder = async (req, res) => {
     });
   } catch (err) {
     console.error("🔥 GET LAST DELIVERY ORDER ERROR:", err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: "Failed to fetch delivery details. Please try again." });
   }
 };
 

@@ -67,7 +67,7 @@ const mediaMimeToExt = {
  *  📍 SINGLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-image
  * ===========================*/
-router.post("/upload-image", eitherAuth, imageUpload.single("image"), async (req, res) => {
+router.post("/upload-image", eitherAdminAuth, imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ 
@@ -145,7 +145,7 @@ router.post("/upload-image", eitherAuth, imageUpload.single("image"), async (req
  *  📍 MULTIPLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-multiple
  * ===========================*/
-router.post("/upload-multiple", eitherAuth, imageUpload.array("images", 10), async (req, res) => {
+router.post("/upload-multiple", eitherAdminAuth, imageUpload.array("images", 3), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 

@@ -1090,9 +1090,7 @@ export const confirmPayment = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: err.message,
-      errorName: err.name,
-      debug: process.env.NODE_ENV === "development" ? { stack: err.stack } : undefined,
+      message: "Payment confirmation failed. Please contact support if your money was deducted.",
     });
   }
 };
@@ -1694,7 +1692,7 @@ export const syncFromWebhook = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: err.message,
+      message: "Webhook processing failed.",
     });
   }
 };
@@ -1741,8 +1739,7 @@ export const getPaymentByOrderId = async (req, res) => {
     console.error("❌ getPaymentByOrderId error:", err);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch paymentId",
-      error: err.message,
+      message: "Failed to fetch payment details. Please try again.",
     });
   }
 };

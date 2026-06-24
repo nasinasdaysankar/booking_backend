@@ -21,8 +21,4 @@ yarn-debug.log*
 
 # Build files (if you have any)
 dist/
-build/src/firebase-admin.json
-<<<<<<< HEAD
-=======
 src/firebase-admin.json
->>>>>>> bbfaffe (ignore firebase admin key and cleanup history)

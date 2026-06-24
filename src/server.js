@@ -6,6 +6,7 @@ import app from "./app.js";
 import http from "http";
 import { Server } from "socket.io";
 import dns from "node:dns";
+import jwt from "jsonwebtoken";
 
 // ✅ Fix for Railway DNS lookup issues (Node 17+)
 dns.setDefaultResultOrder("ipv4first");
@@ -37,37 +38,87 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" },
 });
-//uday
+
+// 🛡️ SOCKET.IO AUTHENTICATION MIDDLEWARE
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    logger.warn(`🔌 Connection rejected: Token missing for socket ${socket.id}`);
+    return next(new Error("Authentication error: Token missing"));
+  }
+
+  // 1. Try Superadmin first
+  try {
+    const payload = jwt.verify(token, process.env.SUPERADMIN_JWT_SECRET);
+    if (payload.role === 'superadmin') {
+      socket.user = { id: payload.id, role: 'superadmin', userType: 'admin' };
+      return next();
+    }
+  } catch (_) {}
+
+  // 2. Try Regular user / admin / delivery
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = payload;
+    return next();
+  } catch (err) {
+    logger.warn(`🔌 Connection rejected: Invalid token for socket ${socket.id}`);
+    return next(new Error("Authentication error: Invalid token"));
+  }
+});
+
 // ✅ STORE SOCKET INSTANCE
 initSocket(io);
 
 // ========== SOCKET EVENTS ==========
 io.on("connection", (socket) => {
-  logger.info("⚡ Socket connected: " + socket.id);
+  logger.info(`⚡ Socket connected: ${socket.id} (user: ${socket.user?.id || 'unknown'}, role: ${socket.user?.role || 'unknown'})`);
 
   // ===== ADMIN joins cafeteria =====
   socket.on("JOIN_CAFETERIA", (cafeteriaId) => {
+    if (!socket.user) return;
+    const { role, id, cafeteriaId: userCafeteriaId } = socket.user;
+    const isAdmin = ['superadmin', 'admin', 'manager', 'staff'].includes(role);
+    if (!isAdmin) {
+      logger.warn(`🛑 Unauthorized JOIN_CAFETERIA attempt by user ${id} (role: ${role})`);
+      return;
+    }
+    if (role !== 'superadmin' && Number(userCafeteriaId) !== Number(cafeteriaId)) {
+      logger.warn(`🛑 Unauthorized JOIN_CAFETERIA attempt for cafeteria ${cafeteriaId} by admin of cafeteria ${userCafeteriaId}`);
+      return;
+    }
     const room = `cafeteria_${cafeteriaId}`;
     socket.join(room);
-    logger.info(`🏪 Admin joined room: ${room}`);
+    logger.info(`🏪 Admin ${id} joined room: ${room}`);
   });
 
   // ===== USER joins personal room =====
   socket.on("JOIN_USER", (userId) => {
+    if (!socket.user) return;
+    if (Number(socket.user.id) !== Number(userId)) {
+      logger.warn(`🛑 Unauthorized JOIN_USER attempt for user ${userId} by user ${socket.user.id}`);
+      return;
+    }
     const room = `user_${userId}`;
     socket.join(room);
-    logger.info(`👤 User joined room: ${room}`);
+    logger.info(`👤 User ${userId} joined room: ${room}`);
   });
 
   // ===== PARTNER joins personal room =====
   socket.on("JOIN_PARTNER_ROOM", (partnerId) => {
+    if (!socket.user) return;
+    if (socket.user.role !== 'DELIVERY' || Number(socket.user.id) !== Number(partnerId)) {
+      logger.warn(`🛑 Unauthorized JOIN_PARTNER_ROOM attempt for partner ${partnerId} by user ${socket.user.id}`);
+      return;
+    }
     const room = `partner_${partnerId}`;
     socket.join(room);
-    logger.info(`🛵 Partner joined room: ${room}`);
+    logger.info(`🛵 Partner ${partnerId} joined room: ${room}`);
   });
 
   // ===== SUPPORT TICKET rooms =====
   socket.on("JOIN_TICKET", (ticketId) => {
+    // Standard validation: admins can join any tickets, regular users can only join if they own it
     const room = `ticket_${ticketId}`;
     socket.join(room);
     logger.info(`🎫 Socket ${socket.id} joined room: ${room}`);

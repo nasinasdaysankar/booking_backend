@@ -12,7 +12,13 @@ import { refreshToken } from "../controllers/refreshTokenController.js";
 const router = express.Router();
 
 
-router.post("/register", register);
+// Disabled legacy insecure register endpoint - authentication must use Google, Apple, or OTP
+router.post("/register", (req, res) => {
+  return res.status(405).json({
+    success: false,
+    message: "Registration via email/password is disabled. Please use Google Sign-In, Apple Sign-In, or OTP instead."
+  });
+});
 router.post("/login", login);
 router.post("/google", googleLogin);
 router.post("/apple", appleLogin);
