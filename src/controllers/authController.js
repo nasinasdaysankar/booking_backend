@@ -408,6 +408,8 @@ import { User } from "../models/index.js";
 import admin from "../config/firebaseAdmin.js";
 import { getCache, setCache, delCache } from "../config/redis.js";
 import { CACHE_KEYS } from "../utils/cache.js";
+import { checkIfEmailIsBypassed } from "../utils/security.js";
+
 
 // Configure SMTP transporter
 const transporter = nodemailer.createTransport({
@@ -580,6 +582,8 @@ export const googleLogin = async (req, res) => {
 
     console.log(`✅ Google login successful: ${email}`);
 
+    const isBypassed = await checkIfEmailIsBypassed(user.email);
+
     return res.json({
       success: true,
       message: "Google login successful",
@@ -591,6 +595,7 @@ export const googleLogin = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        isGeoBypassed: isBypassed,
       },
     });
   } catch (err) {
@@ -672,6 +677,7 @@ export const appleLogin = async (req, res) => {
     }
 
     const { accessToken, refreshToken } = signToken(user);
+    const isBypassed = await checkIfEmailIsBypassed(user.email);
 
     return res.json({
       success: true,
@@ -684,6 +690,7 @@ export const appleLogin = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        isGeoBypassed: isBypassed,
       },
     });
   } catch (err) {
@@ -771,12 +778,19 @@ export const login = async (req, res) => {
     if (!ok) return res.status(400).json({ message: "Invalid email or password ❌" });
 
     const { accessToken, refreshToken } = signToken(user);
+    const isBypassed = await checkIfEmailIsBypassed(user.email);
 
     res.json({
       message: "Login Successful 🚀",
       token: accessToken,
       refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        isGeoBypassed: isBypassed
+      }
     });
 
   } catch (err) {

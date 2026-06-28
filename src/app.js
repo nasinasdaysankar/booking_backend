@@ -135,7 +135,7 @@ app.get("/api/health", (req, res) => {
 
 // ================= PUBLIC ROUTES =================
 // 🔓 PUBLIC AUTH (LOGIN / REGISTER)
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authRoutes);
 
 // ================= USER ROUTES =================
 app.use("/api/user", userRoutes);

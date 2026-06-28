@@ -1,5 +1,6 @@
 import express from "express";
 import { getCampusBoundary } from "../controllers/campusBoundaryController.js";
+import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -16,9 +17,11 @@ const router = express.Router();
  *   get:
  *     summary: Get ordered list of campus boundary points
  *     tags: [CampusBoundary]
+ *     security:
+ *       - BearerAuth: []
  *     responses:
  *       200: { description: List of boundary points returned }
  */
-router.get("/", getCampusBoundary);
+router.get("/", auth, getCampusBoundary);
 
 export default router;

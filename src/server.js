@@ -36,7 +36,16 @@ const server = http.createServer(app);
 
 // ========== SOCKET.IO SERVER ==========
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: [
+      "https://velish.in",
+      "https://www.velish.in",
+      "https://test.velish.in",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ],
+    credentials: true,
+  },
 });
 
 // 🛡️ SOCKET.IO AUTHENTICATION MIDDLEWARE

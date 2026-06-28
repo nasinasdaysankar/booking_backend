@@ -297,10 +297,15 @@ export const createOrder = async (req, res) => {
 export const getMyOrders = async (req, res) => {
   try {
     const userId = req.user.id;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 100);
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
 
     const orders = await Order.findAll({
       where: { studentId: userId },
       order: [["createdAt", "DESC"]],
+      limit,
+      offset,
       include: [
         {
           model: OrderItem,
@@ -319,16 +324,38 @@ export const getMyOrders = async (req, res) => {
       ],
     });
 
-    // 🔥 Populate deliveryOtp from Redis for active orders
+    // 🔥 Populate deliveryOtp from Redis for active orders & Redact PII for historical/completed orders
     const mapped = await Promise.all(orders.map(async (o) => {
       const plain = o.toJSON ? o.toJSON() : { ...o };
-      const activeStatuses = ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'];
-      if (activeStatuses.includes(plain.status)) {
+      
+      const activeOtpStatuses = ['ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'READY'];
+      if (activeOtpStatuses.includes(plain.status)) {
         const cachedOtp = await getCache(`delivery_otp:${plain.id}`);
         if (cachedOtp) {
           plain.deliveryOtp = cachedOtp;
         }
       }
+
+      // Redact PII for historical / terminal orders to prevent information disclosure (V-01)
+      const activePiiStatuses = [
+        'PENDING_PAYMENT',
+        'PAID',
+        'PREPARING',
+        'READY',
+        'ASSIGNED',
+        'ACCEPTED',
+        'PICKED_UP',
+        'OUT_FOR_DELIVERY'
+      ];
+      if (!activePiiStatuses.includes(plain.status)) {
+        delete plain.receiverPhone;
+        delete plain.deliveryAddress;
+        delete plain.roomNumber;
+        delete plain.blockName;
+        delete plain.latitude;
+        delete plain.longitude;
+      }
+
       return plain;
     }));
 

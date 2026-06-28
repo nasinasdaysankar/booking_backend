@@ -32,6 +32,8 @@
 //   }
 // };
 import { User } from "../models/index.js";
+import { checkIfEmailIsBypassed } from "../utils/security.js";
+
 
 // ✅ GET USER PROFILE
 export const getProfile = async (req, res) => {
@@ -46,6 +48,8 @@ export const getProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const isBypassed = await checkIfEmailIsBypassed(user.email);
+
     return res.json({
       success: true,
       user: {
@@ -54,6 +58,7 @@ export const getProfile = async (req, res) => {
         email: user.email,
         phone: user.phone || "",
         role: user.role,
+        isGeoBypassed: isBypassed,
       },
     });
   } catch (err) {
@@ -78,6 +83,8 @@ export const updateProfile = async (req, res) => {
       phone: phone ?? user.phone,
     });
 
+    const isBypassed = await checkIfEmailIsBypassed(user.email);
+
     return res.json({
       success: true,
       message: "Profile updated successfully",
@@ -87,6 +94,7 @@ export const updateProfile = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        isGeoBypassed: isBypassed,
       },
     });
   } catch (err) {
