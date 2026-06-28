@@ -87,11 +87,16 @@ export const statsCacheSet = (key, data) => setCache(key, data, STATS_TTL);
  */
 export const clearMenuCache = async (cafeteriaId) => {
   if (cafeteriaId) {
-    await delCache(CACHE_KEYS.MENU_PUBLIC(cafeteriaId));
-    await delCache(CACHE_KEYS.MOST_LOVED(cafeteriaId));
-    await delCache(CACHE_KEYS.TODAY_SPECIAL(cafeteriaId));
+    await delCache(
+      CACHE_KEYS.MENU_PUBLIC(cafeteriaId),
+      CACHE_KEYS.MOST_LOVED(cafeteriaId),
+      CACHE_KEYS.TODAY_SPECIAL(cafeteriaId)
+    );
   }
-  await delCache(CACHE_KEYS.MENU_ALL);
+  await delCache(
+    CACHE_KEYS.MENU_ALL,
+    CACHE_KEYS.MOST_LOVED("all")
+  );
   await delCachePattern("menu:*");
   console.log(`🗑️ Redis cache cleared: menu for cafeteria ${cafeteriaId || 'all'}`);
 };
@@ -101,6 +106,7 @@ export const clearMenuCache = async (cafeteriaId) => {
  * Call this when cafeteria details are updated
  */
 export const clearCafeteriaCache = async () => {
+  await delCache(CACHE_KEYS.CAFETERIAS_ALL);
   await delCachePattern("cafeterias:*");
   console.log("🗑️ Redis cache cleared: all cafeterias");
 };
@@ -111,6 +117,7 @@ export const clearCafeteriaCache = async () => {
  */
 export const clearBannerCache = async () => {
   await delCache(CACHE_KEYS.BANNERS_ALL);
+  await delCachePattern("banners:*");
   console.log("🗑️ Redis cache cleared: all banners");
 };
 
@@ -121,6 +128,7 @@ export const clearBannerCache = async () => {
 export const clearPosterCache = async () => {
   await delCache(CACHE_KEYS.POSTERS_ALL);
   await delCache(CACHE_KEYS.POSTERS_ACTIVE);
+  await delCachePattern("posters:*");
   console.log("🗑️ Redis cache cleared: all posters");
 };
 
@@ -130,6 +138,21 @@ export const clearPosterCache = async () => {
  * Call this when orders change
  */
 export const clearAnalyticsCache = async (cafeteriaId) => {
+  if (cafeteriaId) {
+    const ranges = ["daily", "weekly", "monthly", "yearly"];
+    const keysToDelete = [
+      CACHE_KEYS.ANALYTICS_COMMISSION(cafeteriaId),
+    ];
+    ranges.forEach(range => {
+      keysToDelete.push(CACHE_KEYS.ANALYTICS_TREND(cafeteriaId, range));
+      keysToDelete.push(CACHE_KEYS.ANALYTICS_TOP(cafeteriaId, range));
+      keysToDelete.push(CACHE_KEYS.ANALYTICS_OVERVIEW(cafeteriaId, range));
+      keysToDelete.push(CACHE_KEYS.ANALYTICS_PEAK(cafeteriaId, range));
+      keysToDelete.push(CACHE_KEYS.ADMIN_STATS(cafeteriaId, range));
+    });
+    await delCache(...keysToDelete);
+  }
+  
   await delCachePattern(`analytics:*:${cafeteriaId}:*`);
   await delCachePattern(`admin:stats:${cafeteriaId}:*`);
   console.log(`🗑️ Redis cache cleared: analytics for cafeteria ${cafeteriaId}`);

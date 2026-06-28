@@ -11,8 +11,18 @@ export const checkIfEmailIsBypassed = async (email) => {
     const setting = await SystemSetting.findOne({ where: { key: "APP_BYPASS_EMAILS" } });
     if (!setting || !setting.value) return false;
     
-    // Support comma-separated emails
-    const emails = setting.value.split(",").map(e => e.trim().toLowerCase());
+    let emails = [];
+    try {
+      const parsed = JSON.parse(setting.value);
+      if (Array.isArray(parsed)) {
+        emails = parsed.map(e => String(e).trim().toLowerCase());
+      } else {
+        emails = String(setting.value).split(",").map(e => e.trim().toLowerCase());
+      }
+    } catch {
+      emails = String(setting.value).split(",").map(e => e.trim().toLowerCase());
+    }
+    
     return emails.includes(email.trim().toLowerCase());
   } catch (error) {
     console.error("❌ Error checking APP_BYPASS_EMAILS:", error);
