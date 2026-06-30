@@ -219,7 +219,9 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             isInsideCampus,
             isCampusOnly,
             campusName,
-            fssaiLicense
+            fssaiLicense,
+            latitude,
+            longitude
         } = req.body;
 
 
@@ -251,6 +253,8 @@ router.put('/cafeteria/:id', superadminAuth, async (req, res) => {
             ...(isCampusOnly !== undefined && { isCampusOnly }),
             ...(campusName !== undefined && { campusName: campusName || null }),
             ...(fssaiLicense !== undefined && { fssaiLicense: fssaiLicense || null }),
+            ...(latitude !== undefined && { latitude: (latitude !== null && latitude !== '') ? parseFloat(latitude) : null }),
+            ...(longitude !== undefined && { longitude: (longitude !== null && longitude !== '') ? parseFloat(longitude) : null }),
         };
 
         if (isDeliveryAllowed !== undefined) {
