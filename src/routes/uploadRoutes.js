@@ -145,7 +145,7 @@ router.post("/upload-image", eitherAdminAuth, imageUpload.single("image"), async
  *  📍 MULTIPLE IMAGE UPLOAD (S3)
  *  /api/upload/upload-multiple
  * ===========================*/
-router.post("/upload-multiple", eitherAdminAuth, imageUpload.array("images", 3), async (req, res) => {
+router.post("/upload-multiple", eitherAuth, imageUpload.array("images", 3), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 
