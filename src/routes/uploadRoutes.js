@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import multer from "multer";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3Client, getS3Bucket } from "../config/aws_s3.js";
@@ -13,7 +14,20 @@ const imageUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     const allowedMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (allowedMimes.includes(file.mimetype)) {
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+
+    if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+      if (file.mimetype === "application/octet-stream" || !file.mimetype) {
+        const extToMime = {
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".png": "image/png",
+          ".gif": "image/gif",
+          ".webp": "image/webp"
+        };
+        file.mimetype = extToMime[fileExtension] || "image/jpeg";
+      }
       cb(null, true);
     } else {
       cb(new Error("Invalid file type. Only JPEG, PNG, GIF, and WEBP images are allowed."), false);
