@@ -115,7 +115,7 @@ router.get('/quote', async (req, res) => {
         res.json({
             success: true,
             data: {
-                quote: textSetting ? textSetting.value : 'Enjoy your meal!',
+                quote: textSetting ? textSetting.value : '',
                 imageUrl: imageSetting ? imageSetting.value : '',
                 authorName: authorSetting ? authorSetting.value : ''
             }

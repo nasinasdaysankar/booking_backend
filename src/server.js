@@ -526,16 +526,7 @@ const start = async () => {
     logger.info("✅ Routes mounted");
 
     // ========== CAFETERIA SEED ==========
-    const count = await Cafeteria.count();
-    if (count === 0) {
-      await Cafeteria.bulkCreate([
-        { name: "ANANTHA AAHARA", location: "Main Block" },
-        { name: "AROMOS", location: "Block A" },
-        { name: "DHANAPANI", location: "Block B" },
-        { name: "FOODCLUB", location: "Block C" },
-      ]);
-      logger.info("📌 Cafeterias seeded");
-    }
+    // Bypassed seed logic since cafeterias are now dynamically added by superadmins and require an ownerid
 
     // ========== START LISTENING ==========
     server.listen(PORT, '0.0.0.0', () => {
